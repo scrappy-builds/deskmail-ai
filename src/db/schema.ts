@@ -207,5 +207,22 @@ export const MIGRATIONS: string[] = [
   `ALTER TABLE messages ADD COLUMN invite_json TEXT;`,
 
   // --- v3: signature "append to new messages" toggle --------------------------
-  `ALTER TABLE signatures ADD COLUMN append_to_new INTEGER NOT NULL DEFAULT 1;`
+  `ALTER TABLE signatures ADD COLUMN append_to_new INTEGER NOT NULL DEFAULT 1;`,
+
+  // --- v4: outbound mail-action queue (local change → pushed to IMAP) ----------
+  // Captures enough (remote_uid, source/target paths) to replay against the server
+  // even after the local move has happened, so the app can drain it independently
+  // of who enqueued it (in-app action, junk filter, or a Claude MCP tool).
+  `CREATE TABLE mail_actions (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     message_id INTEGER,
+     account_id INTEGER NOT NULL,
+     op TEXT NOT NULL,           -- move | flag | unflag | read | unread | trash | junk | archive
+     remote_uid INTEGER,
+     source_path TEXT,
+     target_path TEXT,
+     status TEXT NOT NULL DEFAULT 'pending',  -- pending | done | error
+     error TEXT,
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );`
 ]

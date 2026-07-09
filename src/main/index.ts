@@ -5,10 +5,12 @@ import { loadSettings } from './settings'
 import { resolveDataDir } from './dataDir'
 import { backupTo, restoreFrom } from './backup'
 import { openDatabase, type DB } from '../db/database'
-import { loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty } from '../db/settings'
+import { getAppSetting, loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty, setAppSetting } from '../db/settings'
 import { insertAccount, listAccounts } from '../db/accounts'
 import { listFolders } from '../db/folders'
 import { getMessage, listMessages, markRead, searchMessages } from '../db/messages'
+import { applyAction } from '../db/mailActions'
+import { drainMailActions } from './mail/drainer'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
 import { ensureDefaultSignature, getSignatureData, updateSignature } from '../db/signatures'
 import { createEvent, deleteEvent, getEvent, listEvents, updateEvent } from '../db/events'
@@ -25,7 +27,7 @@ import { sendMail } from './mail/send'
 import { joinMeeting } from './meetings'
 import { maybeSeedDemo } from './mail/demoSeed'
 import type { AppSettings } from '@shared/types'
-import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig, EventInput, SnoozeOption } from '@shared/db'
+import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig, EventInput, MailOp, SnoozeOption } from '@shared/db'
 
 // Undo-send window in seconds (configurable later; sensible default now).
 const UNDO_DELAY_SECONDS = 10
@@ -201,6 +203,11 @@ function registerIpc(): void {
   ipcMain.handle('mail:search', (_e, query: string) => searchMessages(db, query))
   ipcMain.handle('mail:get-message', (_e, id: number) => getMessage(db, id))
   ipcMain.handle('mail:mark-read', (_e, id: number, read: boolean) => markRead(db, id, read))
+  ipcMain.handle('mail:action', (_e, messageId: number, op: MailOp, targetFolderId?: number) => {
+    applyAction(db, messageId, op, targetFolderId)
+    broadcastMailChanged()
+    void drainMailActions(db) // push to IMAP in the background; never blocks the UI
+  })
   ipcMain.handle('mail:sync', async (_e, accountId?: number) => {
     if (accountId) await syncAccount(db, accountId)
     else await syncAllAccounts(db)
@@ -251,6 +258,8 @@ function registerIpc(): void {
     const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     return getTodayAgenda(db, iso)
   })
+  ipcMain.handle('mail:junk-enabled', () => getAppSetting(db, 'junk-filter') !== 'off')
+  ipcMain.handle('mail:set-junk-enabled', (_e, on: boolean) => setAppSetting(db, 'junk-filter', on ? 'on' : 'off'))
 
   // --- Templates & contacts (Stage 8) -----------------------------------------
   ipcMain.handle('templates:list', () => listTemplates(db))
@@ -385,6 +394,8 @@ app.whenReady().then(async () => {
   // Background sync on launch (non-blocking); refresh the UI when it lands.
   void syncAllAccounts(db).then(broadcastMailChanged)
   startScheduledSender()
+  // Drain any queued mail actions to IMAP periodically (offline changes reconcile).
+  setInterval(() => void drainMailActions(db), 20000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()

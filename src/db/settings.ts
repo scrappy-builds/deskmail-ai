@@ -80,3 +80,13 @@ export function seedLayoutIfEmpty(db: DB, legacy: LayoutPreferences | null): voi
   const exists = db.get('SELECT 1 FROM layout_preferences WHERE id = 1')
   if (!exists) saveLayoutPrefs(db, legacy ?? DEFAULT_LAYOUT)
 }
+
+// Global key/value app settings (undo delay, junk filter, meeting provider, …).
+export function getAppSetting(db: DB, key: string): string | null {
+  const row = db.get('SELECT value FROM app_settings WHERE key = ?', [key]) as { value: string | null } | undefined
+  return row?.value ?? null
+}
+
+export function setAppSetting(db: DB, key: string, value: string): void {
+  db.run('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [key, value])
+}

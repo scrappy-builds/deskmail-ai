@@ -2,6 +2,7 @@ import type { DB } from '../../db/database'
 import { upsertFolder, refreshFolderCounts } from '../../db/folders'
 import { ensureDefaultSignature } from '../../db/signatures'
 import { ingestRaw } from './ingest'
+import { applyJunkIfSpam } from './junk'
 
 // Env-gated demo data so the app (and the E2E suite) can show a populated
 // mailbox without a live IMAP account. Never runs in normal use.
@@ -135,6 +136,9 @@ export async function seedDemo(db: DB): Promise<void> {
   const inboxId = upsertFolder(db, accountId, 'Inbox', 'inbox', 'INBOX')
   upsertFolder(db, accountId, 'Sent', 'sent', 'Sent')
   upsertFolder(db, accountId, 'Drafts', 'drafts', 'Drafts')
+  upsertFolder(db, accountId, 'Archive', 'archive', 'Archive')
+  upsertFolder(db, accountId, 'Junk', 'junk', 'Junk')
+  upsertFolder(db, accountId, 'Bin', 'trash', 'Trash')
 
   let uid = 100
   for (const e of EMAILS) {
@@ -146,6 +150,20 @@ export async function seedDemo(db: DB): Promise<void> {
   }
   // A calendar-invite email so the invite card + Accept can be demoed/tested.
   await ingestRaw(db, { accountId, folderId: inboxId, remoteUid: uid++, isRead: false, isStarred: false }, inviteEmail())
+
+  // An obvious spam email — the junk filter should auto-move it to Junk.
+  const spamId = await ingestRaw(
+    db,
+    { accountId, folderId: inboxId, remoteUid: uid++, isRead: false, isStarred: false },
+    rawEmail({
+      from: '"Prize Team" <no-reply@rewards.click>',
+      to: 'jamie@example.com',
+      subject: 'CONGRATULATIONS YOU WON a $1000 gift card!!!',
+      date: 'Tue, 07 Jul 2026 06:00:00 +0100',
+      html: '<p>You have been selected as a winner. Claim your prize now — act now to receive your gift card and unclaimed funds.</p>'
+    })
+  )
+  applyJunkIfSpam(db, spamId, true)
   refreshFolderCounts(db, inboxId)
 }
 

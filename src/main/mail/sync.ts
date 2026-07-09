@@ -3,7 +3,9 @@ import type { AccountRow } from '@shared/db'
 import type { DB } from '../../db/database'
 import { getCredential } from '../credentials'
 import { refreshFolderCounts, upsertFolder } from '../../db/folders'
+import { getAppSetting } from '../../db/settings'
 import { ingestRaw } from './ingest'
+import { applyJunkIfSpam } from './junk'
 
 // How many recent messages to pull per synced folder. Keeps first sync quick.
 const RECENT = 50
@@ -55,11 +57,12 @@ export async function syncAccount(db: DB, accountId: number): Promise<SyncResult
       const lock = await client.getMailboxLock('INBOX')
       try {
         const total = client.mailbox && typeof client.mailbox !== 'boolean' ? client.mailbox.exists : 0
+        const junkEnabled = getAppSetting(db, 'junk-filter') !== 'off'
         if (total > 0) {
           const start = Math.max(1, total - (RECENT - 1))
           for await (const msg of client.fetch(`${start}:*`, { uid: true, flags: true, source: true })) {
             if (!msg.source) continue
-            await ingestRaw(
+            const id = await ingestRaw(
               db,
               {
                 accountId,
@@ -70,6 +73,7 @@ export async function syncAccount(db: DB, accountId: number): Promise<SyncResult
               },
               msg.source
             )
+            applyJunkIfSpam(db, id, junkEnabled) // auto-move obvious spam to Junk
           }
         }
         refreshFolderCounts(db, inboxId)

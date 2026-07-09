@@ -24,6 +24,33 @@ export function upsertFolder(
   return (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
 }
 
+interface FolderRow {
+  id: number
+  account_id: number
+  name: string
+  role: string | null
+  remote_path: string | null
+}
+
+export function findFolderByRole(db: DB, accountId: number, role: string): FolderRow | null {
+  const r = db.get('SELECT id, account_id, name, role, remote_path FROM folders WHERE account_id = ? AND role = ? LIMIT 1', [accountId, role]) as unknown as FolderRow | undefined
+  return r ?? null
+}
+
+export function getFolder(db: DB, id: number): FolderRow | null {
+  const r = db.get('SELECT id, account_id, name, role, remote_path FROM folders WHERE id = ?', [id]) as unknown as FolderRow | undefined
+  return r ?? null
+}
+
+// Ensure a role folder exists locally; create a placeholder if missing so an
+// action always has a target. The IMAP drainer creates the mailbox server-side.
+export function ensureRoleFolder(db: DB, accountId: number, role: string, name: string): FolderRow {
+  const existing = findFolderByRole(db, accountId, role)
+  if (existing) return existing
+  const id = upsertFolder(db, accountId, name, role, name)
+  return { id, account_id: accountId, name, role, remote_path: name }
+}
+
 export function refreshFolderCounts(db: DB, folderId: number): void {
   db.run(
     `UPDATE folders SET

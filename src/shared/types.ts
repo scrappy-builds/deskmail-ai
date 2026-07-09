@@ -10,6 +10,7 @@ import type {
   ConnectionConfig,
   Contact,
   DraftSummary,
+  MailOp,
   EventInput,
   EventSummary,
   FolderSummary,
@@ -52,6 +53,8 @@ export interface DeskMailApi {
     search(query: string): Promise<MessageListItem[]>
     getMessage(id: number): Promise<MessageDetail | null>
     markRead(id: number, read: boolean): Promise<void>
+    // Move/flag/read/trash/junk/archive — applied locally + pushed to IMAP.
+    action(messageId: number, op: MailOp, targetFolderId?: number): Promise<void>
     sync(accountId?: number): Promise<void>
     // Subscribe to "mail changed" (after a sync/seed). Returns an unsubscribe fn.
     onChanged(cb: () => void): () => void
@@ -61,6 +64,9 @@ export interface DeskMailApi {
     unsnooze(messageId: number): Promise<void>
     // Unified Today agenda: today's events + unread mail.
     today(): Promise<TodayAgenda>
+    // Auto junk filter on/off.
+    junkEnabled(): Promise<boolean>
+    setJunkEnabled(on: boolean): Promise<void>
   }
   // Compose: drafts, signatures, attachments and manual send (Stage 6/8).
   compose: {

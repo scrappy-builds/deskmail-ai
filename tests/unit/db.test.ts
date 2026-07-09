@@ -10,7 +10,7 @@ import { DEFAULT_LAYOUT } from '../../src/shared/layout'
 const EXPECTED_TABLES = [
   'accounts', 'credentials', 'folders', 'messages', 'attachments', 'drafts', 'labels',
   'message_labels', 'sync_state', 'layout_preferences', 'app_settings', 'signatures',
-  'scheduled_sends', 'snoozes', 'templates', 'contacts', 'events', 'event_attendees'
+  'scheduled_sends', 'snoozes', 'templates', 'contacts', 'events', 'event_attendees', 'mail_actions'
 ]
 
 describe('database migrations', () => {
@@ -25,7 +25,7 @@ describe('database migrations', () => {
   it('creates every table and sets user_version', () => {
     const db = openDatabase(file)
     const version = (db.get('PRAGMA user_version') as { user_version: number }).user_version
-    expect(version).toBe(3)
+    expect(version).toBe(4)
 
     const rows = db.all("SELECT name FROM sqlite_master WHERE type='table'") as { name: string }[]
     const names = rows.map((r) => r.name)
@@ -37,7 +37,7 @@ describe('database migrations', () => {
     const db = openDatabase(file)
     runMigrations(db) // again
     const version = (db.get('PRAGMA user_version') as { user_version: number }).user_version
-    expect(version).toBe(3)
+    expect(version).toBe(4)
     db.close()
   })
 

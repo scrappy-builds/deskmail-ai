@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings, DeskMailApi } from '@shared/types'
-import type { AccountInput, ComposePayload, ConnectionConfig, EventInput, SnoozeOption } from '@shared/db'
+import type { AccountInput, ComposePayload, ConnectionConfig, EventInput, MailOp, SnoozeOption } from '@shared/db'
 
 // The only surface the renderer can touch. No Node, no ipcRenderer directly —
 // just these typed methods.
@@ -18,6 +18,7 @@ const api: DeskMailApi = {
     search: (query: string) => ipcRenderer.invoke('mail:search', query),
     getMessage: (id: number) => ipcRenderer.invoke('mail:get-message', id),
     markRead: (id: number, read: boolean) => ipcRenderer.invoke('mail:mark-read', id, read),
+    action: (messageId: number, op: MailOp, targetFolderId?: number) => ipcRenderer.invoke('mail:action', messageId, op, targetFolderId),
     sync: (accountId?: number) => ipcRenderer.invoke('mail:sync', accountId),
     onChanged: (cb: () => void) => {
       const listener = (): void => cb()
@@ -27,7 +28,9 @@ const api: DeskMailApi = {
     snooze: (messageId: number, option: SnoozeOption) => ipcRenderer.invoke('mail:snooze', messageId, option),
     snoozeUntil: (messageId: number, iso: string) => ipcRenderer.invoke('mail:snooze-until', messageId, iso),
     unsnooze: (messageId: number) => ipcRenderer.invoke('mail:unsnooze', messageId),
-    today: () => ipcRenderer.invoke('mail:today')
+    today: () => ipcRenderer.invoke('mail:today'),
+    junkEnabled: () => ipcRenderer.invoke('mail:junk-enabled'),
+    setJunkEnabled: (on: boolean) => ipcRenderer.invoke('mail:set-junk-enabled', on)
   },
   compose: {
     getSignature: (accountId: number) => ipcRenderer.invoke('compose:get-signature', accountId),

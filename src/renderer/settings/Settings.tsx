@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../Icon'
 import type { AccountSummary } from '@shared/db'
 import { AccountWizard } from './AccountWizard'
-import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, SendingPane, SignaturesPane, TemplatesPane } from './panes'
+import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, SecurityPane, SendingPane, SignaturesPane, TemplatesPane } from './panes'
 
 const SECTIONS = [
   'Accounts',
@@ -130,6 +130,7 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
             {section === 'Contacts' && <ContactsPane />}
             {section === 'Sending' && <SendingPane />}
             {section === 'Claude connector' && <ClaudeConnectorPane />}
+            {section === 'Security' && <SecurityPane />}
             {section === 'Local storage' && <LocalStoragePane />}
             {section !== 'Accounts' &&
               section !== 'Signatures' &&
@@ -137,6 +138,7 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
               section !== 'Contacts' &&
               section !== 'Sending' &&
               section !== 'Claude connector' &&
+              section !== 'Security' &&
               section !== 'Local storage' && <Placeholder name={section} />}
           </div>
         </div>

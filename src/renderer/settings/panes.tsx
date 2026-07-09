@@ -160,6 +160,45 @@ export function ContactsPane(): JSX.Element {
   )
 }
 
+// --- Security & junk ----------------------------------------------------------
+export function SecurityPane(): JSX.Element {
+  const [junk, setJunk] = useState<boolean | null>(null)
+  useEffect(() => {
+    void window.deskmail.mail.junkEnabled().then(setJunk)
+  }, [])
+
+  const toggle = (): void => {
+    const next = !junk
+    setJunk(next)
+    void window.deskmail.mail.setJunkEnabled(next)
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <label className="flex items-start gap-3 rounded-md border border-border bg-bg px-3.5 py-3">
+        <input type="checkbox" checked={!!junk} onChange={toggle} className="mt-0.5 h-4 w-4 accent-accent" />
+        <div>
+          <div className="text-[13.5px] font-semibold">Automatically filter junk</div>
+          <div className="mt-0.5 text-[12.5px] leading-relaxed text-text-3">
+            Obvious spam and phishing gets moved to Junk as it arrives. It's deliberately cautious — if
+            something legitimate lands there, open it and hit "Not junk" to send it back to the inbox.
+          </div>
+        </div>
+      </label>
+
+      <div>
+        <div className="mb-2 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">How DeskMail keeps you safe</div>
+        <ul className="flex flex-col gap-1.5 text-[12.5px] leading-relaxed text-text-2">
+          <li>• Email HTML is sanitised and shown in a sandbox — scripts can't run.</li>
+          <li>• Remote images are blocked by default, so senders can't track you until you load them.</li>
+          <li>• Your passwords are encrypted by Windows; they're never stored in plain text.</li>
+          <li>• Claude can read and draft, but can't send, permanently delete, or see your passwords.</li>
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 // --- Claude connector (local MCP server) --------------------------------------
 export function ClaudeConnectorPane(): JSX.Element {
   const [info, setInfo] = useState<{ configJson: string; tools: string[]; dbPath: string } | null>(null)

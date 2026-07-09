@@ -54,10 +54,15 @@ function SnoozeMenu({ messageId }: { messageId: number }): JSX.Element {
 
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
 
-function ToolBtn({ icon, title }: { icon: IconName; title: string }): JSX.Element {
+function ToolBtn({ icon, title, onClick, active }: { icon: IconName; title: string; onClick?: () => void; active?: boolean }): JSX.Element {
   return (
-    <button title={title} className="flex h-[34px] w-[34px] items-center justify-center rounded-md text-text-2 hover:bg-raised">
-      <Icon name={icon} size={18} />
+    <button
+      onClick={onClick}
+      title={title}
+      className="flex h-[34px] w-[34px] items-center justify-center rounded-md hover:bg-raised"
+      style={{ color: active ? 'var(--star)' : 'var(--text-2)' }}
+    >
+      <Icon name={icon} size={18} fill={active && icon === 'star'} />
     </button>
   )
 }
@@ -71,7 +76,19 @@ function fmtSize(bytes: number | null): string {
 
 export function ReadingPane({ onOpen }: { onOpen?: (id: number) => void }): JSX.Element {
   const m = useMail((s) => s.selected)
+  const folders = useMail((s) => s.folders)
+  const activeFolderId = useMail((s) => s.activeFolderId)
   const toggleClaude = useLayout((s) => s.toggleClaude)
+  const showToast = useToast((s) => s.show)
+
+  const inJunk = folders.find((f) => f.id === activeFolderId)?.role === 'junk'
+  const inboxId = folders.find((f) => f.role === 'inbox')?.id
+
+  const act = (op: Parameters<typeof window.deskmail.mail.action>[1], toast: string): void => {
+    if (!m) return
+    void window.deskmail.mail.action(m.id, op)
+    showToast({ text: toast })
+  }
 
   if (!m) {
     return (
@@ -93,11 +110,22 @@ export function ReadingPane({ onOpen }: { onOpen?: (id: number) => void }): JSX.
         <ToolBtn icon="replyAll" title="Reply all" />
         <ToolBtn icon="forward" title="Forward" />
         <div className="mx-1.5 h-5 w-px bg-border" />
-        <ToolBtn icon="archive" title="Archive" />
-        <ToolBtn icon="trash" title="Delete" />
-        <ToolBtn icon="star" title="Star" />
-        <ToolBtn icon="markUnread" title="Mark unread" />
+        <ToolBtn icon="archive" title="Archive" onClick={() => act('archive', 'Archived')} />
+        <ToolBtn icon="trash" title="Delete" onClick={() => act('trash', 'Moved to Bin')} />
+        <ToolBtn icon="star" title={m.isStarred ? 'Unstar' : 'Star'} active={m.isStarred} onClick={() => act(m.isStarred ? 'unflag' : 'flag', m.isStarred ? 'Unstarred' : 'Starred')} />
+        <ToolBtn icon="markUnread" title="Mark unread" onClick={() => act('unread', 'Marked unread')} />
         <SnoozeMenu messageId={m.id} />
+        {inJunk && inboxId != null && (
+          <button
+            onClick={() => {
+              void window.deskmail.mail.action(m.id, 'move', inboxId)
+              showToast({ text: 'Moved to Inbox' })
+            }}
+            className="ml-1 rounded-md border border-border px-2.5 py-1.5 text-[12px] font-semibold text-text-2 hover:bg-raised"
+          >
+            Not junk
+          </button>
+        )}
         <div className="flex-1" />
         <button
           onClick={() => onOpen?.(m.id)}

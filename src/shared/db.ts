@@ -188,6 +188,10 @@ export interface TodayAgenda {
   messages: MessageListItem[]
 }
 
+// Mail actions (applied locally + pushed to IMAP). 'trash' = move to Trash
+// (reversible); there is no permanent-delete action.
+export type MailOp = 'move' | 'flag' | 'unflag' | 'read' | 'unread' | 'trash' | 'junk' | 'archive'
+
 export interface ComposeAttachment {
   path: string
   name: string

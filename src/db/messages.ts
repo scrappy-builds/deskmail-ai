@@ -208,3 +208,19 @@ export function searchEmails(db: DB, opts: SearchEmailsOpts): MessageListItem[] 
 export function markRead(db: DB, id: number, read = true): void {
   db.run("UPDATE messages SET is_read = ?, updated_at = datetime('now') WHERE id = ?", [read ? 1 : 0, id])
 }
+
+export function setStarred(db: DB, id: number, on: boolean): void {
+  db.run("UPDATE messages SET is_starred = ?, updated_at = datetime('now') WHERE id = ?", [on ? 1 : 0, id])
+}
+
+export function setMessageFolder(db: DB, id: number, folderId: number): void {
+  db.run("UPDATE messages SET folder_id = ?, updated_at = datetime('now') WHERE id = ?", [folderId, id])
+}
+
+// Minimal row for resolving IMAP write-back (source folder + remote uid).
+export function getMessageMeta(db: DB, id: number): { accountId: number; folderId: number | null; remoteUid: number | null } | null {
+  const r = db.get('SELECT account_id, folder_id, remote_uid FROM messages WHERE id = ?', [id]) as
+    | { account_id: number; folder_id: number | null; remote_uid: number | null }
+    | undefined
+  return r ? { accountId: r.account_id, folderId: r.folder_id, remoteUid: r.remote_uid } : null
+}

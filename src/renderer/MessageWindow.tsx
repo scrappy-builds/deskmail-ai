@@ -7,14 +7,17 @@ import { InviteCard } from './mail/InviteCard'
 
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
 
-const ACTIONS: { icon: IconName; label: string }[] = [
+import type { MailOp } from '@shared/db'
+
+// action ops that close the window after running (the message leaves the view).
+const ACTIONS: { icon: IconName; label: string; op?: MailOp; closes?: boolean }[] = [
   { icon: 'reply', label: 'Reply' },
   { icon: 'replyAll', label: 'Reply all' },
   { icon: 'forward', label: 'Forward' },
-  { icon: 'archive', label: 'Archive' },
-  { icon: 'trash', label: 'Delete' },
-  { icon: 'star', label: 'Star' },
-  { icon: 'markUnread', label: 'Mark unread' },
+  { icon: 'archive', label: 'Archive', op: 'archive', closes: true },
+  { icon: 'trash', label: 'Delete', op: 'trash', closes: true },
+  { icon: 'star', label: 'Star', op: 'flag' },
+  { icon: 'markUnread', label: 'Mark unread', op: 'unread' },
   { icon: 'print', label: 'Print' }
 ]
 
@@ -85,8 +88,17 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
 
       <div className="flex flex-none flex-wrap items-center gap-0.5 border-b border-border px-3 py-2">
         {ACTIONS.map((a) => (
-          <button key={a.label} title={a.label} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 hover:bg-raised">
-            <Icon name={a.icon} size={16} fill={a.icon === 'star'} />
+          <button
+            key={a.label}
+            title={a.label}
+            onClick={() => {
+              if (!a.op) return
+              void window.deskmail.mail.action(m.id, a.op)
+              if (a.closes) w.close()
+            }}
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 hover:bg-raised"
+          >
+            <Icon name={a.icon} size={16} fill={a.icon === 'star' && m.isStarred} />
             <span>{a.label}</span>
           </button>
         ))}
