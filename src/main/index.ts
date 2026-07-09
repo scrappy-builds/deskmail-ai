@@ -1,7 +1,14 @@
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
-import { loadSettings, saveSettings } from './settings'
+import { loadSettings } from './settings'
+import { openDatabase, type DB } from '../db/database'
+import { loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty } from '../db/settings'
+import { insertAccount, listAccounts } from '../db/accounts'
+import { storeCredential } from './credentials'
+import { testIncoming, testOutgoing } from './mail/connectionTest'
 import type { AppSettings } from '@shared/types'
+import type { AccountInput, ConnectionConfig } from '@shared/db'
 
 // Allow an override data directory (used by E2E tests now; the basis for
 // portable/USB mode in Stage 10). Must be set before the app is ready.
@@ -9,6 +16,15 @@ const overrideUserData = process.env.DESKMAIL_USER_DATA
 if (overrideUserData) app.setPath('userData', overrideUserData)
 
 const settingsPath = () => join(app.getPath('userData'), 'settings.json')
+
+let db: DB
+
+// Open the SQLite store and, on first run, import the Stage 1–3 settings.json.
+function initDatabase(): void {
+  db = openDatabase(join(app.getPath('userData'), 'deskmail.db'))
+  const legacy = existsSync(settingsPath()) ? loadSettings(settingsPath()) : null
+  seedLayoutIfEmpty(db, legacy)
+}
 
 // Secure webPreferences shared by every window: no Node in the renderer,
 // isolated context, sandboxed, everything via the typed preload bridge.
@@ -60,13 +76,23 @@ function openMessageWindow(id: number): void {
 }
 
 function registerIpc(): void {
-  ipcMain.handle('settings:get', () => loadSettings(settingsPath()))
+  ipcMain.handle('settings:get', () => loadLayoutPrefs(db))
 
   ipcMain.handle('settings:save', (_e, settings: AppSettings) => {
-    saveSettings(settingsPath(), settings)
+    saveLayoutPrefs(db, settings)
   })
 
   ipcMain.on('message-window:open', (_e, id: number) => openMessageWindow(id))
+
+  // --- Account setup + connection testing (Stage 4) ---------------------------
+  ipcMain.handle('account:list', () => listAccounts(db))
+  ipcMain.handle('account:test-incoming', (_e, cfg: ConnectionConfig) => testIncoming(cfg))
+  ipcMain.handle('account:test-outgoing', (_e, cfg: ConnectionConfig) => testOutgoing(cfg))
+  ipcMain.handle('account:save', (_e, input: AccountInput) => {
+    const id = insertAccount(db, input)
+    storeCredential(db, id, input.password) // encrypted; plaintext never persisted
+    return { id }
+  })
 
   // Window controls for the custom (frameless) title bar — operate on whichever
   // window sent the request, so message windows close independently.
@@ -112,6 +138,7 @@ function createMainWindow(): BrowserWindow {
 app.whenReady().then(() => {
   // Custom title bar lives in the renderer, so no native menu bar.
   Menu.setApplicationMenu(null)
+  initDatabase()
   registerIpc()
   createMainWindow()
 

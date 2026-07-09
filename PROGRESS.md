@@ -9,14 +9,13 @@
 ---
 
 ## Current status
-- **Active stage:** Stage 3 complete (awaiting go-ahead for Stage 4).
-- **Last session ended:** 2026-07-09 — Stage 3 built, tested, committed.
-- **Exact next step:** On user's OK, start **Stage 4 — SQLite + account setup + secure credentials**:
-  schema + migration runner (better-sqlite3, `user_version` pragma) for all tables in FEATURE_SPEC;
-  account setup wizard (IMAP/POP3 + SMTP fields, Test incoming / Test outgoing with the connection
-  states); credentials via Electron `safeStorage` (never plaintext). Migrate settings.json →
-  `layout_preferences`/`app_settings` tables. Tests: schema migrates; creds encrypted at rest;
-  connection-test state machine.
+- **Active stage:** Stage 4 complete (awaiting go-ahead for Stage 5).
+- **Last session ended:** 2026-07-09 — Stage 4 built, tested, committed.
+- **Exact next step:** On user's OK, start **Stage 5 — Sync + parsing + safe rendering**: IMAP folder +
+  recent-message sync in a background service (main/utility process), parse + store messages/attachments
+  (mailparser), offline reading from the SQLite cache; **sanitise HTML (DOMPurify) + block remote images
+  by default** with a "load images" affordance, no script execution, attachments never auto-open. Swap
+  the renderer's mock mail for the DB-backed mailStore (IPC queries). POP3 optional after IMAP works.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
@@ -33,7 +32,12 @@ E2E (`npm run test:e2e`) fails with "Electron failed to install correctly" until
 - **Runtime/build:** Electron + **electron-vite** (Vite + React + TS + HMR; builds main/preload/renderer cleanly). **electron-builder** for packaging (NSIS installer + portable target), per brief §9.
 - **UI:** React 18 + TypeScript (strict) + **Tailwind CSS**. Design tokens from the Style Guide wired as CSS variables; Tailwind `theme.extend` maps to those vars so `bg-panel`, `text-2`, `accent`, `claude` etc. resolve to the right value per theme. Fonts (Hanken Grotesk, JetBrains Mono) bundled locally, not from Google CDN.
 - **State:** **Zustand** — two separate stores: `layoutStore` (UI/layout) and `mailStore` (email data), per architecture rule. Layout prefs persist to SQLite.
-- **DB:** **better-sqlite3** (synchronous, native, standard for Electron main). Hand-rolled version-based **migration runner** (`user_version` pragma) — no migration framework needed.
+- **DB:** ~~better-sqlite3~~ → **node-sqlite3-wasm** (Stage 4). This Windows box has **no MSVC compiler
+  and no Node-24 prebuild**, so better-sqlite3 can't build. node-sqlite3-wasm is real on-disk SQLite
+  compiled to WASM: synchronous better-sqlite3-like API (`exec/run/get/all/prepare`), durable file
+  persistence, **no native compilation**, and works identically in Node (tests) and Electron (pure
+  JS+WASM, ABI-independent). Hand-rolled version-based **migration runner** (`user_version` pragma).
+  Note for Stage 10: unpack its `.wasm` from the asar when packaging.
 - **Mail:** **imapflow** (IMAP), **nodemailer** (SMTP), **mailparser** (parsing). POP3 optional after IMAP works.
 - **HTML sanitising:** **DOMPurify** (in main or a sandboxed context) + strip/relocate remote images to a blocked state; render sanitised HTML in a sandboxed `<iframe sandbox>` with no allow-scripts.
 - **Secure credentials:** Electron **safeStorage** (DPAPI-backed on Windows); ciphertext stored in a `credentials` file/table, never plaintext. keytar only if safeStorage proves insufficient.
@@ -72,7 +76,7 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
 - [x] **Stage 1** — Scaffold & shell (secure window, title/command bars, light default + Light/Dark toggle, tokens)
 - [x] **Stage 2** — Layout system + 6 presets + View Settings + persistence
 - [x] **Stage 3** — Full independent message windows (double-click, by ID)
-- [ ] **Stage 4** — SQLite + migrations + account wizard + secure credentials + connection tests
+- [x] **Stage 4** — SQLite + migrations + account wizard + secure credentials + connection tests
 - [ ] **Stage 5** — Sync + parsing + offline cache + safe rendering (sanitise, block remote images)
 - [ ] **Stage 6** — Search + Compose + Drafts + manual Send + signature insertion
 - [ ] **Stage 7** — Calendar + invites + meeting providers
@@ -161,6 +165,38 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
   - No live theme sync to already-open message windows if theme changes in the main window (they read
     theme at open). Fine for now; revisit if it matters.
 - Next step: Stage 4 (SQLite + account wizard + secure credentials).
+
+### Stage 4
+- Done:
+  - **DB driver pivot:** better-sqlite3 won't build here (no MSVC, no Node-24 prebuild) → switched to
+    **node-sqlite3-wasm** (real on-disk SQLite via WASM, synchronous better-sqlite3-like API, no native
+    build, works in Node + Electron). Verified opening/persisting in both the Electron runtime and Node.
+  - `src/db/`: version-based **migration runner** (`user_version`, per-migration transaction) + v1 schema
+    for **every** FEATURE_SPEC table + additions + a `credentials` table. `openDatabase()` sets
+    `foreign_keys=ON` and migrates. `accounts.ts` (list/insert with colour), `settings.ts` (single-row
+    `layout_preferences` <-> LayoutPreferences mapper + one-time import from the legacy settings.json).
+  - Settings persistence moved from settings.json to the DB: `settings:get/save` now read/write
+    `layout_preferences`; on first run the old JSON is imported (`seedLayoutIfEmpty`).
+  - **Secure credentials** (`src/main/credentials.ts`): Electron `safeStorage` (DPAPI) encrypts the
+    password; only ciphertext goes in the `credentials` table — plaintext never on disk.
+  - **Connection testing** (`src/main/mail/connectionTest.ts`): imapflow (incoming IMAP), nodemailer
+    (`verify`, outgoing SMTP), basic TCP/TLS reachability for POP3. Pure `classifyImapError` /
+    `classifySmtpError` map failures to the FEATURE_SPEC states (auth / server).
+  - IPC + bridge: `account:list/test-incoming/test-outgoing/save`. electron-vite `externalizeDepsPlugin`
+    added so node-sqlite3-wasm/imapflow/nodemailer load from node_modules at runtime.
+  - **UI:** Settings modal (left nav: Accounts + placeholders for the rest) + **Account wizard**
+    (display name, email, IMAP/POP3, host/port/security segmented, SMTP, username/password; Test
+    incoming/outgoing with the connection-state labels; Save → "Account added"). File → Settings wired.
+- Tests: `npm test` → 20 unit (added 5 db migrations/round-trip, 4 connection-state classifiers).
+  `npm run test:e2e` → 7 (added 2: wizard saves an account with the **password encrypted at rest**
+  [asserted the plaintext is absent from the DB file] + persists across relaunch; unreachable server →
+  "Server settings incorrect"). Typecheck + build clean.
+- Known issues / TODO:
+  - Mail list/reading/message-windows still read **mock data** — real sync + DB-backed mailStore is Stage 5.
+  - POP3 test is reachability-only (full POP3 auth arrives with POP3 sync).
+  - `src/main/settings.ts` (JSON) is now only used for the one-time legacy import; keep until confident.
+  - Packaging note (Stage 10): unpack node-sqlite3-wasm's `.wasm` from the asar.
+- Next step: Stage 5 (sync + parsing + safe rendering).
 
 _(Add a block like the above for each stage as you go.)_
 

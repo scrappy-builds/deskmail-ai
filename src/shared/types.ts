@@ -2,6 +2,7 @@
 // truth for IPC payloads so the bridge stays strongly typed on both sides.
 
 import type { LayoutPreferences, Theme } from './layout'
+import type { AccountInput, AccountSummary, ConnectionConfig, TestResult } from './db'
 
 export type { LayoutPreferences, Theme }
 
@@ -19,6 +20,11 @@ export interface DeskMailApi {
   saveSettings(settings: AppSettings): Promise<void>
   // Open a message in its own independent window, loaded by id.
   openMessage(id: number): void
+  // Account setup + connection testing (Stage 4).
+  listAccounts(): Promise<AccountSummary[]>
+  testIncoming(config: ConnectionConfig): Promise<TestResult>
+  testOutgoing(config: ConnectionConfig): Promise<TestResult>
+  saveAccount(input: AccountInput): Promise<{ id: number }>
   // Window controls for the custom (frameless) title bar.
   window: {
     minimise(): void

@@ -3,14 +3,16 @@ import { TitleBar } from './TitleBar'
 import { CommandBar, type Mode } from './CommandBar'
 import { Workspace } from './regions/Workspace'
 import { ViewSettings } from './ViewSettings'
+import { Settings } from './settings/Settings'
 
 export function App(): JSX.Element {
   const [mode, setMode] = useState<Mode>('mail')
   const [viewSettingsOpen, setViewSettingsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-bg text-text">
-      <TitleBar />
+      <TitleBar onOpenSettings={() => setSettingsOpen(true)} />
       <CommandBar mode={mode} onMode={setMode} onOpenViewSettings={() => setViewSettingsOpen(true)} />
 
       {mode === 'mail' ? (
@@ -28,6 +30,7 @@ export function App(): JSX.Element {
       )}
 
       {viewSettingsOpen && <ViewSettings onClose={() => setViewSettingsOpen(false)} />}
+      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
     </div>
   )
 }

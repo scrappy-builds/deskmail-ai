@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { defineConfig } from 'electron-vite'
+import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
 // Shared alias so every process can import from src/shared with @shared.
@@ -10,12 +10,16 @@ const alias = {
 
 export default defineConfig({
   main: {
+    // Externalise node deps (node-sqlite3-wasm, imapflow, nodemailer) so they load
+    // from node_modules at runtime instead of being bundled.
+    plugins: [externalizeDepsPlugin()],
     resolve: { alias },
     build: {
       rollupOptions: { input: { index: resolve('src/main/index.ts') } }
     }
   },
   preload: {
+    plugins: [externalizeDepsPlugin()],
     resolve: { alias },
     build: {
       rollupOptions: { input: { index: resolve('src/preload/index.ts') } }

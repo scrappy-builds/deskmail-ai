@@ -51,7 +51,7 @@ function Dropdown({ items, onPick }: { items: MenuItem[]; onPick: () => void }):
   )
 }
 
-export function TitleBar(): JSX.Element {
+export function TitleBar({ onOpenSettings }: { onOpenSettings: () => void }): JSX.Element {
   const { open, toggle, close, rootRef } = useMenus()
   const toggleTheme = useLayout((s) => s.toggleTheme)
   const w = window.deskmail.window
@@ -61,7 +61,7 @@ export function TitleBar(): JSX.Element {
       { label: 'New email', kbd: 'Ctrl N' },
       { label: 'New event', kbd: 'Ctrl E' },
       'sep',
-      { label: 'Settings…', kbd: 'Ctrl ,' },
+      { label: 'Settings…', kbd: 'Ctrl ,', onClick: onOpenSettings },
       'sep',
       { label: 'Close window', kbd: 'Ctrl W', onClick: () => w.close() }
     ],
