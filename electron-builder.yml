@@ -25,13 +25,9 @@ win:
   icon: build/icon.png
   target:
     - nsis
-    - portable
 
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   artifactName: ${productName}-${version}-setup.${ext}
-
-portable:
-  artifactName: ${productName}-${version}-portable.${ext}
