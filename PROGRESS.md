@@ -9,11 +9,25 @@
 ---
 
 ## Current status
-- **Active stage:** **Stage 12 complete — BUILD DONE.** All 12 stages finished, tested, committed.
-- **Last session ended:** 2026-07-09 — final review passed; installers delivered.
-- **Where things stand:** 72 unit + 21 E2E green; clean rebuild + typecheck; zero console errors on
-  launch. Installers at `release/DeskMail AI-0.1.0-setup.exe` (NSIS) + `-portable.exe`. Final review
-  checklist below is ticked with evidence. One documented deferral (custom smart-view builder) — see notes.
+- **Active stage:** **BUILD DONE (12 stages) + post-build feature round.**
+- **Last session ended:** 2026-07-09 — post-build features added, tested, committed; installers rebuilt.
+- **Where things stand:** **83 unit + 24 E2E green**; clean rebuild + typecheck; packaged app + MCP server
+  verified. Installers (with the app icon) at `release/DeskMail AI-0.1.0-setup.exe` + `-portable.exe`.
+
+### Post-build features (requested after the 12 stages)
+- **App icon + title-bar logo** — `icon/icon.png` → electron-builder icon + the top-left logo.
+- **Mail actions with IMAP write-back** — migration **v4** `mail_actions` queue: `applyAction` mutates the
+  local cache and queues the IMAP op; a background **drainer** pushes move/flag/read/trash/junk/archive to
+  the server. Wired the reading-pane + message-window toolbars (archive/delete=Trash/star/mark-unread).
+- **Auto junk filter** — conservative `classifyJunk`; obvious spam auto-moves to Junk on sync/seed;
+  Settings → Security toggle + "Not junk". Delete is always **to Trash** (reversible); no permanent delete.
+- **Claude email management (MCP)** — `move_email`, `archive_email`, `delete_email` (Trash), `flag_email`,
+  `mark_email_read` (all reversible, queued → app drains to IMAP). Still **no** send/permanent-delete/
+  credential tools. Tool surface is now 15.
+- **Attachments + NotebookLM** — download attachments from IMAP + open with the OS app; `export_for_notebooklm`
+  MCP tool + reading-pane **NotebookLM** button write the email (+ downloaded attachments) to a
+  `notebooklm-export/…` folder for the **notebooklm skill** to add as sources.
+- **Drafts view** (from Stage 11) surfaces Claude-created drafts.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
