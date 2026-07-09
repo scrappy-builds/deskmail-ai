@@ -1,15 +1,20 @@
 import { Icon } from './Icon'
-import { useTheme } from './theme'
+import { PRESET_LABELS } from '@shared/layout'
+import { useLayout } from './store/layoutStore'
 
 export type Mode = 'mail' | 'calendar'
 
 interface CommandBarProps {
   mode: Mode
   onMode: (m: Mode) => void
+  onOpenViewSettings: () => void
 }
 
-export function CommandBar({ mode, onMode }: CommandBarProps): JSX.Element {
-  const { theme, toggle } = useTheme()
+export function CommandBar({ mode, onMode, onOpenViewSettings }: CommandBarProps): JSX.Element {
+  const theme = useLayout((s) => s.prefs.theme)
+  const preset = useLayout((s) => s.prefs.selectedLayoutPreset)
+  const toggleTheme = useLayout((s) => s.toggleTheme)
+  const toggleClaude = useLayout((s) => s.toggleClaude)
 
   const tab = (m: Mode, label: string, icon: 'mail' | 'calendar'): JSX.Element => {
     const active = mode === m
@@ -17,11 +22,7 @@ export function CommandBar({ mode, onMode }: CommandBarProps): JSX.Element {
       <button
         onClick={() => onMode(m)}
         className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-semibold"
-        style={
-          active
-            ? { color: 'var(--accent-fg)', background: 'var(--accent)' }
-            : { color: 'var(--text-2)' }
-        }
+        style={active ? { color: 'var(--accent-fg)', background: 'var(--accent)' } : { color: 'var(--text-2)' }}
       >
         <Icon name={icon} size={15} />
         <span>{label}</span>
@@ -31,22 +32,22 @@ export function CommandBar({ mode, onMode }: CommandBarProps): JSX.Element {
 
   return (
     <div className="flex h-[56px] flex-none items-center gap-2.5 border-b border-border bg-panel px-3.5">
-      {/* Mail / Calendar mode switch */}
       <div className="flex gap-0.5 rounded-md border border-border bg-inset p-[3px]">
         {tab('mail', 'Mail', 'mail')}
         {tab('calendar', 'Calendar', 'calendar')}
       </div>
 
-      {/* Layout preset (wired in Stage 2) */}
       <button
+        onClick={onOpenViewSettings}
         className="flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-[7px] hover:border-border-2"
         title="Layout preset"
+        aria-label="Layout preset"
       >
         <Icon name="sliders" size={16} className="text-accent" />
-        <span className="text-[13px] font-semibold">Classic</span>
+        <span className="text-[13px] font-semibold">{PRESET_LABELS[preset]}</span>
+        <Icon name="chevronDown" size={14} className="text-text-3" />
       </button>
 
-      {/* Search */}
       <div className="relative flex max-w-[640px] flex-1 items-center">
         <span className="pointer-events-none absolute left-3 flex text-text-3">
           <Icon name="search" size={16} />
@@ -63,14 +64,13 @@ export function CommandBar({ mode, onMode }: CommandBarProps): JSX.Element {
 
       <div className="flex-1" />
 
-      {/* Primary action */}
       <button className="flex items-center gap-2 rounded-md bg-accent px-4 py-[9px] text-[13px] font-semibold text-accent-fg hover:bg-accent-2">
         <Icon name={mode === 'mail' ? 'compose' : 'calendar'} size={16} />
         <span>{mode === 'mail' ? 'Compose' : 'New event'}</span>
       </button>
 
-      {/* Claude */}
       <button
+        onClick={toggleClaude}
         className="flex items-center gap-1.5 rounded-md border border-claude px-3 py-2 text-[13px] font-semibold text-claude"
         style={{ background: 'var(--claude-soft)' }}
         title="Claude assistant"
@@ -79,17 +79,16 @@ export function CommandBar({ mode, onMode }: CommandBarProps): JSX.Element {
         <span>Claude</span>
       </button>
 
-      {/* View settings */}
       <button
+        onClick={onOpenViewSettings}
         className="flex h-[38px] w-[38px] items-center justify-center rounded-md border border-border text-text-2 hover:bg-raised"
         title="View settings"
       >
         <Icon name="sliders" size={18} />
       </button>
 
-      {/* Light / Dark toggle — always one click, top-right */}
       <button
-        onClick={toggle}
+        onClick={toggleTheme}
         className="flex h-[38px] items-center gap-1.5 rounded-md border border-border px-3 text-[13px] font-semibold text-text-2 hover:bg-raised"
         title="Switch light / dark"
         aria-label="Toggle theme"

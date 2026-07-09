@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon'
-import { useTheme } from './theme'
+import { useLayout } from './store/layoutStore'
 
 // Menu items are mostly placeholders in Stage 1 — the shell needs to look and
 // behave right; real actions get wired as their features land in later stages.
@@ -53,7 +53,7 @@ function Dropdown({ items, onPick }: { items: MenuItem[]; onPick: () => void }):
 
 export function TitleBar(): JSX.Element {
   const { open, toggle, close, rootRef } = useMenus()
-  const { toggle: toggleTheme } = useTheme()
+  const toggleTheme = useLayout((s) => s.toggleTheme)
   const w = window.deskmail.window
 
   const menus: Record<string, MenuItem[]> = {

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { loadSettings, saveSettings } from '../../src/main/settings'
-import { DEFAULT_SETTINGS } from '../../src/shared/types'
+import { DEFAULT_LAYOUT as DEFAULT_SETTINGS } from '../../src/shared/layout'
 
 describe('settings store', () => {
   let dir: string
@@ -20,13 +20,16 @@ describe('settings store', () => {
     expect(loadSettings(file).theme).toBe('light')
   })
 
-  it('round-trips a saved theme', () => {
-    saveSettings(file, { theme: 'dark' })
-    expect(loadSettings(file).theme).toBe('dark')
+  it('round-trips saved preferences', () => {
+    saveSettings(file, { ...DEFAULT_SETTINGS, theme: 'dark', sidebarMode: 'icons', previewLineCount: 0 })
+    const loaded = loadSettings(file)
+    expect(loaded.theme).toBe('dark')
+    expect(loaded.sidebarMode).toBe('icons')
+    expect(loaded.previewLineCount).toBe(0)
   })
 
   it('falls back to defaults on a corrupt file', () => {
-    saveSettings(file, { theme: 'dark' })
+    saveSettings(file, { ...DEFAULT_SETTINGS, theme: 'dark' })
     // Overwrite with junk.
     require('node:fs').writeFileSync(file, '{ not json', 'utf-8')
     expect(loadSettings(file)).toEqual(DEFAULT_SETTINGS)

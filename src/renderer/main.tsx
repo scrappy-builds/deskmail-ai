@@ -10,12 +10,13 @@ import './styles.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
-import { ThemeProvider } from './theme'
+import { useLayout } from './store/layoutStore'
+
+// Restore persisted layout + theme before first paint settles.
+void useLayout.getState().hydrate()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider>
-      <App />
-    </ThemeProvider>
+    <App />
   </StrictMode>
 )

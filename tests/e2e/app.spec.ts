@@ -5,6 +5,16 @@ import { _electron as electron, expect, test, type ElectronApplication } from '@
 
 const MAIN = join(process.cwd(), 'out', 'main', 'index.js')
 
+// Windows can briefly hold a lock on userData after the app closes; temp cleanup
+// is best-effort and never part of the assertion.
+function safeRm(dir: string): void {
+  try {
+    rmSync(dir, { recursive: true, force: true })
+  } catch {
+    /* the OS clears its temp dir eventually */
+  }
+}
+
 function launch(userData: string): Promise<ElectronApplication> {
   return electron.launch({
     args: [MAIN],
@@ -53,6 +63,33 @@ test('boots, is locked down, and persists the theme toggle', async () => {
       .toBe('dark')
     await app.close()
   } finally {
-    rmSync(userData, { recursive: true, force: true })
+    safeRm(userData)
+  }
+})
+
+test('layout preset selection persists across relaunch', async () => {
+  const userData = mkdtempSync(join(tmpdir(), 'deskmail-e2e-'))
+  try {
+    let app = await launch(userData)
+    let win = await app.firstWindow()
+
+    // Default preset is Classic.
+    await expect(win.getByRole('button', { name: 'Layout preset' })).toContainText('Classic')
+
+    // Switch to Focus Mode via View Settings.
+    await win.getByRole('button', { name: 'View settings' }).click()
+    await win.getByRole('button', { name: /Focus Mode/ }).click()
+    await win.getByRole('button', { name: 'Done' }).click()
+    await expect(win.getByRole('button', { name: 'Layout preset' })).toContainText('Focus Mode')
+
+    await app.close()
+
+    // Relaunch: the preset should have been restored.
+    app = await launch(userData)
+    win = await app.firstWindow()
+    await expect(win.getByRole('button', { name: 'Layout preset' })).toContainText('Focus Mode')
+    await app.close()
+  } finally {
+    safeRm(userData)
   }
 })

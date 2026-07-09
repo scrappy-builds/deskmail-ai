@@ -1,25 +1,22 @@
 // Shared types across main / preload / renderer. Keep this the single source of
 // truth for IPC payloads so the bridge stays strongly typed on both sides.
 
-export type Theme = 'light' | 'dark'
+import type { LayoutPreferences, Theme } from './layout'
+
+export type { LayoutPreferences, Theme }
 
 /**
- * App settings that exist before SQLite lands (Stage 4). For now this is a small
- * JSON file in userData; the shape here is what the renderer sees.
- * ponytail: JSON-file settings now; migrates into the SQLite app_settings table in Stage 4.
+ * The persisted settings blob. For now this is a small JSON file in userData
+ * holding the layout preferences (which includes theme).
+ * ponytail: JSON-file settings now; migrates into the SQLite layout_preferences
+ * table in Stage 4 — same shape, so callers won't change.
  */
-export interface AppSettings {
-  theme: Theme
-}
-
-export const DEFAULT_SETTINGS: AppSettings = {
-  theme: 'light'
-}
+export type AppSettings = LayoutPreferences
 
 // The typed bridge exposed on window.deskmail via contextBridge.
 export interface DeskMailApi {
   getSettings(): Promise<AppSettings>
-  setTheme(theme: Theme): Promise<void>
+  saveSettings(settings: AppSettings): Promise<void>
   // Window controls for the custom (frameless) title bar.
   window: {
     minimise(): void

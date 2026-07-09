@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
 import { loadSettings, saveSettings } from './settings'
-import type { Theme } from '@shared/types'
+import type { AppSettings } from '@shared/types'
 
 // Allow an override data directory (used by E2E tests now; the basis for
 // portable/USB mode in Stage 10). Must be set before the app is ready.
@@ -13,9 +13,8 @@ const settingsPath = () => join(app.getPath('userData'), 'settings.json')
 function registerIpc(): void {
   ipcMain.handle('settings:get', () => loadSettings(settingsPath()))
 
-  ipcMain.handle('settings:set-theme', (_e, theme: Theme) => {
-    const current = loadSettings(settingsPath())
-    saveSettings(settingsPath(), { ...current, theme })
+  ipcMain.handle('settings:save', (_e, settings: AppSettings) => {
+    saveSettings(settingsPath(), settings)
   })
 
   // Window controls for the custom (frameless) title bar.

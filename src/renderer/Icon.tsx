@@ -11,6 +11,22 @@ export type IconName =
   | 'minimise'
   | 'maximise'
   | 'close'
+  | 'inbox'
+  | 'star'
+  | 'send'
+  | 'draft'
+  | 'archive'
+  | 'trash'
+  | 'reply'
+  | 'replyAll'
+  | 'forward'
+  | 'plus'
+  | 'filter'
+  | 'check'
+  | 'clip'
+  | 'chevronDown'
+  | 'markUnread'
+  | 'openWindow'
 
 const PATHS: Record<IconName, string> = {
   mail: 'M22 12h-6l-2 3h-4l-2-3H2 M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z',
@@ -23,22 +39,39 @@ const PATHS: Record<IconName, string> = {
   moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   minimise: 'M5 12h14',
   maximise: 'M5 5h14v14H5z',
-  close: 'M6 6l12 12 M18 6L6 18'
+  close: 'M6 6l12 12 M18 6L6 18',
+  inbox: 'M22 12h-6l-2 3h-4l-2-3H2 M5.5 5.5h13l3.5 6.5v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-6z',
+  star: 'M12 2.5l2.9 6.1 6.6.7-4.9 4.5 1.4 6.5L12 17.5 6 20.8l1.4-6.5L2.5 9.3l6.6-.7z',
+  send: 'M22 2L11 13 M22 2l-7 20-4-9-9-4z',
+  draft: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z M14 3v6h6',
+  archive: 'M3 4h18v4H3z M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8 M9.5 12h5',
+  trash: 'M3 6h18 M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2 M6 6l1 14a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-14',
+  reply: 'M9 17l-6-5 6-5 M3 12h9a7 7 0 0 1 7 7v1',
+  replyAll: 'M7 17l-5-5 5-5 M12 17l-5-5 5-5 M8 12h7a6 6 0 0 1 6 6v1',
+  forward: 'M15 17l6-5-6-5 M21 12h-9a7 7 0 0 0-7 7v1',
+  plus: 'M12 5v14 M5 12h14',
+  filter: 'M22 3H2l8 9.5V19l4 2v-8.5z',
+  check: 'M20 6L9 17l-5-5',
+  clip: 'M21 12l-9 9a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8',
+  chevronDown: 'M6 9l6 6 6-6',
+  markUnread: 'M22 12h-6l-2 3h-4l-2-3H2 M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z',
+  openWindow: 'M15 3h6v6 M10 14L21 3 M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5'
 }
 
 interface IconProps {
   name: IconName
   size?: number
   className?: string
+  fill?: boolean
 }
 
-export function Icon({ name, size = 18, className }: IconProps): JSX.Element {
+export function Icon({ name, size = 18, className, fill = false }: IconProps): JSX.Element {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={fill ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth={1.7}
       strokeLinecap="round"

@@ -1,27 +1,33 @@
 import { useState } from 'react'
 import { TitleBar } from './TitleBar'
 import { CommandBar, type Mode } from './CommandBar'
+import { Workspace } from './regions/Workspace'
+import { ViewSettings } from './ViewSettings'
 
 export function App(): JSX.Element {
   const [mode, setMode] = useState<Mode>('mail')
+  const [viewSettingsOpen, setViewSettingsOpen] = useState(false)
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-bg text-text">
       <TitleBar />
-      <CommandBar mode={mode} onMode={setMode} />
+      <CommandBar mode={mode} onMode={setMode} onOpenViewSettings={() => setViewSettingsOpen(true)} />
 
-      {/* Workspace — the layout system and real screens land in Stage 2 onward. */}
-      <main className="flex min-h-0 flex-1 items-center justify-center p-8">
-        <div className="max-w-[420px] text-center">
-          <div className="text-[17px] font-bold">
-            {mode === 'mail' ? 'The mailbox goes here' : 'The calendar goes here'}
+      {mode === 'mail' ? (
+        <Workspace />
+      ) : (
+        <main className="flex min-h-0 flex-1 items-center justify-center p-8">
+          <div className="max-w-[420px] text-center">
+            <div className="text-[17px] font-bold">The calendar goes here</div>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-text-2">
+              Month view, events and meeting links land in Stage 7. For now the layout system is what
+              I'm building — try the presets in View Settings.
+            </p>
           </div>
-          <p className="mt-2 text-[13.5px] leading-relaxed text-text-2">
-            This is the shell for now — the sidebar, message list and reading pane come next. I'm
-            building it in stages so it stays solid rather than rushing the whole thing at once.
-          </p>
-        </div>
-      </main>
+        </main>
+      )}
+
+      {viewSettingsOpen && <ViewSettings onClose={() => setViewSettingsOpen(false)} />}
     </div>
   )
 }

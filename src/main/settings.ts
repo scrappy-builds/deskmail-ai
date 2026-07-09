@@ -1,6 +1,9 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { DEFAULT_SETTINGS, type AppSettings } from '@shared/types'
+import { DEFAULT_LAYOUT } from '@shared/layout'
+import type { AppSettings } from '@shared/types'
+
+const DEFAULT_SETTINGS: AppSettings = DEFAULT_LAYOUT
 
 // Tiny JSON-file settings store. Kept as pure functions over a file path so it
 // can be unit-tested without Electron. Replaced by the SQLite app_settings
