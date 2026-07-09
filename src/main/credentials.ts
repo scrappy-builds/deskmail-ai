@@ -22,5 +22,12 @@ export function getCredential(db: DB, accountId: number): string | null {
     | { secret_enc: Uint8Array }
     | undefined
   if (!row) return null
-  return safeStorage.decryptString(Buffer.from(row.secret_enc))
+  try {
+    return safeStorage.decryptString(Buffer.from(row.secret_enc))
+  } catch {
+    // Ciphertext is bound to the OS user/machine that created it. After restoring
+    // a backup onto a NEW computer it can't be decrypted here — treat as "no
+    // password" so sync fails gracefully and the owner re-enters it once.
+    return null
+  }
 }
