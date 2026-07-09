@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon'
 import { useLayout } from './store/layoutStore'
+import logo from './assets/logo.png'
 
 // Menu items are mostly placeholders in Stage 1 — the shell needs to look and
 // behave right; real actions get wired as their features land in later stages.
@@ -80,10 +81,7 @@ export function TitleBar({ onOpenSettings, onCompose }: { onOpenSettings: () => 
 
   return (
     <div className="drag-region flex h-[38px] flex-none select-none items-center gap-1 border-b border-border bg-panel pl-3 pr-1.5">
-      <div
-        className="h-[18px] w-[18px] flex-none rounded-[5px]"
-        style={{ background: 'linear-gradient(135deg,var(--accent),var(--claude))' }}
-      />
+      <img src={logo} alt="DeskMail AI" className="h-5 w-5 flex-none object-contain" />
       <span className="mr-3.5 text-[12.5px] font-bold tracking-[.2px]">
         DeskMail <span className="text-claude">AI</span>
       </span>

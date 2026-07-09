@@ -102,6 +102,13 @@ function appSetting(key: string): string | null {
   return row?.value ?? null
 }
 
+// Window/taskbar icon (dev). In the packaged app the exe icon comes from
+// electron-builder; here it points at the build resource when present.
+const iconPath = (() => {
+  const p = join(app.getAppPath(), 'build', 'icon.png')
+  return existsSync(p) ? p : undefined
+})()
+
 // Secure webPreferences shared by every window: no Node in the renderer,
 // isolated context, sandboxed, everything via the typed preload bridge.
 const securePrefs = () => ({
@@ -148,6 +155,7 @@ function openMessageWindow(id: number): void {
     show: false,
     frame: false,
     backgroundColor: '#f5f5f5',
+    icon: iconPath,
     title: 'DeskMail AI',
     webPreferences: securePrefs()
   })
@@ -350,6 +358,7 @@ function createMainWindow(): BrowserWindow {
     show: false,
     frame: false,
     backgroundColor: '#f5f5f5',
+    icon: iconPath,
     title: 'DeskMail AI',
     webPreferences: securePrefs()
   })

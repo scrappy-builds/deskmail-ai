@@ -22,6 +22,7 @@ extraMetadata:
   main: out/main/index.js
 
 win:
+  icon: build/icon.png
   target:
     - nsis
     - portable
