@@ -9,15 +9,13 @@
 ---
 
 ## Current status
-- **Active stage:** Stage 9 complete (awaiting go-ahead for Stage 10).
-- **Last session ended:** 2026-07-09 — Stage 9 built, tested, committed.
-- **Exact next step:** On user's OK, start **Stage 10 — Packaging, backup & portability**: electron-builder
-  Windows installer (NSIS) + portable target (skip code-signing); **Settings → Local storage** with
-  Back up now / Restore (copy DB + attachments + settings to a chosen folder); **USB/portable mode**
-  (detect a `portable.txt`/`data/` marker or `--portable` → store DB/attachments/creds/settings in a
-  portable data dir, via the existing `DESKMAIL_USER_DATA` hook). **Must unpack node-sqlite3-wasm's
-  `.wasm` (and keep the mcp-server + deps) out of the asar** so the DB and MCP server work when packaged.
-  Tests: installer produces a runnable app; backup/restore round-trips; portable mode reads/writes the portable dir.
+- **Active stage:** Stage 10 complete (awaiting go-ahead for Stage 11).
+- **Last session ended:** 2026-07-09 — Stage 10 built, tested, committed. **Installers delivered** to
+  `release/DeskMail AI-0.1.0-setup.exe` (NSIS) and `release/DeskMail AI-0.1.0-portable.exe`.
+- **Exact next step:** On user's OK, start **Stage 11 — Hardening, error/empty/loading states, docs**:
+  security review pass; friendly error messages; loading + empty states everywhere (add the **Drafts
+  view** so Claude/user drafts are visible — the Stage 9 gap); final README + developer docs. Then
+  Stage 12 = full final review against the brief + FEATURE_SPEC.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
@@ -84,7 +82,7 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
 - [x] **Stage 7** — Calendar + invites + meeting providers
 - [x] **Stage 8** — Added features: per-account signatures · send-later/undo-send · snooze · templates · contacts · Today agenda
 - [x] **Stage 9** — Local MCP server (safe tools; Claude Desktop connector config)
-- [ ] **Stage 10** — Packaging (installer) + local backup + USB/portable mode
+- [x] **Stage 10** — Packaging (installer) + local backup + USB/portable mode
 - [ ] **Stage 11** — Hardening + error/empty/loading states + docs
 - [ ] **Stage 12** — Final review (verify every feature/security item/MCP tool; fix gaps)
 
@@ -336,6 +334,32 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
   - extract/summarise are heuristic; fine as data for Claude, not a replacement for its reasoning.
   - Packaging must unpack the `.wasm` + keep mcp-server/deps outside the asar (Stage 10).
 - Next step: Stage 10 (packaging + backup + portability).
+
+### Stage 10
+- Done:
+  - **Portable/USB mode:** `src/main/dataDir.ts` `resolveDataDir` — precedence: `DESKMAIL_USER_DATA` →
+    `--portable [dir]` → a `portable.txt`/`data/` marker next to the exe → OS default. Wired before app
+    ready so userData points at the portable folder; Settings shows the data dir + a "Portable mode" badge.
+  - **Backup/restore:** `src/main/backup.ts` `backupTo`/`restoreFrom` (pure fs) copy DB + attachments +
+    settings into/out of a self-contained `deskmail-backup-<timestamp>/` folder. `storage:backup/restore/
+    info` IPC (accept an explicit path or show a native folder picker); restore closes + reopens the DB
+    and refreshes the UI. Settings → Local storage pane (Back up now / Restore + data-location card).
+  - **electron-builder:** `electron-builder.yml` — NSIS installer + portable target, no signing/licence UI,
+    **`asar: false`** so node-sqlite3-wasm's `.wasm` and the standalone MCP server's deps load as plain
+    files. `npm run package`. **Built + delivered:** `release/DeskMail AI-0.1.0-setup.exe` (85 MB) and
+    `release/DeskMail AI-0.1.0-portable.exe` (84 MB).
+  - **Verified the packaged build runs:** launched `release/win-unpacked/DeskMail AI.exe` → app boots,
+    DB works (demo account, 7 rows). And the **packaged MCP server** works via the connector path
+    (app binary + `ELECTRON_RUN_AS_NODE=1` + `DESKMAIL_DB`): listed all 9 tools, returned correct data,
+    `.wasm` loaded from unpacked resources.
+- Tests: `npm test` → 72 unit (+7: resolveDataDir precedence, backup/restore round-trip). `npm run
+  test:e2e` → 20 (+2: portable mode writes the given dir; back up + restore round-trips and undoes a snooze).
+- Known issues / TODO:
+  - `asar: false` → larger install (bundles all prod node_modules incl. some renderer-only deps). Fine
+    for personal use; could switch to asar + asarUnpack later to slim it.
+  - No app icon set (default Electron icon). Add a Functional 3D UK icon if wanted.
+  - `release/` is gitignored (binaries not committed) — the installers live on disk at the paths above.
+- Next step: Stage 11 (hardening + error/empty/loading states + Drafts view + docs).
 
 _(Add a block like the above for each stage as you go.)_
 

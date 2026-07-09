@@ -56,6 +56,11 @@ const api: DeskMailApi = {
   mcp: {
     info: () => ipcRenderer.invoke('mcp:info')
   },
+  storage: {
+    info: () => ipcRenderer.invoke('storage:info'),
+    backup: (destDir?: string) => ipcRenderer.invoke('storage:backup', destDir),
+    restore: (backupDir?: string) => ipcRenderer.invoke('storage:restore', backupDir)
+  },
   calendar: {
     listEvents: (from?: string, to?: string) => ipcRenderer.invoke('calendar:list-events', from, to),
     createEvent: (input: EventInput) => ipcRenderer.invoke('calendar:create-event', input),

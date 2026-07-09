@@ -1,7 +1,9 @@
 import { existsSync, statSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { app, dialog, shell, BrowserWindow, ipcMain, Menu } from 'electron'
 import { loadSettings } from './settings'
+import { resolveDataDir } from './dataDir'
+import { backupTo, restoreFrom } from './backup'
 import { openDatabase, type DB } from '../db/database'
 import { loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty } from '../db/settings'
 import { insertAccount, listAccounts } from '../db/accounts'
@@ -28,10 +30,15 @@ import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig,
 // Undo-send window in seconds (configurable later; sensible default now).
 const UNDO_DELAY_SECONDS = 10
 
-// Allow an override data directory (used by E2E tests now; the basis for
-// portable/USB mode in Stage 10). Must be set before the app is ready.
-const overrideUserData = process.env.DESKMAIL_USER_DATA
-if (overrideUserData) app.setPath('userData', overrideUserData)
+// Decide where data lives (OS app-data, an explicit override, or portable/USB
+// mode). Must run before the app is ready so userData points at the right place.
+const dataDir = resolveDataDir({
+  argv: process.argv,
+  env: process.env,
+  exeDir: dirname(app.getPath('exe')),
+  exists: existsSync
+})
+if (dataDir.dir) app.setPath('userData', dataDir.dir)
 
 const settingsPath = () => join(app.getPath('userData'), 'settings.json')
 
@@ -246,6 +253,36 @@ function registerIpc(): void {
       }
     }
     return { configJson: JSON.stringify(config, null, 2), tools: buildTools(db).map((t) => t.name), dbPath }
+  })
+
+  // --- Local storage: backup / restore / portability info (Stage 10) ----------
+  ipcMain.handle('storage:info', () => ({ dataDir: app.getPath('userData'), portable: dataDir.portable }))
+  // destDir/backupDir may be passed explicitly (also lets us drive it in tests);
+  // otherwise a native folder picker is shown.
+  ipcMain.handle('storage:backup', async (e, destDir?: string) => {
+    let dir = destDir
+    if (!dir) {
+      const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+      const res = await dialog.showOpenDialog(win!, { title: 'Choose where to save the backup', properties: ['openDirectory', 'createDirectory'] })
+      if (res.canceled || !res.filePaths[0]) return { path: null }
+      dir = res.filePaths[0]
+    }
+    return { path: backupTo(app.getPath('userData'), dir) }
+  })
+  ipcMain.handle('storage:restore', async (e, backupDir?: string) => {
+    let dir = backupDir
+    if (!dir) {
+      const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+      const res = await dialog.showOpenDialog(win!, { title: 'Choose a DeskMail backup folder to restore', properties: ['openDirectory'] })
+      if (res.canceled || !res.filePaths[0]) return { ok: false }
+      dir = res.filePaths[0]
+    }
+    // Close the DB, swap the files in, then reopen and refresh the UI.
+    db.close()
+    restoreFrom(dir, app.getPath('userData'))
+    db = openDatabase(join(app.getPath('userData'), 'deskmail.db'))
+    broadcastMailChanged()
+    return { ok: true }
   })
 
   // --- Calendar & meetings (Stage 7) ------------------------------------------

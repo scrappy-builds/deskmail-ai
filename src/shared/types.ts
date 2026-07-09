@@ -95,6 +95,12 @@ export interface DeskMailApi {
   mcp: {
     info(): Promise<{ configJson: string; tools: string[]; dbPath: string }>
   }
+  // Local storage: backup / restore / portability (Stage 10).
+  storage: {
+    info(): Promise<{ dataDir: string; portable: boolean }>
+    backup(destDir?: string): Promise<{ path: string | null }>
+    restore(backupDir?: string): Promise<{ ok: boolean }>
+  }
   // Calendar & meetings (Stage 7).
   calendar: {
     listEvents(from?: string, to?: string): Promise<EventSummary[]>

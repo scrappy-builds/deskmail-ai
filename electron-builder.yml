@@ -1,0 +1,36 @@
+appId: uk.co.functional3d.deskmail
+productName: DeskMail AI
+# Personal-use build: no code-signing, no notarisation, no licence UI.
+
+# asar disabled on purpose: node-sqlite3-wasm needs its .wasm on disk and the
+# standalone MCP server (launched by Claude Desktop) must require its deps as
+# plain files. Unpacked is simplest and reliable for a single-user app.
+asar: false
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**/*
+  - node_modules/**/*
+  - package.json
+  - '!**/*.{map,md,ts}'
+  - '!**/{test,tests,__tests__,example,examples,.github}/**'
+
+extraMetadata:
+  main: out/main/index.js
+
+win:
+  target:
+    - nsis
+    - portable
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-setup.${ext}
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
