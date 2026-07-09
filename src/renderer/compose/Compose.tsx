@@ -2,26 +2,31 @@ import { useEffect, useMemo, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '../Icon'
-import type { ComposeAttachment, ComposePayload } from '@shared/db'
+import type { ComposeAttachment, ComposePayload, Contact, SignatureData, Template } from '@shared/db'
 import { useMail } from '../store/mailStore'
+import { useToast } from '../store/toastStore'
 
 const REWRITE = ['Make clearer', 'Warmer', 'More professional', 'Shorten', 'Expand', 'Fix spelling & grammar']
 
 function splitAddrs(s: string): string[] {
-  return s
-    .split(',')
-    .map((x) => x.trim())
-    .filter(Boolean)
+  return s.split(',').map((x) => x.trim()).filter(Boolean)
 }
-
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+// Plain template body → simple paragraph HTML for the editor.
+function bodyToHtml(body: string): string {
+  return body
+    .split(/\n{2,}/)
+    .map((p) => `<p>${p.replace(/\n/g, '<br>').replace(/</g, '&lt;')}</p>`)
+    .join('')
+}
 
 export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
   const accounts = useMail((s) => s.accounts)
+  const showToast = useToast((s) => s.show)
   const [accountId, setAccountId] = useState<number | null>(accounts[0]?.id ?? null)
   const [to, setTo] = useState('')
   const [cc, setCc] = useState('')
@@ -29,8 +34,11 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
   const [showCc, setShowCc] = useState(false)
   const [subject, setSubject] = useState('')
   const [attachments, setAttachments] = useState<ComposeAttachment[]>([])
-  const [signature, setSignature] = useState<string | null>(null)
-  const [status, setStatus] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null)
+  const [signature, setSignature] = useState<SignatureData | null>(null)
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [laterAt, setLaterAt] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const editor = useEditor({ extensions: [StarterKit], content: '' })
@@ -38,6 +46,10 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
   useEffect(() => {
     if (accountId != null) void window.deskmail.compose.getSignature(accountId).then(setSignature)
   }, [accountId])
+  useEffect(() => {
+    void window.deskmail.templates.list().then(setTemplates)
+    void window.deskmail.contacts.list().then(setContacts)
+  }, [])
 
   const payload = useMemo(
     (): ComposePayload => ({
@@ -59,31 +71,45 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
     if (files.length) setAttachments((prev) => [...prev, ...files])
   }
 
+  const applyTemplate = (t: Template): void => {
+    if (!subject && t.subject) setSubject(t.subject)
+    if (t.body) editor?.chain().focus().insertContent(bodyToHtml(t.body)).run()
+    setShowTemplates(false)
+  }
+
   const saveDraft = async (): Promise<void> => {
     if (accountId == null) return
     setBusy(true)
     try {
       await window.deskmail.compose.saveDraft(payload)
-      setStatus({ kind: 'ok', text: 'Draft saved' })
-      setTimeout(onClose, 600)
+      showToast({ text: 'Draft saved' })
+      onClose()
     } finally {
       setBusy(false)
     }
   }
 
-  // Send is only ever triggered here, by the user pressing Send.
+  // Sending is always user-initiated. Immediate send goes via an undo window;
+  // "Send later" schedules for the chosen time. Neither leaves without the click.
   const send = async (): Promise<void> => {
     if (!canSend) return
     setBusy(true)
-    setStatus(null)
-    const res = await window.deskmail.compose.send(payload)
-    if (res.ok) {
-      setStatus({ kind: 'ok', text: 'Message sent' })
-      setTimeout(onClose, 700)
-    } else {
-      setStatus({ kind: 'error', text: res.error })
-      setBusy(false)
+    if (laterAt) {
+      await window.deskmail.compose.scheduleSend(payload, new Date(laterAt).toISOString())
+      showToast({ text: `Scheduled for ${new Date(laterAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}` })
+      onClose()
+      return
     }
+    const { id } = await window.deskmail.compose.sendWithUndo(payload)
+    showToast(
+      {
+        text: 'Sending your message…',
+        actionLabel: 'Undo',
+        onAction: () => void window.deskmail.compose.cancelScheduled(id)
+      },
+      9000
+    )
+    onClose()
   }
 
   const field = 'flex items-center gap-2.5 border-b border-border px-4 py-2'
@@ -91,8 +117,7 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
 
   return (
     <div className="absolute inset-0 z-[65] flex items-end justify-center" style={{ background: 'rgba(5,6,10,0.5)' }}>
-      <div className="flex h-[min(620px,88vh)] w-[min(760px,94vw)] flex-col rounded-t-lg border border-border bg-panel shadow-raised">
-        {/* header */}
+      <div className="flex h-[min(640px,90vh)] w-[min(760px,94vw)] flex-col rounded-t-lg border border-border bg-panel shadow-raised">
         <div className="flex flex-none items-center rounded-t-lg border-b border-border bg-raised px-4 py-3">
           <span className="text-[13.5px] font-bold">New message</span>
           <div className="flex-1" />
@@ -102,17 +127,12 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          {/* From */}
           <div className={field}>
             <span className="w-[52px] text-[12.5px] text-text-3">From</span>
             {accounts.length === 0 ? (
               <span className="text-[13px] text-text-3">Add an account first (File → Settings)</span>
             ) : (
-              <select
-                value={accountId ?? undefined}
-                onChange={(e) => setAccountId(Number(e.target.value))}
-                className="flex-1 border-none bg-transparent text-[13px] font-semibold text-text outline-none"
-              >
+              <select value={accountId ?? undefined} onChange={(e) => setAccountId(Number(e.target.value))} className="flex-1 border-none bg-transparent text-[13px] font-semibold text-text outline-none">
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.displayName} — {a.emailAddress}
@@ -122,10 +142,16 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
             )}
           </div>
 
-          {/* To + Cc/Bcc toggle */}
           <div className={field}>
             <span className="w-[52px] text-[12.5px] text-text-3">To</span>
-            <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="Recipients (comma separated)" className={inputCls} aria-label="To" />
+            <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="Recipients (comma separated)" className={inputCls} aria-label="To" list="contact-emails" />
+            <datalist id="contact-emails">
+              {contacts.filter((c) => c.email).map((c) => (
+                <option key={c.id} value={c.email ?? ''}>
+                  {c.name ?? c.email}
+                </option>
+              ))}
+            </datalist>
             <button onClick={() => setShowCc((v) => !v)} className="text-[12px] font-semibold text-text-3 hover:text-accent">
               Cc Bcc
             </button>
@@ -143,40 +169,49 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
             </>
           )}
 
-          {/* Subject */}
           <div className={field}>
             <span className="w-[52px] text-[12.5px] text-text-3">Subject</span>
             <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" className={`${inputCls} font-semibold`} aria-label="Subject" />
+            <div className="relative">
+              <button onClick={() => setShowTemplates((v) => !v)} className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12px] font-semibold text-text-2 hover:bg-raised" title="Insert a template">
+                <Icon name="draft" size={14} /> Templates
+              </button>
+              {showTemplates && (
+                <div className="absolute right-0 top-full z-10 mt-1 w-[240px] rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
+                  {templates.length === 0 ? (
+                    <div className="px-2.5 py-2 text-[12px] text-text-3">No templates yet.</div>
+                  ) : (
+                    templates.map((t) => (
+                      <button key={t.id} onClick={() => applyTemplate(t)} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+                        {t.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Claude rewrite bar (hooks in place; the transform needs Claude — wired later) */}
           <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-4 py-2.5" style={{ background: 'var(--claude-soft)' }}>
             <span className="flex items-center gap-1.5 text-[12px] font-bold text-claude">
               <Icon name="claude" size={14} fill /> Rewrite
             </span>
             {REWRITE.map((r) => (
-              <span
-                key={r}
-                title="Rewrite with Claude (coming with the Claude connector)"
-                className="cursor-not-allowed rounded-pill border border-claude bg-panel px-2.5 py-1 text-[12px] font-semibold text-claude opacity-70"
-              >
+              <span key={r} title="Rewrite with Claude (coming with the Claude connector)" className="cursor-not-allowed rounded-pill border border-claude bg-panel px-2.5 py-1 text-[12px] font-semibold text-claude opacity-70">
                 {r}
               </span>
             ))}
           </div>
 
-          {/* Body */}
-          <EditorContent editor={editor} className="min-h-[140px] flex-1 px-4 py-3 text-[14px] leading-[1.6]" />
+          <EditorContent editor={editor} className="min-h-[130px] flex-1 px-4 py-3 text-[14px] leading-[1.6]" />
 
-          {/* Signature preview (appended on send) */}
-          {signature && (
+          {signature?.appendToNew && signature.body && (
             <div className="mx-4 mb-3 border-t border-dashed border-border pt-3">
               <div className="mb-1 text-[10px] font-bold uppercase tracking-[.5px] text-text-3">Signature</div>
-              <div className="whitespace-pre-line text-[12.5px] leading-relaxed text-text-3">{signature}</div>
+              <div className="whitespace-pre-line text-[12.5px] leading-relaxed text-text-3">{signature.body}</div>
             </div>
           )}
 
-          {/* Attachments */}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 border-t border-border px-4 py-2.5">
               {attachments.map((a, i) => (
@@ -193,17 +228,27 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
               ))}
             </div>
           )}
+
+          {laterAt !== null && (
+            <div className="flex items-center gap-2.5 border-t border-border px-4 py-2.5">
+              <span className="text-[12px] font-semibold text-text-2">Send at</span>
+              <input type="datetime-local" value={laterAt} onChange={(e) => setLaterAt(e.target.value)} aria-label="Send at" className="rounded-md border border-border bg-bg px-2.5 py-1.5 text-[13px] text-text outline-none focus:border-accent" />
+              <button onClick={() => setLaterAt(null)} className="text-[12px] font-semibold text-text-3 hover:text-danger">
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* footer */}
         <div className="flex flex-none items-center gap-2.5 border-t border-border px-4 py-3">
-          <button
-            onClick={() => void send()}
-            disabled={!canSend}
-            className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-[13px] font-bold text-accent-fg hover:bg-accent-2 disabled:opacity-40"
-          >
-            <Icon name="send" size={15} /> Send
+          <button onClick={() => void send()} disabled={!canSend || (laterAt !== null && !laterAt)} className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-[13px] font-bold text-accent-fg hover:bg-accent-2 disabled:opacity-40">
+            <Icon name="send" size={15} /> {laterAt !== null ? 'Schedule' : 'Send'}
           </button>
+          {laterAt === null && (
+            <button onClick={() => setLaterAt('')} className="rounded-md border border-border px-3 py-2 text-[13px] font-semibold text-text-2 hover:bg-raised" title="Send later">
+              Send later
+            </button>
+          )}
           <button onClick={() => void saveDraft()} disabled={busy || accountId == null} className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-[13px] font-semibold text-text-2 hover:bg-raised disabled:opacity-40">
             <Icon name="draft" size={15} /> Save draft
           </button>
@@ -211,11 +256,6 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
             <Icon name="clip" size={15} /> Attach
           </button>
           <div className="flex-1" />
-          {status && (
-            <span data-testid="compose-status" className="text-[12.5px] font-semibold" style={{ color: status.kind === 'error' ? 'var(--red)' : 'var(--green)' }}>
-              {status.text}
-            </span>
-          )}
         </div>
       </div>
     </div>

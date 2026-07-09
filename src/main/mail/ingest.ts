@@ -1,6 +1,7 @@
 import { simpleParser, type AddressObject } from 'mailparser'
 import type { MessageInsert } from '@shared/db'
 import { addAttachment, upsertMessage } from '../../db/messages'
+import { upsertContact } from '../../db/contacts'
 import { parseIcs } from './ics'
 import type { DB } from '../../db/database'
 
@@ -63,6 +64,10 @@ export async function ingestRaw(db: DB, meta: IngestMeta, raw: Buffer | string):
   }
 
   const id = upsertMessage(db, insert, attachments.length > 0, inviteJson)
+
+  // Auto-collect the sender into the address book for autocomplete.
+  if (from?.address) upsertContact(db, from.name || null, from.address)
+
   for (const att of attachments) {
     // ponytail: store metadata only; attachment content is fetched to disk when
     // the user chooses to open it (attachments never auto-open, per the spec).

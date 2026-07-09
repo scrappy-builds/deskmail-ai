@@ -204,5 +204,8 @@ export const MIGRATIONS: string[] = [
   `,
 
   // --- v2: parsed calendar-invite data attached to a message ------------------
-  `ALTER TABLE messages ADD COLUMN invite_json TEXT;`
+  `ALTER TABLE messages ADD COLUMN invite_json TEXT;`,
+
+  // --- v3: signature "append to new messages" toggle --------------------------
+  `ALTER TABLE signatures ADD COLUMN append_to_new INTEGER NOT NULL DEFAULT 1;`
 ]

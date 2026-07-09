@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../Icon'
 import type { AccountSummary } from '@shared/db'
 import { AccountWizard } from './AccountWizard'
+import { ContactsPane, SendingPane, SignaturesPane, TemplatesPane } from './panes'
 
 const SECTIONS = [
   'Accounts',
   'Signatures',
+  'Templates',
+  'Contacts',
   'Sending',
   'Meetings',
   'Claude connector',
@@ -121,7 +124,16 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-5">
-            {section === 'Accounts' ? <AccountsPane /> : <Placeholder name={section} />}
+            {section === 'Accounts' && <AccountsPane />}
+            {section === 'Signatures' && <SignaturesPane />}
+            {section === 'Templates' && <TemplatesPane />}
+            {section === 'Contacts' && <ContactsPane />}
+            {section === 'Sending' && <SendingPane />}
+            {section !== 'Accounts' &&
+              section !== 'Signatures' &&
+              section !== 'Templates' &&
+              section !== 'Contacts' &&
+              section !== 'Sending' && <Placeholder name={section} />}
           </div>
         </div>
       </div>

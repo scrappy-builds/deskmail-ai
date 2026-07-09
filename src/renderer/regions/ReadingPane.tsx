@@ -1,9 +1,56 @@
+import { useEffect, useRef, useState } from 'react'
 import { Icon, type IconName } from '../Icon'
+import type { SnoozeOption } from '@shared/db'
 import { fmtFullDate, initials } from '../mail/format'
 import { EmailBody } from '../mail/EmailBody'
 import { InviteCard } from '../mail/InviteCard'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
+import { useToast } from '../store/toastStore'
+
+const SNOOZE_OPTS: { label: string; opt: SnoozeOption }[] = [
+  { label: 'Later today', opt: 'later' },
+  { label: 'Tomorrow', opt: 'tomorrow' },
+  { label: 'This weekend', opt: 'weekend' },
+  { label: 'Next week', opt: 'nextweek' }
+]
+
+function SnoozeMenu({ messageId }: { messageId: number }): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const showToast = useToast((s) => s.show)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  const snooze = (opt: SnoozeOption, label: string): void => {
+    void window.deskmail.mail.snooze(messageId, opt)
+    showToast({ text: `Snoozed until ${label.toLowerCase()}` })
+    setOpen(false)
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((v) => !v)} title="Snooze" className="flex h-[34px] w-[34px] items-center justify-center rounded-md text-text-2 hover:bg-raised">
+        <Icon name="clock" size={18} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-20 mt-1 w-[180px] rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
+          {SNOOZE_OPTS.map((s) => (
+            <button key={s.opt} onClick={() => snooze(s.opt, s.label)} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
 
@@ -50,6 +97,7 @@ export function ReadingPane({ onOpen }: { onOpen?: (id: number) => void }): JSX.
         <ToolBtn icon="trash" title="Delete" />
         <ToolBtn icon="star" title="Star" />
         <ToolBtn icon="markUnread" title="Mark unread" />
+        <SnoozeMenu messageId={m.id} />
         <div className="flex-1" />
         <button
           onClick={() => onOpen?.(m.id)}

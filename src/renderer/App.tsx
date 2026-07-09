@@ -6,6 +6,8 @@ import { ViewSettings } from './ViewSettings'
 import { Settings } from './settings/Settings'
 import { Compose } from './compose/Compose'
 import { Calendar } from './calendar/Calendar'
+import { Today } from './today/Today'
+import { Toast } from './Toast'
 import { useCalendar } from './store/calendarStore'
 
 export function App(): JSX.Element {
@@ -15,8 +17,8 @@ export function App(): JSX.Element {
   const [composeOpen, setComposeOpen] = useState(false)
   const openNewEvent = useCalendar((s) => s.openNew)
 
-  // The command-bar primary button is Compose in mail, New event in calendar.
-  const onPrimary = (): void => (mode === 'mail' ? setComposeOpen(true) : openNewEvent())
+  // The command-bar primary button is New event in calendar, Compose otherwise.
+  const onPrimary = (): void => (mode === 'calendar' ? openNewEvent() : setComposeOpen(true))
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-bg text-text">
@@ -28,11 +30,14 @@ export function App(): JSX.Element {
         onCompose={onPrimary}
       />
 
-      {mode === 'mail' ? <Workspace onOpen={(id) => window.deskmail.openMessage(id)} /> : <Calendar />}
+      {mode === 'mail' && <Workspace onOpen={(id) => window.deskmail.openMessage(id)} />}
+      {mode === 'calendar' && <Calendar />}
+      {mode === 'today' && <Today />}
 
       {viewSettingsOpen && <ViewSettings onClose={() => setViewSettingsOpen(false)} />}
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       {composeOpen && <Compose onClose={() => setComposeOpen(false)} />}
+      <Toast />
     </div>
   )
 }

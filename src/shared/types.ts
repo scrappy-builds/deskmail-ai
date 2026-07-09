@@ -8,14 +8,20 @@ import type {
   ComposeAttachment,
   ComposePayload,
   ConnectionConfig,
+  Contact,
   DraftSummary,
   EventInput,
   EventSummary,
   FolderSummary,
   MessageDetail,
   MessageListItem,
+  ScheduledSend,
   SendResult,
-  TestResult
+  SignatureData,
+  SnoozeOption,
+  Template,
+  TestResult,
+  TodayAgenda
 } from './db'
 
 export type { LayoutPreferences, Theme }
@@ -49,10 +55,17 @@ export interface DeskMailApi {
     sync(accountId?: number): Promise<void>
     // Subscribe to "mail changed" (after a sync/seed). Returns an unsubscribe fn.
     onChanged(cb: () => void): () => void
+    // Snooze a message until a quick option's time, or a specific time; or clear it.
+    snooze(messageId: number, option: SnoozeOption): Promise<void>
+    snoozeUntil(messageId: number, iso: string): Promise<void>
+    unsnooze(messageId: number): Promise<void>
+    // Unified Today agenda: today's events + unread mail.
+    today(): Promise<TodayAgenda>
   }
-  // Compose: drafts, signatures, attachments and manual send (Stage 6).
+  // Compose: drafts, signatures, attachments and manual send (Stage 6/8).
   compose: {
-    getSignature(accountId: number): Promise<string | null>
+    getSignature(accountId: number): Promise<SignatureData | null>
+    updateSignature(accountId: number, body: string, appendToNew: boolean): Promise<void>
     saveDraft(payload: ComposePayload): Promise<{ id: number }>
     listDrafts(): Promise<DraftSummary[]>
     getDraft(id: number): Promise<DraftSummary | null>
@@ -60,6 +73,23 @@ export interface DeskMailApi {
     pickAttachments(): Promise<ComposeAttachment[]>
     // Send is a manual action only — this is the sole path that sends mail.
     send(payload: ComposePayload): Promise<SendResult>
+    // Send-later & undo-send (both go through scheduled_sends).
+    scheduleSend(payload: ComposePayload, sendAtIso: string): Promise<{ id: number }>
+    sendWithUndo(payload: ComposePayload): Promise<{ id: number }>
+    listScheduled(): Promise<ScheduledSend[]>
+    cancelScheduled(id: number): Promise<void>
+  }
+  // Canned reply templates (Stage 8).
+  templates: {
+    list(): Promise<Template[]>
+    create(name: string, subject: string, body: string): Promise<{ id: number }>
+    update(id: number, name: string, subject: string, body: string): Promise<void>
+    remove(id: number): Promise<void>
+  }
+  // Contacts / address book (Stage 8).
+  contacts: {
+    list(): Promise<Contact[]>
+    search(query: string): Promise<Contact[]>
   }
   // Calendar & meetings (Stage 7).
   calendar: {

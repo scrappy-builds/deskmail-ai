@@ -107,10 +107,13 @@ function toListItem(r: MessageRow): MessageListItem {
   }
 }
 
-// Reads come straight from SQLite — so this works offline.
+// Reads come straight from SQLite — so this works offline. Currently-snoozed
+// messages are hidden until their snooze time passes (then they reappear).
 export function listMessages(db: DB, folderId: number): MessageListItem[] {
   const rows = db.all(
-    'SELECT * FROM messages WHERE folder_id = ? ORDER BY received_at DESC, id DESC',
+    `SELECT * FROM messages WHERE folder_id = ?
+       AND id NOT IN (SELECT message_id FROM snoozes WHERE datetime(snooze_until) > datetime('now'))
+     ORDER BY received_at DESC, id DESC`,
     [folderId]
   ) as unknown as MessageRow[]
   return rows.map(toListItem)

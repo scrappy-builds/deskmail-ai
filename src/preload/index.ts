@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings, DeskMailApi } from '@shared/types'
-import type { AccountInput, ComposePayload, ConnectionConfig, EventInput } from '@shared/db'
+import type { AccountInput, ComposePayload, ConnectionConfig, EventInput, SnoozeOption } from '@shared/db'
 
 // The only surface the renderer can touch. No Node, no ipcRenderer directly —
 // just these typed methods.
@@ -23,16 +23,35 @@ const api: DeskMailApi = {
       const listener = (): void => cb()
       ipcRenderer.on('mail:changed', listener)
       return () => ipcRenderer.removeListener('mail:changed', listener)
-    }
+    },
+    snooze: (messageId: number, option: SnoozeOption) => ipcRenderer.invoke('mail:snooze', messageId, option),
+    snoozeUntil: (messageId: number, iso: string) => ipcRenderer.invoke('mail:snooze-until', messageId, iso),
+    unsnooze: (messageId: number) => ipcRenderer.invoke('mail:unsnooze', messageId),
+    today: () => ipcRenderer.invoke('mail:today')
   },
   compose: {
     getSignature: (accountId: number) => ipcRenderer.invoke('compose:get-signature', accountId),
+    updateSignature: (accountId: number, body: string, appendToNew: boolean) => ipcRenderer.invoke('compose:update-signature', accountId, body, appendToNew),
     saveDraft: (payload: ComposePayload) => ipcRenderer.invoke('compose:save-draft', payload),
     listDrafts: () => ipcRenderer.invoke('compose:list-drafts'),
     getDraft: (id: number) => ipcRenderer.invoke('compose:get-draft', id),
     deleteDraft: (id: number) => ipcRenderer.invoke('compose:delete-draft', id),
     pickAttachments: () => ipcRenderer.invoke('compose:pick-attachments'),
-    send: (payload: ComposePayload) => ipcRenderer.invoke('compose:send', payload)
+    send: (payload: ComposePayload) => ipcRenderer.invoke('compose:send', payload),
+    scheduleSend: (payload: ComposePayload, sendAtIso: string) => ipcRenderer.invoke('compose:schedule-send', payload, sendAtIso),
+    sendWithUndo: (payload: ComposePayload) => ipcRenderer.invoke('compose:send-with-undo', payload),
+    listScheduled: () => ipcRenderer.invoke('compose:list-scheduled'),
+    cancelScheduled: (id: number) => ipcRenderer.invoke('compose:cancel-scheduled', id)
+  },
+  templates: {
+    list: () => ipcRenderer.invoke('templates:list'),
+    create: (name: string, subject: string, body: string) => ipcRenderer.invoke('templates:create', name, subject, body),
+    update: (id: number, name: string, subject: string, body: string) => ipcRenderer.invoke('templates:update', id, name, subject, body),
+    remove: (id: number) => ipcRenderer.invoke('templates:remove', id)
+  },
+  contacts: {
+    list: () => ipcRenderer.invoke('contacts:list'),
+    search: (query: string) => ipcRenderer.invoke('contacts:search', query)
   },
   calendar: {
     listEvents: (from?: string, to?: string) => ipcRenderer.invoke('calendar:list-events', from, to),

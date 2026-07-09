@@ -8,8 +8,13 @@ import { insertAccount, listAccounts } from '../db/accounts'
 import { listFolders } from '../db/folders'
 import { getMessage, listMessages, markRead, searchMessages } from '../db/messages'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
-import { ensureDefaultSignature, getDefaultSignature } from '../db/signatures'
+import { ensureDefaultSignature, getSignatureData, updateSignature } from '../db/signatures'
 import { createEvent, deleteEvent, getEvent, listEvents, updateEvent } from '../db/events'
+import { cancelScheduled, dueScheduled, listScheduled, markError, markSent, scheduleSend } from '../db/scheduledSends'
+import { computeSnoozeTime, snoozeMessage, unsnooze } from '../db/snoozes'
+import { createTemplate, deleteTemplate, listTemplates, seedTemplatesIfEmpty, updateTemplate } from '../db/templates'
+import { listContacts, searchContacts } from '../db/contacts'
+import { getTodayAgenda } from '../db/today'
 import { storeCredential } from './credentials'
 import { testIncoming, testOutgoing } from './mail/connectionTest'
 import { syncAccount, syncAllAccounts } from './mail/sync'
@@ -17,7 +22,10 @@ import { sendMail } from './mail/send'
 import { joinMeeting } from './meetings'
 import { maybeSeedDemo } from './mail/demoSeed'
 import type { AppSettings } from '@shared/types'
-import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig, EventInput } from '@shared/db'
+import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig, EventInput, SnoozeOption } from '@shared/db'
+
+// Undo-send window in seconds (configurable later; sensible default now).
+const UNDO_DELAY_SECONDS = 10
 
 // Allow an override data directory (used by E2E tests now; the basis for
 // portable/USB mode in Stage 10). Must be set before the app is ready.
@@ -33,7 +41,39 @@ async function initDatabase(): Promise<void> {
   db = openDatabase(join(app.getPath('userData'), 'deskmail.db'))
   const legacy = existsSync(settingsPath()) ? loadSettings(settingsPath()) : null
   seedLayoutIfEmpty(db, legacy)
+  seedTemplatesIfEmpty(db) // canned replies exist for real use, not just demo
   await maybeSeedDemo(db)
+}
+
+// Background sender: send any scheduled messages whose time has come. Covers both
+// "Send later" and undo-send (which schedules a few seconds out). Poll every 5s.
+function startScheduledSender(): void {
+  const tick = async (): Promise<void> => {
+    const due = dueScheduled(db, new Date().toISOString())
+    for (const s of due) {
+      if (s.draftId == null) {
+        markError(db, s.id)
+        continue
+      }
+      const draft = getDraft(db, s.draftId)
+      if (!draft || draft.accountId == null) {
+        markError(db, s.id)
+        continue
+      }
+      const res = await sendMail(db, {
+        accountId: draft.accountId,
+        to: draft.to,
+        cc: draft.cc,
+        bcc: draft.bcc,
+        subject: draft.subject ?? '',
+        bodyHtml: draft.bodyHtml ?? ''
+      })
+      if (res.ok) markSent(db, s.id)
+      else markError(db, s.id) // ponytail: no infinite retry — mark error and move on
+    }
+    if (due.length) broadcastMailChanged()
+  }
+  setInterval(() => void tick(), 5000)
 }
 
 // Tell every open window the local mail cache changed, so it refetches.
@@ -137,8 +177,9 @@ function registerIpc(): void {
     broadcastMailChanged()
   })
 
-  // --- Compose: drafts, signatures, attachments, manual send (Stage 6) --------
-  ipcMain.handle('compose:get-signature', (_e, accountId: number) => getDefaultSignature(db, accountId))
+  // --- Compose: drafts, signatures, attachments, manual send (Stage 6/8) ------
+  ipcMain.handle('compose:get-signature', (_e, accountId: number) => getSignatureData(db, accountId))
+  ipcMain.handle('compose:update-signature', (_e, accountId: number, body: string, appendToNew: boolean) => updateSignature(db, accountId, body, appendToNew))
   ipcMain.handle('compose:save-draft', (_e, payload: ComposePayload) => ({ id: saveDraft(db, payload) }))
   ipcMain.handle('compose:list-drafts', () => listDrafts(db))
   ipcMain.handle('compose:get-draft', (_e, id: number) => getDraft(db, id))
@@ -153,6 +194,41 @@ function registerIpc(): void {
   })
   // The ONLY path that sends mail — reached solely from the user's Send click.
   ipcMain.handle('compose:send', (_e, payload: ComposePayload) => sendMail(db, payload))
+  // Send-later & undo-send both queue a scheduled_send; the poller delivers it.
+  ipcMain.handle('compose:schedule-send', (_e, payload: ComposePayload, sendAtIso: string) => scheduleSend(db, payload, sendAtIso))
+  ipcMain.handle('compose:send-with-undo', (_e, payload: ComposePayload) => {
+    const sendAt = new Date(Date.now() + UNDO_DELAY_SECONDS * 1000).toISOString()
+    return scheduleSend(db, payload, sendAt)
+  })
+  ipcMain.handle('compose:list-scheduled', () => listScheduled(db))
+  ipcMain.handle('compose:cancel-scheduled', (_e, id: number) => cancelScheduled(db, id))
+
+  // --- Snooze / Today (Stage 8) -----------------------------------------------
+  ipcMain.handle('mail:snooze', (_e, messageId: number, option: SnoozeOption) => {
+    snoozeMessage(db, messageId, computeSnoozeTime(option))
+    broadcastMailChanged()
+  })
+  ipcMain.handle('mail:snooze-until', (_e, messageId: number, iso: string) => {
+    snoozeMessage(db, messageId, iso)
+    broadcastMailChanged()
+  })
+  ipcMain.handle('mail:unsnooze', (_e, messageId: number) => {
+    unsnooze(db, messageId)
+    broadcastMailChanged()
+  })
+  ipcMain.handle('mail:today', () => {
+    const now = new Date()
+    const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    return getTodayAgenda(db, iso)
+  })
+
+  // --- Templates & contacts (Stage 8) -----------------------------------------
+  ipcMain.handle('templates:list', () => listTemplates(db))
+  ipcMain.handle('templates:create', (_e, name: string, subject: string, body: string) => ({ id: createTemplate(db, name, subject, body) }))
+  ipcMain.handle('templates:update', (_e, id: number, name: string, subject: string, body: string) => updateTemplate(db, id, name, subject, body))
+  ipcMain.handle('templates:remove', (_e, id: number) => deleteTemplate(db, id))
+  ipcMain.handle('contacts:list', () => listContacts(db))
+  ipcMain.handle('contacts:search', (_e, query: string) => searchContacts(db, query))
 
   // --- Calendar & meetings (Stage 7) ------------------------------------------
   ipcMain.handle('calendar:list-events', (_e, from?: string, to?: string) => listEvents(db, from, to))
@@ -235,6 +311,7 @@ app.whenReady().then(async () => {
 
   // Background sync on launch (non-blocking); refresh the UI when it lands.
   void syncAllAccounts(db).then(broadcastMailChanged)
+  startScheduledSender()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()

@@ -9,14 +9,14 @@
 ---
 
 ## Current status
-- **Active stage:** Stage 7 complete (awaiting go-ahead for Stage 8).
-- **Last session ended:** 2026-07-09 — Stage 7 built, tested, committed.
-- **Exact next step:** On user's OK, start **Stage 8 — Added power features**: per-account **signatures**
-  (management UI in Settings, live preview, append toggle — table + default already exist); **send-later
-  & undo-send** (`scheduled_sends`, background sender, configurable undo window); **snooze / remind-me**
-  (`snoozes`); **canned reply templates** (`templates`, seed a few in Jamie's voice); **contacts /
-  address book** (`contacts`, auto-collect + autocomplete); unified **Today agenda** (unread + due +
-  today's events). One test per feature covering its core path.
+- **Active stage:** Stage 8 complete (awaiting go-ahead for Stage 9).
+- **Last session ended:** 2026-07-09 — Stage 8 built, tested, committed.
+- **Exact next step:** On user's OK, start **Stage 9 — Local MCP server**: a local server (`/mcp`) exposing
+  exactly the safe read/draft tools (`list_accounts, list_folders, search_emails, read_email,
+  create_draft, find_related_emails, find_unanswered_emails, extract_dates_and_deadlines,
+  summarise_thread_data`) with the shapes in FEATURE_SPEC §MCP; **no** send/delete/credential/settings/
+  filesystem access. Include Claude Desktop connector config + instructions in Settings and the README.
+  Tests: each tool returns the specified shape; forbidden actions are impossible.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
@@ -81,7 +81,7 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
 - [x] **Stage 5** — Sync + parsing + offline cache + safe rendering (sanitise, block remote images)
 - [x] **Stage 6** — Search + Compose + Drafts + manual Send + signature insertion
 - [x] **Stage 7** — Calendar + invites + meeting providers
-- [ ] **Stage 8** — Added features: per-account signatures · send-later/undo-send · snooze · templates · contacts · Today agenda
+- [x] **Stage 8** — Added features: per-account signatures · send-later/undo-send · snooze · templates · contacts · Today agenda
 - [ ] **Stage 9** — Local MCP server (safe tools; Claude Desktop connector config)
 - [ ] **Stage 10** — Packaging (installer) + local backup + USB/portable mode
 - [ ] **Stage 11** — Hardening + error/empty/loading states + docs
@@ -282,6 +282,34 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
   - ICS times are taken literally (no timezone conversion). Real per-provider meetings use placeholder links.
   - `join` launches via shell.openExternal (not E2E-tested to avoid opening real apps); pure parts are unit-tested.
 - Next step: Stage 8 (added power features).
+
+### Stage 8
+- Done (all six added features):
+  1. **Signatures** — migration **v3** `signatures.append_to_new`; `getSignatureData`/`updateSignature`;
+     `getDefaultSignature` returns the body only when append is on. Settings → Signatures pane (per-account
+     select, body editor, append toggle, live). Compose shows the preview only when append is on.
+  2. **Send-later & undo-send** — `db/scheduledSends.ts` (schedule/list/due/cancel/markSent/markError) =
+     a stored draft + scheduled_sends row. Main **background sender** polls every 5s and delivers due
+     sends. Compose Send → `sendWithUndo` (queues ~10s out) + an **Undo** toast; **Send later** → native
+     datetime → `scheduleSend`. Settings → Sending lists + cancels scheduled sends.
+  3. **Snooze** — `db/snoozes.ts` (`computeSnoozeTime` quick options, `snoozeMessage`, `isSnoozed`);
+     `listMessages` excludes currently-snoozed messages (they reappear when due). Reading-pane snooze menu.
+  4. **Templates** — `db/templates.ts` (CRUD + `seedTemplatesIfEmpty`, 3 canned replies in Jamie's voice);
+     seeded on first run. Compose "Templates" control inserts into the editor; Settings → Templates manages them.
+  5. **Contacts** — `db/contacts.ts` (upsert/list/search); auto-collected from senders during ingest;
+     Compose To field autocompletes via a `<datalist>`; Settings → Contacts browses them.
+  6. **Today agenda** — `db/today.ts` (`getTodayAgenda`: today's events + unread, non-snoozed mail);
+     new **Today** command-bar tab + view; messages open in a full window, events offer Join.
+  - Added a small `toastStore` + `Toast` for undo/confirmations.
+- Tests: `npm test` → 55 unit (+6 features covering each core path). `npm run test:e2e` → 18 (+4: template
+  insert, snooze hides a row, Today lists unread, signature save persists; and the compose send/draft
+  tests updated to the undo-send model). Adjusted db user_version → 3.
+- Known issues / TODO:
+  - Undo-send delay is a fixed 10s constant (app_settings hook exists; expose in Settings later).
+  - Scheduled sends don't carry attachments (drafts don't persist them). Delivery failures mark 'error' (no retry UI).
+  - Contacts autocomplete is a native datalist (no rich dropdown); no manual contact add/edit yet.
+  - Meetings/Claude connector/Appearance/Security/Local storage settings panes are still placeholders (Stages 9–11).
+- Next step: Stage 9 (local MCP server).
 
 _(Add a block like the above for each stage as you go.)_
 

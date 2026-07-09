@@ -151,6 +151,43 @@ export interface InviteData {
   joinUrl: string | null
 }
 
+// --- Stage 8 added features ----------------------------------------------------
+export interface SignatureData {
+  id: number
+  body: string
+  appendToNew: boolean
+}
+
+export interface ScheduledSend {
+  id: number
+  draftId: number | null
+  accountId: number | null
+  sendAt: string
+  status: string
+  subject: string | null
+  to: string[]
+}
+
+export type SnoozeOption = 'later' | 'tomorrow' | 'weekend' | 'nextweek'
+
+export interface Template {
+  id: number
+  name: string
+  subject: string | null
+  body: string | null
+}
+
+export interface Contact {
+  id: number
+  name: string | null
+  email: string | null
+}
+
+export interface TodayAgenda {
+  events: EventSummary[]
+  messages: MessageListItem[]
+}
+
 export interface ComposeAttachment {
   path: string
   name: string

@@ -3,7 +3,7 @@ import { PRESET_LABELS } from '@shared/layout'
 import { useLayout } from './store/layoutStore'
 import { useMail } from './store/mailStore'
 
-export type Mode = 'mail' | 'calendar'
+export type Mode = 'mail' | 'calendar' | 'today'
 
 interface CommandBarProps {
   mode: Mode
@@ -20,7 +20,7 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
   const searchQuery = useMail((s) => s.searchQuery)
   const runSearch = useMail((s) => s.runSearch)
 
-  const tab = (m: Mode, label: string, icon: 'mail' | 'calendar'): JSX.Element => {
+  const tab = (m: Mode, label: string, icon: 'mail' | 'calendar' | 'clock'): JSX.Element => {
     const active = mode === m
     return (
       <button
@@ -37,6 +37,7 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
   return (
     <div className="flex h-[56px] flex-none items-center gap-2.5 border-b border-border bg-panel px-3.5">
       <div className="flex gap-0.5 rounded-md border border-border bg-inset p-[3px]">
+        {tab('today', 'Today', 'clock')}
         {tab('mail', 'Mail', 'mail')}
         {tab('calendar', 'Calendar', 'calendar')}
       </div>
@@ -75,8 +76,8 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
         onClick={onCompose}
         className="flex items-center gap-2 rounded-md bg-accent px-4 py-[9px] text-[13px] font-semibold text-accent-fg hover:bg-accent-2"
       >
-        <Icon name={mode === 'mail' ? 'compose' : 'calendar'} size={16} />
-        <span>{mode === 'mail' ? 'Compose' : 'New event'}</span>
+        <Icon name={mode === 'calendar' ? 'calendar' : 'compose'} size={16} />
+        <span>{mode === 'calendar' ? 'New event' : 'Compose'}</span>
       </button>
 
       <button
