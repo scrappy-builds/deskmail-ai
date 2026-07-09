@@ -14,14 +14,11 @@ import {
 interface LayoutState {
   prefs: LayoutPreferences
   hydrated: boolean
-  // Claude slide-over / float open state is session-only, not persisted.
-  claudeOpen: boolean
 
   hydrate: () => Promise<void>
   usePreset: (preset: Exclude<LayoutPreset, 'custom'>) => void
   setPref: <K extends keyof LayoutPreferences>(key: K, value: LayoutPreferences[K]) => void
   toggleTheme: () => void
-  toggleClaude: () => void
 }
 
 function persist(prefs: LayoutPreferences): void {
@@ -32,11 +29,11 @@ function persist(prefs: LayoutPreferences): void {
 export const useLayout = create<LayoutState>((set, get) => ({
   prefs: DEFAULT_LAYOUT,
   hydrated: false,
-  claudeOpen: false,
 
   hydrate: async () => {
     const prefs = await window.deskmail.getSettings()
     document.documentElement.setAttribute('data-theme', prefs.theme)
+    window.deskmail.setZoom(prefs.fontScale)
     set({ prefs, hydrated: true })
   },
 
@@ -49,6 +46,7 @@ export const useLayout = create<LayoutState>((set, get) => ({
   setPref: (key, value) => {
     const prefs = applyPref(get().prefs, key, value)
     if (key === 'theme') document.documentElement.setAttribute('data-theme', prefs.theme)
+    if (key === 'fontScale') window.deskmail.setZoom(prefs.fontScale)
     persist(prefs)
     set({ prefs })
   },
@@ -56,8 +54,5 @@ export const useLayout = create<LayoutState>((set, get) => ({
   toggleTheme: () => {
     const next: Theme = get().prefs.theme === 'dark' ? 'light' : 'dark'
     get().setPref('theme', next)
-  },
-
-  // Docked Claude is always visible; otherwise toggle the slide-over/float.
-  toggleClaude: () => set((s) => ({ claudeOpen: !s.claudeOpen }))
+  }
 }))

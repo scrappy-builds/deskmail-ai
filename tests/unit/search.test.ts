@@ -70,4 +70,20 @@ describe('local search', () => {
   it('returns nothing for an empty query', () => {
     expect(searchMessages(db, '   ')).toHaveLength(0)
   })
+
+  it('supports field operators (from: / subject:)', () => {
+    expect(searchMessages(db, 'from:maya').map((m) => m.subject)).toEqual(['Q3 launch timeline'])
+    expect(searchMessages(db, 'subject:invoice').map((m) => m.subject)).toEqual(['Your invoice for June'])
+    // subject: scopes to the subject column, so a body-only word doesn't match there
+    expect(searchMessages(db, 'subject:clause')).toHaveLength(0)
+  })
+
+  it('supports is:unread and combines with text', () => {
+    expect(searchMessages(db, 'is:unread').length).toBe(3) // all seeded unread
+    expect(searchMessages(db, 'launch is:read')).toHaveLength(0)
+  })
+
+  it('does not choke on a stray FTS metacharacter', () => {
+    expect(() => searchMessages(db, 'invoice (')).not.toThrow()
+  })
 })

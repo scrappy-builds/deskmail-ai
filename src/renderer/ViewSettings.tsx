@@ -6,7 +6,7 @@ const PRESET_CARDS: { key: Exclude<LayoutPreset, 'custom'>; desc: string }[] = [
   { key: 'classic', desc: 'Sidebar, list, reading pane on the right.' },
   { key: 'bottom', desc: 'List on top, reading pane below.' },
   { key: 'focus', desc: 'Collapsed sidebar, large reading pane.' },
-  { key: 'wide', desc: 'Everything visible incl. docked Claude.' },
+  { key: 'wide', desc: 'Wide layout with a large reading pane.' },
   { key: 'right', desc: 'Folders and accounts on the right.' },
   { key: 'noreading', desc: 'List only; messages open in windows.' }
 ]
@@ -176,16 +176,6 @@ export function ViewSettings({ onClose }: { onClose: () => void }): JSX.Element 
               ]}
             />
             <Segmented
-              label="Claude panel"
-              value={prefs.claudePanelPosition}
-              options={[
-                { label: 'Right', val: 'right', on: set('claudePanelPosition', 'right') },
-                { label: 'Left', val: 'left', on: set('claudePanelPosition', 'left') },
-                { label: 'Float', val: 'float', on: set('claudePanelPosition', 'float') },
-                { label: 'Docked', val: 'docked', on: set('claudePanelPosition', 'docked') }
-              ]}
-            />
-            <Segmented
               label="Opening a message"
               value={prefs.openEmailBehaviour}
               options={[
@@ -204,6 +194,21 @@ export function ViewSettings({ onClose }: { onClose: () => void }): JSX.Element 
                 step={1}
                 value={prefs.previewLineCount}
                 onChange={(e) => setPref('previewLineCount', Number(e.target.value))}
+                className="w-full"
+                style={{ accentColor: 'var(--accent)' }}
+              />
+            </div>
+            <div>
+              <div className="mb-[7px] text-[12.5px] font-semibold">
+                Text size · <span className="text-accent">{Math.round(prefs.fontScale * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min={0.8}
+                max={1.4}
+                step={0.1}
+                value={prefs.fontScale}
+                onChange={(e) => setPref('fontScale', Number(e.target.value))}
                 className="w-full"
                 style={{ accentColor: 'var(--accent)' }}
               />

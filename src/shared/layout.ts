@@ -31,6 +31,7 @@ export interface LayoutPreferences {
   claudePanelPosition: ClaudePanelPosition
   selectedLayoutPreset: LayoutPreset
   theme: Theme
+  fontScale: number // UI zoom / text-size, 0.8..1.4 (accessibility)
 }
 
 export const DEFAULT_LAYOUT: LayoutPreferences = {
@@ -44,7 +45,8 @@ export const DEFAULT_LAYOUT: LayoutPreferences = {
   openEmailBehaviour: 'reading-pane',
   claudePanelPosition: 'right',
   selectedLayoutPreset: 'classic',
-  theme: 'light'
+  theme: 'light',
+  fontScale: 1
 }
 
 // The six presets: each is a partial override of the current prefs. Fields not

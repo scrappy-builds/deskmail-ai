@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '../Icon'
-import type { AccountSummary } from '@shared/db'
+import type { AccountInput, AccountSummary } from '@shared/db'
 import { AccountWizard } from './AccountWizard'
-import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, SecurityPane, SendingPane, SignaturesPane, TemplatesPane } from './panes'
+import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, NotificationsPane, RulesPane, SecurityPane, SendingPane, SignaturesPane, TemplatesPane } from './panes'
 
 const SECTIONS = [
   'Accounts',
+  'Rules',
+  'Notifications',
   'Signatures',
   'Templates',
   'Contacts',
@@ -22,20 +24,33 @@ type Section = (typeof SECTIONS)[number]
 function AccountsPane(): JSX.Element {
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<{ id: number; initial: AccountInput } | null>(null)
 
   const refresh = (): void => {
     void window.deskmail.listAccounts().then(setAccounts)
   }
   useEffect(refresh, [])
 
-  if (adding) {
+  const openEdit = (id: number): void => {
+    void window.deskmail.getAccount(id).then((initial) => {
+      if (initial) setEditing({ id, initial })
+    })
+  }
+
+  if (adding || editing) {
     return (
       <AccountWizard
+        editId={editing?.id}
+        initial={editing?.initial}
         onSaved={() => {
           setAdding(false)
+          setEditing(null)
           refresh()
         }}
-        onCancel={() => setAdding(false)}
+        onCancel={() => {
+          setAdding(false)
+          setEditing(null)
+        }}
       />
     )
   }
@@ -53,13 +68,18 @@ function AccountsPane(): JSX.Element {
       ) : (
         <div className="flex flex-col gap-2">
           {accounts.map((acc) => (
-            <div key={acc.id} className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-3">
+            <button
+              key={acc.id}
+              onClick={() => openEdit(acc.id)}
+              className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-3 text-left hover:border-accent"
+            >
               <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ background: acc.colour ?? 'var(--accent)' }} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13.5px] font-semibold">{acc.displayName}</div>
                 <div className="truncate text-[12px] text-text-3">{acc.emailAddress}</div>
               </div>
-            </div>
+              <span className="flex-none text-[12px] font-semibold text-text-3">Edit</span>
+            </button>
           ))}
         </div>
       )}
@@ -125,6 +145,8 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
           </div>
           <div className="flex-1 overflow-y-auto p-5">
             {section === 'Accounts' && <AccountsPane />}
+            {section === 'Rules' && <RulesPane />}
+            {section === 'Notifications' && <NotificationsPane />}
             {section === 'Signatures' && <SignaturesPane />}
             {section === 'Templates' && <TemplatesPane />}
             {section === 'Contacts' && <ContactsPane />}
@@ -133,6 +155,8 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
             {section === 'Security' && <SecurityPane />}
             {section === 'Local storage' && <LocalStoragePane />}
             {section !== 'Accounts' &&
+              section !== 'Rules' &&
+              section !== 'Notifications' &&
               section !== 'Signatures' &&
               section !== 'Templates' &&
               section !== 'Contacts' &&

@@ -1,60 +1,270 @@
 import { useEffect, useState } from 'react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '../Icon'
-import type { AccountSummary, Contact, ScheduledSend, Template } from '@shared/db'
+import type { AccountSummary, ContactDetail, ContactInput, FolderSummary, LabelInfo, NotifySettings, Rule, RuleAction, RuleField, RuleInput, RuleOp, ScheduledSend, SignatureItem, Template } from '@shared/db'
 import { useToast } from '../store/toastStore'
 
 const inputCls = 'w-full rounded-md border border-border bg-bg px-3 py-2 text-[13.5px] text-text outline-none focus:border-accent'
 
-// --- Signatures ---------------------------------------------------------------
+// --- Notifications / tray / Focus-DND -----------------------------------------
+function Toggle({ on, onChange, label, hint }: { on: boolean; onChange: (v: boolean) => void; label: string; hint?: string }): JSX.Element {
+  return (
+    <button onClick={() => onChange(!on)} className="flex w-full items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-3 text-left hover:bg-hover">
+      <span className="inline-flex h-5 w-9 flex-none items-center rounded-full p-0.5" style={{ background: on ? 'var(--accent)' : 'var(--border-2)' }}>
+        <span className="h-4 w-4 rounded-full bg-white transition-transform" style={{ transform: on ? 'translateX(16px)' : 'none' }} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-semibold">{label}</span>
+        {hint && <span className="block text-[11.5px] text-text-3">{hint}</span>}
+      </span>
+    </button>
+  )
+}
+
+export function NotificationsPane(): JSX.Element {
+  const [s, setS] = useState<NotifySettings | null>(null)
+  useEffect(() => {
+    void window.deskmail.notify.get().then(setS)
+  }, [])
+  const patch = (p: Partial<NotifySettings>): void => {
+    void window.deskmail.notify.set(p).then(setS)
+  }
+  if (!s) return <div className="text-[13px] text-text-3">Loading…</div>
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[13px] leading-relaxed text-text-2">
+        Get a desktop alert when new mail lands, keep DeskMail in the system tray, and mute alerts on a
+        schedule (or on demand) when you need to focus.
+      </p>
+      <Toggle on={s.enabled} onChange={(v) => patch({ enabled: v })} label="New-mail notifications" hint="Show a desktop alert for new inbox mail." />
+      <Toggle on={s.minimiseToTray} onChange={(v) => patch({ minimiseToTray: v })} label="Minimise to tray" hint="Closing or minimising hides to the tray instead of quitting." />
+      <Toggle on={s.focusNow} onChange={(v) => patch({ focusNow: v })} label="Focus — mute notifications now" hint="Silence alerts until you turn this back off." />
+
+      <div className="rounded-md border border-border bg-bg px-3.5 py-3">
+        <Toggle on={s.dndEnabled} onChange={(v) => patch({ dndEnabled: v })} label="Do Not Disturb schedule" hint="Automatically mute alerts during these hours." />
+        {s.dndEnabled && (
+          <div className="mt-2.5 flex items-center gap-2.5 pl-1 text-[12.5px] text-text-2">
+            From
+            <input type="time" value={s.dndFrom} onChange={(e) => patch({ dndFrom: e.target.value })} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent" />
+            to
+            <input type="time" value={s.dndTo} onChange={(e) => patch({ dndTo: e.target.value })} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent" />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// --- Rules / filters ----------------------------------------------------------
+const FIELD_LABELS: Record<RuleField, string> = { from: 'From', subject: 'Subject', to: 'To', body: 'Body' }
+const OP_LABELS: Record<RuleOp, string> = { contains: 'contains', equals: 'equals', startswith: 'starts with' }
+const ACTION_LABELS: Record<RuleAction, string> = { move: 'Move to folder', label: 'Apply label', star: 'Star', read: 'Mark read', junk: 'Move to Junk', archive: 'Archive' }
+
+const BLANK_RULE: RuleInput = { name: '', enabled: true, field: 'from', op: 'contains', value: '', action: 'star', targetFolderId: null, targetLabelId: null }
+
+export function RulesPane(): JSX.Element {
+  const [rules, setRules] = useState<Rule[]>([])
+  const [folders, setFolders] = useState<FolderSummary[]>([])
+  const [labels, setLabels] = useState<LabelInfo[]>([])
+  const [draft, setDraft] = useState<RuleInput>(BLANK_RULE)
+  const showToast = useToast((s) => s.show)
+
+  const refresh = (): void => void window.deskmail.rules.list().then(setRules)
+  useEffect(() => {
+    refresh()
+    void window.deskmail.mail.listFolders().then((f) => setFolders(f.filter((x) => x.role !== 'drafts')))
+    void window.deskmail.labels.list().then(setLabels)
+  }, [])
+
+  const set = <K extends keyof RuleInput>(k: K, v: RuleInput[K]): void => setDraft((p) => ({ ...p, [k]: v }))
+
+  const add = async (): Promise<void> => {
+    const name = draft.name.trim() || `${FIELD_LABELS[draft.field]} ${OP_LABELS[draft.op]} “${draft.value.trim()}”`
+    if (!draft.value.trim()) {
+      showToast({ text: 'Give the rule something to match on.' })
+      return
+    }
+    await window.deskmail.rules.create({ ...draft, name })
+    setDraft(BLANK_RULE)
+    refresh()
+  }
+  const toggle = async (r: Rule): Promise<void> => {
+    await window.deskmail.rules.update(r.id, { ...r, enabled: !r.enabled })
+    refresh()
+  }
+  const remove = async (id: number): Promise<void> => {
+    await window.deskmail.rules.remove(id)
+    refresh()
+  }
+
+  const needsFolder = draft.action === 'move'
+  const needsLabel = draft.action === 'label'
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-[13px] leading-relaxed text-text-2">
+        Rules run automatically on new mail as it arrives — a quick way to file, star or tidy without
+        lifting a finger. Each rule is one condition and one action.
+      </p>
+
+      <div className="rounded-lg border border-border p-3.5">
+        <div className="mb-2.5 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">New rule</div>
+        <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+          <span className="text-text-2">When</span>
+          <select value={draft.field} onChange={(e) => set('field', e.target.value as RuleField)} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent">
+            {(Object.keys(FIELD_LABELS) as RuleField[]).map((f) => <option key={f} value={f}>{FIELD_LABELS[f]}</option>)}
+          </select>
+          <select value={draft.op} onChange={(e) => set('op', e.target.value as RuleOp)} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent">
+            {(Object.keys(OP_LABELS) as RuleOp[]).map((o) => <option key={o} value={o}>{OP_LABELS[o]}</option>)}
+          </select>
+          <input value={draft.value} onChange={(e) => set('value', e.target.value)} placeholder="text to match" className="min-w-[140px] flex-1 rounded-md border border-border bg-bg px-2.5 py-1.5 outline-none focus:border-accent" />
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[12.5px]">
+          <span className="text-text-2">then</span>
+          <select value={draft.action} onChange={(e) => set('action', e.target.value as RuleAction)} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent">
+            {(Object.keys(ACTION_LABELS) as RuleAction[]).map((a) => <option key={a} value={a}>{ACTION_LABELS[a]}</option>)}
+          </select>
+          {needsFolder && (
+            <select value={draft.targetFolderId ?? ''} onChange={(e) => set('targetFolderId', e.target.value ? Number(e.target.value) : null)} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent">
+              <option value="">choose folder…</option>
+              {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          )}
+          {needsLabel && (
+            <select value={draft.targetLabelId ?? ''} onChange={(e) => set('targetLabelId', e.target.value ? Number(e.target.value) : null)} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent">
+              <option value="">choose label…</option>
+              {labels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          )}
+          <button onClick={() => void add()} className="rounded-md bg-accent px-3.5 py-1.5 font-semibold text-accent-fg hover:bg-accent-2">Add rule</button>
+        </div>
+      </div>
+
+      {rules.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border-2 p-5 text-center text-[12.5px] text-text-3">No rules yet.</div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {rules.map((r) => (
+            <div key={r.id} className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-2.5">
+              <button onClick={() => void toggle(r)} title={r.enabled ? 'Enabled' : 'Disabled'} className="flex-none">
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm border" style={{ borderColor: r.enabled ? 'var(--accent)' : 'var(--border-2)', background: r.enabled ? 'var(--accent)' : 'transparent' }}>
+                  {r.enabled && <Icon name="check" size={12} className="text-accent-fg" />}
+                </span>
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-semibold" style={{ opacity: r.enabled ? 1 : 0.55 }}>{r.name}</div>
+                <div className="truncate text-[11.5px] text-text-3">
+                  {FIELD_LABELS[r.field]} {OP_LABELS[r.op]} “{r.value}” → {ACTION_LABELS[r.action]}
+                </div>
+              </div>
+              <button onClick={() => void remove(r.id)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-danger hover:underline">Delete</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// --- Signatures (multiple per account, rich HTML) -----------------------------
+function RichSignatureEditor({ initial, onSave, onCancel }: { initial: { name: string; body: string }; onSave: (name: string, body: string) => void; onCancel: () => void }): JSX.Element {
+  const [name, setName] = useState(initial.name)
+  const editor = useEditor({ extensions: [StarterKit], content: initial.body })
+  const btn = (label: string, active: boolean, on: () => void): JSX.Element => (
+    <button onClick={on} className="rounded px-2 py-1 text-[12px] font-bold" style={active ? { background: 'var(--accent)', color: 'var(--accent-fg)' } : { color: 'var(--text-2)' }}>
+      {label}
+    </button>
+  )
+  return (
+    <div className="flex flex-col gap-2.5 rounded-lg border border-border p-3.5">
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Signature name (e.g. Work, Personal)" className={inputCls} />
+      <div className="flex items-center gap-1 rounded-md border border-border bg-inset p-1">
+        {btn('B', editor?.isActive('bold') ?? false, () => editor?.chain().focus().toggleBold().run())}
+        {btn('I', editor?.isActive('italic') ?? false, () => editor?.chain().focus().toggleItalic().run())}
+        {btn('• List', editor?.isActive('bulletList') ?? false, () => editor?.chain().focus().toggleBulletList().run())}
+      </div>
+      <EditorContent editor={editor} className="min-h-[110px] rounded-md border border-border bg-bg px-3 py-2 text-[13.5px] leading-relaxed" />
+      <div className="flex gap-2.5">
+        <button onClick={() => onSave(name.trim() || 'Untitled', editor?.getHTML() ?? '')} className="rounded-md bg-accent px-4 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2">Save</button>
+        <button onClick={onCancel} className="rounded-md px-3 py-2 text-[13px] font-semibold text-text-2 hover:bg-raised">Cancel</button>
+      </div>
+    </div>
+  )
+}
+
 export function SignaturesPane(): JSX.Element {
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
   const [accountId, setAccountId] = useState<number | null>(null)
-  const [body, setBody] = useState('')
-  const [append, setAppend] = useState(true)
+  const [sigs, setSigs] = useState<SignatureItem[]>([])
+  const [editing, setEditing] = useState<{ id: number | null; name: string; body: string } | null>(null)
   const showToast = useToast((s) => s.show)
 
+  const refresh = (): void => {
+    if (accountId != null) void window.deskmail.compose.listSignatures(accountId).then(setSigs)
+  }
   useEffect(() => {
     void window.deskmail.listAccounts().then((a) => {
       setAccounts(a)
       setAccountId(a[0]?.id ?? null)
     })
   }, [])
-  useEffect(() => {
-    if (accountId == null) return
-    void window.deskmail.compose.getSignature(accountId).then((s) => {
-      setBody(s?.body ?? '')
-      setAppend(s?.appendToNew ?? true)
-    })
-  }, [accountId])
+  useEffect(refresh, [accountId])
 
-  if (accounts.length === 0) return <p className="text-[13px] text-text-3">Add an account first, then you can set its signature.</p>
+  if (accounts.length === 0) return <p className="text-[13px] text-text-3">Add an account first, then you can set its signatures.</p>
 
-  const save = (): void => {
-    if (accountId == null) return
-    void window.deskmail.compose.updateSignature(accountId, body, append)
+  const appendOn = sigs.find((s) => s.isDefault)?.appendToNew ?? true
+
+  const saveEdit = async (name: string, body: string): Promise<void> => {
+    if (accountId == null || !editing) return
+    if (editing.id == null) await window.deskmail.compose.createSignature(accountId, name, body)
+    else await window.deskmail.compose.updateSignatureById(editing.id, name, body)
+    setEditing(null)
+    refresh()
     showToast({ text: 'Signature saved' })
   }
 
+  if (editing) return <RichSignatureEditor initial={{ name: editing.name, body: editing.body }} onSave={(n, b) => void saveEdit(n, b)} onCancel={() => setEditing(null)} />
+
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[13px] leading-relaxed text-text-2">Your signature is appended to the bottom of new messages. Written in first person — it should sound like you.</p>
+      <p className="text-[13px] leading-relaxed text-text-2">Signatures go at the bottom of your messages — written in first person, so they sound like you. Keep several and pick one when composing.</p>
       {accounts.length > 1 && (
         <select value={accountId ?? undefined} onChange={(e) => setAccountId(Number(e.target.value))} className={inputCls}>
           {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.displayName} — {a.emailAddress}
-            </option>
+            <option key={a.id} value={a.id}>{a.displayName} — {a.emailAddress}</option>
           ))}
         </select>
       )}
-      <textarea value={body} onChange={(e) => setBody(e.target.value)} className={`${inputCls} min-h-[130px] resize-y leading-relaxed`} aria-label="Signature body" />
-      <label className="flex items-center gap-3">
-        <input type="checkbox" checked={append} onChange={(e) => setAppend(e.target.checked)} className="h-4 w-4 accent-accent" />
-        <span className="text-[13px] font-semibold">Append to new messages</span>
+
+      <label className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-2.5">
+        <input type="checkbox" checked={appendOn} onChange={(e) => { if (accountId != null) void window.deskmail.compose.setSignatureAppend(accountId, e.target.checked).then(refresh) }} className="h-4 w-4 accent-accent" />
+        <span className="text-[13px] font-semibold">Append the default signature to new messages</span>
       </label>
+
+      <div className="flex flex-col gap-1.5">
+        {sigs.map((s) => (
+          <div key={s.id} className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 text-[13px] font-semibold">
+                {s.name}
+                {s.isDefault && <span className="rounded-sm px-1.5 py-0.5 text-[10px] font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>DEFAULT</span>}
+              </div>
+              <div className="truncate text-[12px] text-text-3" dangerouslySetInnerHTML={{ __html: s.body }} />
+            </div>
+            {!s.isDefault && (
+              <button onClick={() => { if (accountId != null) void window.deskmail.compose.setDefaultSignature(accountId, s.id).then(refresh) }} className="rounded-md px-2 py-1 text-[12px] font-semibold text-text-2 hover:underline">Make default</button>
+            )}
+            <button onClick={() => setEditing({ id: s.id, name: s.name, body: s.body })} className="rounded-md px-2 py-1 text-[12px] font-semibold text-accent hover:underline">Edit</button>
+            <button onClick={() => void window.deskmail.compose.deleteSignature(s.id).then(refresh)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-danger hover:underline">Delete</button>
+          </div>
+        ))}
+      </div>
+
       <div>
-        <button onClick={save} className="rounded-md bg-accent px-4 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2">
-          Save signature
+        <button onClick={() => setEditing({ id: null, name: '', body: '' })} className="flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2">
+          <Icon name="plus" size={15} /> Add signature
         </button>
       </div>
     </div>
@@ -129,29 +339,95 @@ export function TemplatesPane(): JSX.Element {
 }
 
 // --- Contacts -----------------------------------------------------------------
+const BLANK_CONTACT: ContactInput = { name: '', email: '', org: '', notes: '', groups: [] }
+
 export function ContactsPane(): JSX.Element {
-  const [contacts, setContacts] = useState<Contact[]>([])
+  const [contacts, setContacts] = useState<ContactDetail[]>([])
+  const [groups, setGroups] = useState<string[]>([])
   const [query, setQuery] = useState('')
-  useEffect(() => {
-    void window.deskmail.contacts.list().then(setContacts)
-  }, [])
-  const shown = query.trim() ? contacts.filter((c) => `${c.name ?? ''} ${c.email ?? ''}`.toLowerCase().includes(query.toLowerCase())) : contacts
+  const [group, setGroup] = useState<string>('') // '' = all
+  const [editing, setEditing] = useState<{ id: number | null; input: ContactInput } | null>(null)
+  const showToast = useToast((s) => s.show)
+
+  const refresh = (): void => {
+    void window.deskmail.contacts.listDetail().then(setContacts)
+    void window.deskmail.contacts.groups().then(setGroups)
+  }
+  useEffect(refresh, [])
+
+  const shown = contacts.filter((c) => {
+    const q = query.trim().toLowerCase()
+    const matchQ = !q || `${c.name ?? ''} ${c.email ?? ''} ${c.org ?? ''}`.toLowerCase().includes(q)
+    const matchG = !group || c.groups.includes(group)
+    return matchQ && matchG
+  })
+
+  const save = async (): Promise<void> => {
+    if (!editing) return
+    const input = editing.input
+    if (!input.name?.trim() && !input.email?.trim()) {
+      showToast({ text: 'Give the contact a name or an email.' })
+      return
+    }
+    if (editing.id == null) await window.deskmail.contacts.create(input)
+    else await window.deskmail.contacts.update(editing.id, input)
+    setEditing(null)
+    refresh()
+  }
+  const remove = async (id: number): Promise<void> => {
+    await window.deskmail.contacts.remove(id)
+    refresh()
+  }
+
+  if (editing) {
+    const c = editing.input
+    const set = <K extends keyof ContactInput>(k: K, v: ContactInput[K]): void => setEditing({ id: editing.id, input: { ...c, [k]: v } })
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="text-[14px] font-bold">{editing.id == null ? 'New contact' : 'Edit contact'}</div>
+        <input className={inputCls} placeholder="Name" value={c.name ?? ''} onChange={(e) => set('name', e.target.value)} />
+        <input className={inputCls} placeholder="Email" value={c.email ?? ''} onChange={(e) => set('email', e.target.value)} />
+        <input className={inputCls} placeholder="Organisation (optional)" value={c.org ?? ''} onChange={(e) => set('org', e.target.value)} />
+        <input className={inputCls} placeholder="Groups — comma separated (e.g. Clients, Suppliers)" value={c.groups.join(', ')} onChange={(e) => set('groups', e.target.value.split(',').map((g) => g.trim()).filter(Boolean))} />
+        <textarea className={`${inputCls} min-h-[80px] resize-y`} placeholder="Notes (optional)" value={c.notes ?? ''} onChange={(e) => set('notes', e.target.value)} />
+        <div className="flex gap-2.5">
+          <button onClick={() => void save()} className="rounded-md bg-accent px-5 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2">Save</button>
+          <button onClick={() => setEditing(null)} className="rounded-md px-3 py-2 text-[13px] font-semibold text-text-2 hover:bg-raised">Cancel</button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[13px] leading-relaxed text-text-2">People you've emailed or heard from — collected automatically and used for autocomplete in Compose.</p>
-      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search contacts" className={inputCls} aria-label="Search contacts" />
+      <p className="text-[13px] leading-relaxed text-text-2">People you've emailed or heard from — collected automatically, and you can add or edit them here. Groups make quick lists for addressing.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search contacts" className="min-w-[160px] flex-1 rounded-md border border-border bg-bg px-3 py-2 text-[13.5px] outline-none focus:border-accent" aria-label="Search contacts" />
+        {groups.length > 0 && (
+          <select value={group} onChange={(e) => setGroup(e.target.value)} className="rounded-md border border-border bg-bg px-2.5 py-2 text-[13px] outline-none focus:border-accent">
+            <option value="">All groups</option>
+            {groups.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+        )}
+        <button onClick={() => setEditing({ id: null, input: { ...BLANK_CONTACT } })} className="flex items-center gap-1.5 rounded-md bg-accent px-3.5 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2">
+          <Icon name="plus" size={15} /> Add
+        </button>
+      </div>
       {shown.length === 0 ? (
-        <p className="text-[13px] text-text-3">No contacts yet.</p>
+        <p className="text-[13px] text-text-3">No contacts{group ? ` in “${group}”` : ''} yet.</p>
       ) : (
         <div className="flex flex-col gap-1.5">
           {shown.map((c) => (
             <div key={c.id} className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-2.5">
               <Icon name="contacts" size={16} className="flex-none text-text-3" />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold">{c.name ?? c.email}</div>
-                {c.name && <div className="truncate text-[12px] text-text-3">{c.email}</div>}
+                <div className="truncate text-[12px] text-text-3">
+                  {c.name ? c.email : c.org}{c.groups.length > 0 && <span className="text-accent"> · {c.groups.join(', ')}</span>}
+                </div>
               </div>
+              <button onClick={() => setEditing({ id: c.id, input: { name: c.name, email: c.email, org: c.org, notes: c.notes, groups: c.groups } })} className="rounded-md px-2 py-1 text-[12px] font-semibold text-accent hover:underline">Edit</button>
+              <button onClick={() => void remove(c.id)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-danger hover:underline">Delete</button>
             </div>
           ))}
         </div>
@@ -255,9 +531,15 @@ export function ClaudeConnectorPane(): JSX.Element {
 // --- Local storage (backup / restore / portability) ---------------------------
 export function LocalStoragePane(): JSX.Element {
   const [info, setInfo] = useState<{ dataDir: string; portable: boolean } | null>(null)
+  const [autoDir, setAutoDir] = useState<string | null>(null)
+  const [autoDays, setAutoDays] = useState(0)
   const showToast = useToast((s) => s.show)
   useEffect(() => {
     void window.deskmail.storage.info().then(setInfo)
+    void window.deskmail.storage.autoBackupGet().then((a) => {
+      setAutoDir(a.dir || null)
+      setAutoDays(a.days)
+    })
   }, [])
 
   const backup = async (): Promise<void> => {
@@ -267,6 +549,17 @@ export function LocalStoragePane(): JSX.Element {
   const restore = async (): Promise<void> => {
     const r = await window.deskmail.storage.restore()
     if (r.ok) showToast({ text: 'Backup restored' })
+  }
+
+  // Persist auto-backup config immediately when the folder or interval changes.
+  const saveAuto = (dir: string | null, days: number): void => {
+    setAutoDir(dir)
+    setAutoDays(days)
+    void window.deskmail.storage.autoBackupSet(dir, days)
+  }
+  const pickAutoFolder = async (): Promise<void> => {
+    const r = await window.deskmail.storage.pickFolder()
+    if (r.path) saveAuto(r.path, autoDays || 7)
   }
 
   return (
@@ -298,6 +591,35 @@ export function LocalStoragePane(): JSX.Element {
         A backup is a single self-contained folder (<span className="font-mono">deskmail-backup-…</span>)
         holding the database, attachments and settings — copy it around freely.
       </p>
+
+      <div className="rounded-md border border-border bg-bg px-3.5 py-3">
+        <div className="text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Automatic backup</div>
+        <p className="mt-1 text-[12px] leading-relaxed text-text-3">
+          Keep a copy current on a USB or second drive. I'll back up on launch when it's due.
+        </p>
+        <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+          <button onClick={() => void pickAutoFolder()} className="rounded-md border border-border px-3 py-1.5 text-[12.5px] font-semibold text-text-2 hover:bg-raised">
+            {autoDir ? 'Change folder' : 'Choose folder'}
+          </button>
+          <label className="flex items-center gap-1.5 text-[12.5px] text-text-2">
+            every
+            <input
+              type="number"
+              min={0}
+              value={autoDays}
+              onChange={(e) => saveAuto(autoDir, Math.max(0, Number(e.target.value)))}
+              className="w-[64px] rounded-md border border-border bg-bg px-2 py-1.5 text-[13px] outline-none focus:border-accent"
+            />
+            days (0 = off)
+          </label>
+          {autoDir && autoDays > 0 && (
+            <button onClick={() => saveAuto(null, 0)} className="text-[12px] font-semibold text-danger hover:underline">
+              Turn off
+            </button>
+          )}
+        </div>
+        {autoDir && <div className="mt-2 break-all font-mono text-[11.5px] text-text-3">{autoDir}</div>}
+      </div>
     </div>
   )
 }

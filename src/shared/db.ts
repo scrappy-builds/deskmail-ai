@@ -64,6 +64,58 @@ export interface AccountSummary {
   colour: string | null
 }
 
+export interface LabelInfo {
+  id: number
+  name: string
+  colour: string | null
+}
+
+// A local rule: one condition → one action, evaluated on incoming mail.
+export type RuleField = 'from' | 'subject' | 'to' | 'body'
+export type RuleOp = 'contains' | 'equals' | 'startswith'
+export type RuleAction = 'move' | 'star' | 'read' | 'junk' | 'archive' | 'label'
+
+export interface RuleInput {
+  name: string
+  enabled: boolean
+  field: RuleField
+  op: RuleOp
+  value: string
+  action: RuleAction
+  targetFolderId: number | null
+  targetLabelId: number | null
+}
+export interface Rule extends RuleInput {
+  id: number
+}
+
+// Notifications / tray / Focus-DND settings (app_settings group).
+export interface NotifySettings {
+  enabled: boolean
+  minimiseToTray: boolean
+  dndEnabled: boolean
+  dndFrom: string // "HH:MM"
+  dndTo: string // "HH:MM"
+  focusNow: boolean
+}
+
+// A saved "smart view": a set of conditions (match all/any) over the mailbox.
+export type SmartField = 'from' | 'subject' | 'to' | 'body' | 'unread' | 'starred' | 'attachment'
+export type SmartOp = 'contains' | 'equals' | 'startswith'
+export interface SmartCondition {
+  field: SmartField
+  op: SmartOp
+  value: string
+}
+export interface SmartViewInput {
+  name: string
+  match: 'all' | 'any'
+  conditions: SmartCondition[]
+}
+export interface SmartView extends SmartViewInput {
+  id: number
+}
+
 export interface FolderSummary {
   id: number
   accountId: number
@@ -71,6 +123,8 @@ export interface FolderSummary {
   role: string | null
   unreadCount: number
   totalCount: number
+  parentId: number | null // local-only nesting (custom folders); null for top-level
+  sortOrder: number // manual sibling order
 }
 
 export interface AttachmentInfo {
@@ -92,6 +146,8 @@ export interface MessageListItem {
   isRead: boolean
   isStarred: boolean
   hasAttachments: boolean
+  isPinned: boolean
+  isMuted: boolean
 }
 
 export interface MessageDetail extends MessageListItem {
@@ -102,6 +158,7 @@ export interface MessageDetail extends MessageListItem {
   bodyHtml: string | null
   attachments: AttachmentInfo[]
   invite: InviteData | null
+  folderRole: string | null // role of the containing folder (e.g. 'junk'), for image-blocking
 }
 
 // --- Calendar & meetings -------------------------------------------------------
@@ -110,6 +167,8 @@ export interface EventAttendee {
   email: string | null
   response: string | null
 }
+
+export type RecurFreq = 'none' | 'daily' | 'weekly' | 'monthly'
 
 export interface EventInput {
   title: string
@@ -122,6 +181,8 @@ export interface EventInput {
   notes: string | null
   calendar: string | null
   guests: string[]
+  recurFreq: RecurFreq
+  recurUntil: string | null // YYYY-MM-DD, inclusive; null = no end
 }
 
 export interface EventSummary {
@@ -136,6 +197,8 @@ export interface EventSummary {
   notes: string | null
   calendar: string | null
   attendees: EventAttendee[]
+  recurFreq: RecurFreq
+  recurUntil: string | null
 }
 
 // Parsed from an email calendar invite (ICS).
@@ -155,6 +218,15 @@ export interface InviteData {
 export interface SignatureData {
   id: number
   body: string
+  appendToNew: boolean
+}
+
+// One of an account's (possibly several) signatures, selectable at compose time.
+export interface SignatureItem {
+  id: number
+  name: string
+  body: string // HTML (may be simple bold/links)
+  isDefault: boolean
   appendToNew: boolean
 }
 
@@ -183,6 +255,18 @@ export interface Contact {
   email: string | null
 }
 
+// Full contact record for the address book (manual add/edit + groups).
+export interface ContactInput {
+  name: string | null
+  email: string | null
+  org: string | null
+  notes: string | null
+  groups: string[]
+}
+export interface ContactDetail extends ContactInput {
+  id: number
+}
+
 export interface TodayAgenda {
   events: EventSummary[]
   messages: MessageListItem[]
@@ -209,6 +293,8 @@ export interface ComposePayload {
   bodyHtml: string
   attachments?: ComposeAttachment[]
   inReplyToMessageId?: number | null
+  // Which signature to append (null/undefined → the account default when set to append).
+  signatureId?: number | null
 }
 
 export interface DraftSummary {

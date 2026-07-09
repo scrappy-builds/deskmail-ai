@@ -1,5 +1,42 @@
-import type { SignatureData } from '@shared/db'
+import type { SignatureData, SignatureItem } from '@shared/db'
 import type { DB } from './database'
+
+// --- Multiple signatures per account (rich HTML, one default) ----------------
+export function listSignatures(db: DB, accountId: number): SignatureItem[] {
+  const rows = db.all(
+    'SELECT id, name, body, is_default, append_to_new FROM signatures WHERE account_id = ? ORDER BY is_default DESC, name, id',
+    [accountId]
+  ) as unknown as { id: number; name: string | null; body: string | null; is_default: number; append_to_new: number }[]
+  return rows.map((r) => ({ id: r.id, name: r.name ?? 'Untitled', body: r.body ?? '', isDefault: !!r.is_default, appendToNew: !!r.append_to_new }))
+}
+
+export function createSignature(db: DB, accountId: number, name: string, body: string): number {
+  const count = (db.get('SELECT COUNT(*) c FROM signatures WHERE account_id = ?', [accountId]) as { c: number }).c
+  db.run('INSERT INTO signatures (account_id, name, body, is_default, append_to_new) VALUES (?, ?, ?, ?, 1)', [accountId, name, body, count === 0 ? 1 : 0])
+  return (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
+}
+
+export function updateSignatureById(db: DB, id: number, name: string, body: string): void {
+  db.run("UPDATE signatures SET name = ?, body = ?, updated_at = datetime('now') WHERE id = ?", [name, body, id])
+}
+
+export function deleteSignature(db: DB, id: number): void {
+  db.run('DELETE FROM signatures WHERE id = ?', [id])
+}
+
+export function setDefaultSignature(db: DB, accountId: number, id: number): void {
+  db.run('UPDATE signatures SET is_default = CASE WHEN id = ? THEN 1 ELSE 0 END WHERE account_id = ?', [id, accountId])
+}
+
+// Whether the default signature is auto-appended to new messages.
+export function setSignatureAppend(db: DB, accountId: number, on: boolean): void {
+  db.run('UPDATE signatures SET append_to_new = ? WHERE account_id = ? AND is_default = 1', [on ? 1 : 0, accountId])
+}
+
+export function getSignatureBody(db: DB, id: number): string | null {
+  const r = db.get('SELECT body FROM signatures WHERE id = ?', [id]) as { body: string | null } | undefined
+  return r?.body ?? null
+}
 
 // Per-account signatures. Default seeded on account create; managed in Settings.
 

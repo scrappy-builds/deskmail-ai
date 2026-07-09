@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon, type IconName } from './Icon'
 import type { MessageDetail } from '@shared/db'
 import { fmtFullDate, initials } from './mail/format'
+import { buildReplyDraft, type ReplyKind } from './mail/reply'
 import { EmailBody } from './mail/EmailBody'
 import { InviteCard } from './mail/InviteCard'
 
@@ -10,26 +11,16 @@ const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: '
 import type { MailOp } from '@shared/db'
 
 // action ops that close the window after running (the message leaves the view).
-const ACTIONS: { icon: IconName; label: string; op?: MailOp; closes?: boolean }[] = [
-  { icon: 'reply', label: 'Reply' },
-  { icon: 'replyAll', label: 'Reply all' },
-  { icon: 'forward', label: 'Forward' },
+const ACTIONS: { icon: IconName; label: string; op?: MailOp; closes?: boolean; reply?: ReplyKind; print?: boolean }[] = [
+  { icon: 'reply', label: 'Reply', reply: 'reply' },
+  { icon: 'replyAll', label: 'Reply all', reply: 'replyAll' },
+  { icon: 'forward', label: 'Forward', reply: 'forward' },
   { icon: 'archive', label: 'Archive', op: 'archive', closes: true },
   { icon: 'trash', label: 'Delete', op: 'trash', closes: true },
   { icon: 'star', label: 'Star', op: 'flag' },
-  { icon: 'markUnread', label: 'Mark unread', op: 'unread' },
-  { icon: 'print', label: 'Print' }
+  { icon: 'print', label: 'Print', print: true }
 ]
 
-const CLAUDE_ACTIONS = [
-  'Summarise',
-  'Draft reply',
-  'Explain simply',
-  'Extract key details',
-  'Extract dates & deadlines',
-  'Find related emails',
-  'Turn into task'
-]
 
 export function MessageWindow({ id }: { id: number }): JSX.Element {
   const [m, setM] = useState<MessageDetail | null | 'loading'>('loading')
@@ -38,6 +29,15 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
   useEffect(() => {
     void window.deskmail.mail.getMessage(id).then(setM)
   }, [id])
+
+  // Reply/forward: build a prefilled draft, then open it in a compose window.
+  const startReply = async (kind: ReplyKind): Promise<void> => {
+    if (!m || m === 'loading') return
+    const accounts = await window.deskmail.listAccounts()
+    const selfEmail = accounts.find((a) => a.id === m.accountId)?.emailAddress
+    const { id: draftId } = await window.deskmail.compose.saveDraft(buildReplyDraft(m, kind, selfEmail))
+    window.deskmail.openCompose(draftId)
+  }
 
   const chrome = (title: string): JSX.Element => (
     <div className="drag-region flex h-[38px] flex-none items-center border-b border-border bg-raised pl-3.5 pr-1.5">
@@ -92,6 +92,14 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
             key={a.label}
             title={a.label}
             onClick={() => {
+              if (a.reply) {
+                void startReply(a.reply)
+                return
+              }
+              if (a.print) {
+                void window.deskmail.mail.printPdf(m.id)
+                return
+              }
               if (!a.op) return
               void window.deskmail.mail.action(m.id, a.op)
               if (a.closes) w.close()
@@ -102,6 +110,17 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
             <span>{a.label}</span>
           </button>
         ))}
+        <button
+          title={m.isRead ? 'Mark unread' : 'Mark read'}
+          onClick={() => {
+            void window.deskmail.mail.markRead(m.id, !m.isRead)
+            setM({ ...m, isRead: !m.isRead })
+          }}
+          className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 hover:bg-raised"
+        >
+          <Icon name="markUnread" size={16} />
+          <span>{m.isRead ? 'Mark unread' : 'Mark read'}</span>
+        </button>
         <div className="flex-1" />
         <button onClick={() => w.close()} title="Close" className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 hover:bg-raised">
           <Icon name="close" size={16} />
@@ -109,19 +128,8 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
         </button>
       </div>
 
-      <div className="flex flex-none flex-wrap items-center gap-1.5 border-b border-border px-3.5 py-2.5" style={{ background: 'var(--claude-soft)' }}>
-        <span className="flex items-center gap-1.5 text-[12px] font-bold text-claude">
-          <Icon name="claude" size={15} fill /> Claude
-        </span>
-        {CLAUDE_ACTIONS.map((c) => (
-          <span key={c} className="cursor-pointer rounded-pill border border-claude bg-panel px-2.5 py-1 text-[12px] font-semibold text-claude">
-            {c}
-          </span>
-        ))}
-      </div>
-
       <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-        <div className="mx-auto max-w-[720px]">
+        <div className="w-full">
           <h1 className="mb-4 text-[22px] font-bold leading-tight">{m.subject || '(no subject)'}</h1>
           <div className="flex items-center gap-3.5 border-b border-border pb-[18px]">
             <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full text-[15px] font-bold" style={{ background: AVATAR.bg, color: AVATAR.fg }}>
@@ -144,7 +152,7 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
           )}
 
           <div className="mt-[18px]">
-            <EmailBody html={m.bodyHtml} text={m.bodyText} />
+            <EmailBody html={m.bodyHtml} text={m.bodyText} allowByDefault={m.folderRole !== 'junk'} messageId={m.id} />
           </div>
         </div>
       </div>

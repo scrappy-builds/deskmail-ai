@@ -224,5 +224,69 @@ export const MIGRATIONS: string[] = [
      status TEXT NOT NULL DEFAULT 'pending',  -- pending | done | error
      error TEXT,
      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );`,
+
+  // --- v5: local-only message flags (pin/mute) + UI text-size preference -------
+  `ALTER TABLE messages ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE messages ADD COLUMN is_muted INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE layout_preferences ADD COLUMN font_scale REAL NOT NULL DEFAULT 1;`,
+
+  // --- v6: FTS5 full-text index over messages (subject/sender/body) ------------
+  // Standalone (non-external-content) FTS5 table keyed by message id; kept in
+  // sync from the message-write path. Backfilled from any existing rows here.
+  `CREATE VIRTUAL TABLE messages_fts USING fts5(subject, sender, body);
+   INSERT INTO messages_fts(rowid, subject, sender, body)
+     SELECT id, COALESCE(subject,''),
+            TRIM(COALESCE(from_name,'') || ' ' || COALESCE(from_email,'')),
+            TRIM(COALESCE(body_text,'') || ' ' || COALESCE(snippet,'')) FROM messages;`,
+
+  // --- v7: local rules / filters (one condition → one action, run on ingest) ---
+  `CREATE TABLE rules (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     enabled INTEGER NOT NULL DEFAULT 1,
+     field TEXT NOT NULL,            -- from | subject | to | body
+     op TEXT NOT NULL,               -- contains | equals | startswith
+     value TEXT NOT NULL,
+     action TEXT NOT NULL,           -- move | star | read | junk | archive | label
+     target_folder_id INTEGER REFERENCES folders(id) ON DELETE CASCADE,
+     target_label_id INTEGER REFERENCES labels(id) ON DELETE CASCADE,
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );`,
+
+  // --- v8: adaptive Bayesian junk filter (learns from marked junk/not-junk) ----
+  `CREATE TABLE junk_tokens (
+     token TEXT PRIMARY KEY,
+     spam INTEGER NOT NULL DEFAULT 0,
+     ham INTEGER NOT NULL DEFAULT 0
+   );`,
+
+  // --- v9: contact groups (manual add/edit + simple lists) --------------------
+  `ALTER TABLE contacts ADD COLUMN groups_json TEXT;`,
+
+  // --- v10: saved smart views (match-all/any condition sets) ------------------
+  `CREATE TABLE smart_views (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     match TEXT NOT NULL DEFAULT 'all',   -- all | any
+     conditions_json TEXT NOT NULL,       -- [{field, op, value}]
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );`,
+
+  // --- v11: recurring events (simple RRULE: daily/weekly/monthly + until) ------
+  `ALTER TABLE events ADD COLUMN recur_freq TEXT;
+   ALTER TABLE events ADD COLUMN recur_until TEXT;`,
+
+  // --- v12: local subfolders + manual folder ordering -------------------------
+  `ALTER TABLE folders ADD COLUMN parent_id INTEGER REFERENCES folders(id) ON DELETE SET NULL;
+   ALTER TABLE folders ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;`,
+
+  // --- v13: repair duplicated attachment rows --------------------------------
+  // Cause: ingest re-INSERTed attachments on every sync (each restart triggers
+  // one), so a single attachment multiplied. Keep the earliest row per
+  // (message, filename, size); the idempotent addAttachment stops new growth.
+  `DELETE FROM attachments WHERE id NOT IN (
+     SELECT MIN(id) FROM attachments
+     GROUP BY message_id, COALESCE(filename,''), COALESCE(size,-1)
    );`
 ]

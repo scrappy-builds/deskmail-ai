@@ -2,10 +2,11 @@ import { ImapFlow } from 'imapflow'
 import type { AccountRow } from '@shared/db'
 import type { DB } from '../../db/database'
 import { getCredential } from '../credentials'
-import { refreshFolderCounts, upsertFolder } from '../../db/folders'
+import { ensureStandardFolders, refreshFolderCounts, upsertFolder } from '../../db/folders'
 import { getAppSetting } from '../../db/settings'
 import { ingestRaw } from './ingest'
 import { applyJunkIfSpam } from './junk'
+import { applyRulesToMessage } from '../../db/rules'
 
 // How many recent messages to pull per synced folder. Keeps first sync quick.
 const RECENT = 50
@@ -26,6 +27,8 @@ export type SyncResult = { ok: true } | { ok: false; error: string }
 export async function syncAccount(db: DB, accountId: number): Promise<SyncResult> {
   const acc = db.get('SELECT * FROM accounts WHERE id = ?', [accountId]) as unknown as AccountRow | undefined
   if (!acc) return { ok: false, error: 'Account not found.' }
+  // Guarantee the standard folder tree exists even if the connection below fails.
+  ensureStandardFolders(db, accountId)
   if (acc.incoming_type !== 'imap') {
     // ponytail: POP3 sync is optional (Stage 5 note) — IMAP first.
     return { ok: false, error: 'Only IMAP sync is supported so far.' }
@@ -74,6 +77,7 @@ export async function syncAccount(db: DB, accountId: number): Promise<SyncResult
               msg.source
             )
             applyJunkIfSpam(db, id, junkEnabled) // auto-move obvious spam to Junk
+            applyRulesToMessage(db, id) // then run the user's local rules
           }
         }
         refreshFolderCounts(db, inboxId)

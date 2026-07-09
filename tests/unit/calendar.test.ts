@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { openDatabase, type DB } from '../../src/db/database'
-import { createEvent, deleteEvent, getEvent, listEvents, updateEvent } from '../../src/db/events'
+import { createEvent, deleteEvent, expandOccurrences, getEvent, listEvents, updateEvent } from '../../src/db/events'
 import { generateJoinLink, providerFromText } from '../../src/shared/meetings'
 import { appUriFor } from '../../src/main/meetings'
 import { parseIcs } from '../../src/main/mail/ics'
@@ -19,7 +19,9 @@ const BASE: EventInput = {
   joinUrl: null,
   notes: 'confirm dates',
   calendar: 'Work',
-  guests: ['Alex Reed', 'Priya Nair']
+  guests: ['Alex Reed', 'Priya Nair'],
+  recurFreq: 'none',
+  recurUntil: null
 }
 
 describe('events CRUD', () => {
@@ -60,6 +62,26 @@ describe('events CRUD', () => {
   it('in-person events get no join link', () => {
     const id = createEvent(db, { ...BASE, provider: 'inperson' })
     expect(getEvent(db, id)!.joinUrl).toBeNull()
+  })
+
+  it('expands a weekly recurring event across a range', () => {
+    createEvent(db, { ...BASE, title: 'Standup', date: '2026-07-06', recurFreq: 'weekly' })
+    const week = listEvents(db, '2026-07-06', '2026-07-12')
+    expect(week.filter((e) => e.title === 'Standup')).toHaveLength(1)
+    const month = listEvents(db, '2026-07-01', '2026-07-31')
+    expect(month.filter((e) => e.title === 'Standup')).toHaveLength(4) // Jul 6,13,20,27
+  })
+})
+
+describe('recurrence expansion (pure)', () => {
+  it('daily/weekly/monthly with an until bound; none stays a single date', () => {
+    expect(expandOccurrences('2026-07-01', 'none', null, '2026-07-01', '2026-07-31')).toEqual(['2026-07-01'])
+    expect(expandOccurrences('2026-07-01', 'daily', '2026-07-03', '2026-07-01', '2026-07-31')).toEqual(['2026-07-01', '2026-07-02', '2026-07-03'])
+    expect(expandOccurrences('2026-07-06', 'weekly', null, '2026-07-01', '2026-07-31')).toEqual(['2026-07-06', '2026-07-13', '2026-07-20', '2026-07-27'])
+    expect(expandOccurrences('2026-01-15', 'monthly', null, '2026-01-01', '2026-03-31')).toEqual(['2026-01-15', '2026-02-15', '2026-03-15'])
+  })
+  it('only returns occurrences inside the window', () => {
+    expect(expandOccurrences('2026-07-01', 'daily', null, '2026-07-10', '2026-07-12')).toEqual(['2026-07-10', '2026-07-11', '2026-07-12'])
   })
 })
 

@@ -80,13 +80,19 @@ function statusView(state: TestState, kind: 'Incoming' | 'Outgoing'): { text: st
 }
 
 export function AccountWizard({
+  editId,
+  initial,
   onSaved,
   onCancel
 }: {
+  // When set, the wizard edits this account instead of adding a new one.
+  editId?: number
+  initial?: AccountInput
   onSaved: () => void
   onCancel: () => void
 }): JSX.Element {
-  const [a, setA] = useState<AccountInput>(DEFAULTS)
+  const editing = editId != null
+  const [a, setA] = useState<AccountInput>(initial ?? DEFAULTS)
   const [incoming, setIncoming] = useState<TestState>('idle')
   const [outgoing, setOutgoing] = useState<TestState>('idle')
   const [saved, setSaved] = useState(false)
@@ -126,9 +132,10 @@ export function AccountWizard({
   const save = async (): Promise<void> => {
     setError(null)
     try {
-      await window.deskmail.saveAccount(a)
+      if (editing) await window.deskmail.updateAccount(editId, a)
+      else await window.deskmail.saveAccount(a)
       setSaved(true)
-      // Give the "Account added" confirmation a beat, then return to the list.
+      // Give the confirmation a beat, then return to the list.
       setTimeout(onSaved, 700)
     } catch (e) {
       setError((e as Error).message ?? 'I couldn’t save the account.')
@@ -141,10 +148,10 @@ export function AccountWizard({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="text-[15px] font-bold">Add an account</div>
+        <div className="text-[15px] font-bold">{editing ? 'Edit account' : 'Add an account'}</div>
         <p className="mt-1 text-[12.5px] text-text-3">
-          Enter your provider’s IMAP/POP3 and SMTP details. Test the connection, then save — your
-          password is stored encrypted by Windows, never in plain text.
+          Enter your provider’s IMAP/POP3 and SMTP details. Use <b>Test incoming</b> to check mail is
+          actually being received. Your password is stored encrypted by Windows, never in plain text.
         </p>
       </div>
 
@@ -245,7 +252,7 @@ export function AccountWizard({
           onClick={save}
           className="rounded-md bg-accent px-5 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2 disabled:opacity-40"
         >
-          {saved ? 'Account added' : 'Save'}
+          {saved ? 'Saved' : editing ? 'Save changes' : 'Save'}
         </button>
         <button type="button" onClick={onCancel} className="rounded-md px-3 py-2 text-[13px] font-semibold text-text-2 hover:bg-raised">
           Cancel

@@ -30,6 +30,10 @@ export type IconName =
   | 'print'
   | 'clock'
   | 'contacts'
+  | 'sync'
+  | 'pin'
+  | 'mute'
+  | 'shield'
 
 const PATHS: Record<IconName, string> = {
   mail: 'M22 12h-6l-2 3h-4l-2-3H2 M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z',
@@ -61,7 +65,11 @@ const PATHS: Record<IconName, string> = {
   openWindow: 'M15 3h6v6 M10 14L21 3 M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5',
   print: 'M6 9V2h12v7 M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2 M6 14h12v8H6z',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7v5l3 2',
-  contacts: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75'
+  contacts: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
+  sync: 'M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3H8 M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3H16 M21 4v4h-4 M3 20v-4h4',
+  pin: 'M12 17v5 M9 3h6l-1 7 3 3H7l3-3z',
+  mute: 'M11 5L6 9H2v6h4l5 4z M23 9l-6 6 M17 9l6 6',
+  shield: 'M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z'
 }
 
 interface IconProps {

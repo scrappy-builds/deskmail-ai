@@ -52,7 +52,17 @@ function Dropdown({ items, onPick }: { items: MenuItem[]; onPick: () => void }):
   )
 }
 
-export function TitleBar({ onOpenSettings, onCompose }: { onOpenSettings: () => void; onCompose: () => void }): JSX.Element {
+export function TitleBar({
+  onOpenSettings,
+  onCompose,
+  onOpenViewSettings,
+  onMode
+}: {
+  onOpenSettings: () => void
+  onCompose: () => void
+  onOpenViewSettings: () => void
+  onMode: (m: 'mail' | 'calendar') => void
+}): JSX.Element {
   const { open, toggle, close, rootRef } = useMenus()
   const toggleTheme = useLayout((s) => s.toggleTheme)
   const w = window.deskmail.window
@@ -67,10 +77,10 @@ export function TitleBar({ onOpenSettings, onCompose }: { onOpenSettings: () => 
       { label: 'Close window', kbd: 'Ctrl W', onClick: () => w.close() }
     ],
     View: [
-      { label: 'Mail' },
-      { label: 'Calendar' },
+      { label: 'Mail', onClick: () => onMode('mail') },
+      { label: 'Calendar', onClick: () => onMode('calendar') },
       'sep',
-      { label: 'View settings…' },
+      { label: 'View settings…', onClick: onOpenViewSettings },
       { label: 'Toggle light / dark', onClick: toggleTheme }
     ],
     Help: [{ label: 'Keyboard shortcuts' }, { label: 'About DeskMail AI' }]

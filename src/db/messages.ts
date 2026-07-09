@@ -1,5 +1,14 @@
 import type { AttachmentInfo, InviteData, MessageDetail, MessageInsert, MessageListItem } from '@shared/db'
 import type { DB } from './database'
+import { parseSearchQuery } from './searchQuery'
+
+// Keep the FTS5 index in step with a message row (called from the write path).
+function indexMessage(db: DB, id: number, subject: string | null, fromName: string | null, fromEmail: string | null, bodyText: string | null, snippet: string | null): void {
+  const sender = `${fromName ?? ''} ${fromEmail ?? ''}`.trim()
+  const body = `${bodyText ?? ''} ${snippet ?? ''}`.trim()
+  db.run('DELETE FROM messages_fts WHERE rowid = ?', [id])
+  db.run('INSERT INTO messages_fts(rowid, subject, sender, body) VALUES (?, ?, ?, ?)', [id, subject ?? '', sender, body])
+}
 
 function parseJsonArray(s: string | null): string[] {
   if (!s) return []
@@ -51,6 +60,7 @@ export function upsertMessage(db: DB, m: MessageInsert, hasAttachments = false, 
          has_attachments = ?, invite_json = ?, updated_at = datetime('now') WHERE id = ?`,
       [cols.is_read, cols.is_starred, cols.snippet, cols.body_text, cols.body_html, cols.has_attachments, cols.invite_json, id]
     )
+    indexMessage(db, id, m.subject, m.fromName, m.fromEmail, m.bodyText, m.snippet)
     return id
   }
 
@@ -59,7 +69,9 @@ export function upsertMessage(db: DB, m: MessageInsert, hasAttachments = false, 
     `INSERT INTO messages (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`,
     Object.values(cols) as (string | number | null)[]
   )
-  return (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
+  const newId = (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
+  indexMessage(db, newId, m.subject, m.fromName, m.fromEmail, m.bodyText, m.snippet)
+  return newId
 }
 
 export function addAttachment(
@@ -70,6 +82,16 @@ export function addAttachment(
   size: number | null,
   localPath: string | null
 ): void {
+  // Idempotent: skip if the same (message, filename, size) is already stored, so a
+  // re-sync of the message doesn't append a duplicate. ponytail: metadata dedup on
+  // name+size; preserves any already-downloaded local_path on the existing row.
+  const dupe = db.get(
+    `SELECT id FROM attachments WHERE message_id = ?
+       AND COALESCE(filename,'') = COALESCE(?, '')
+       AND COALESCE(size,-1)    = COALESCE(?, -1)`,
+    [messageId, filename, size]
+  ) as { id: number } | undefined
+  if (dupe) return
   db.run(
     `INSERT INTO attachments (message_id, filename, mime_type, size, local_path, downloaded_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
@@ -105,6 +127,8 @@ interface MessageRow {
   is_read: number
   is_starred: number
   has_attachments: number
+  is_pinned: number
+  is_muted: number
 }
 
 function toListItem(r: MessageRow): MessageListItem {
@@ -119,18 +143,39 @@ function toListItem(r: MessageRow): MessageListItem {
     receivedAt: r.received_at,
     isRead: !!r.is_read,
     isStarred: !!r.is_starred,
-    hasAttachments: !!r.has_attachments
+    hasAttachments: !!r.has_attachments,
+    isPinned: !!r.is_pinned,
+    isMuted: !!r.is_muted
   }
 }
 
+// Map raw message rows (SELECT *) to list items — shared by ad-hoc queries
+// (e.g. smart views) that build their own WHERE clause.
+export function listMessageRowsToItems(rows: unknown[]): MessageListItem[] {
+  return (rows as MessageRow[]).map(toListItem)
+}
+
 // Reads come straight from SQLite — so this works offline. Currently-snoozed
-// messages are hidden until their snooze time passes (then they reappear).
+// messages are hidden until their snooze time passes; pinned messages float to
+// the top of the folder.
 export function listMessages(db: DB, folderId: number): MessageListItem[] {
   const rows = db.all(
     `SELECT * FROM messages WHERE folder_id = ?
        AND id NOT IN (SELECT message_id FROM snoozes WHERE datetime(snooze_until) > datetime('now'))
-     ORDER BY received_at DESC, id DESC`,
+     ORDER BY is_pinned DESC, received_at DESC, id DESC`,
     [folderId]
+  ) as unknown as MessageRow[]
+  return rows.map(toListItem)
+}
+
+// Messages carrying a given label, newest first (pinned float up). Cross-folder.
+export function listMessagesByLabel(db: DB, labelId: number): MessageListItem[] {
+  const rows = db.all(
+    `SELECT m.* FROM messages m
+       JOIN message_labels ml ON ml.message_id = m.id
+      WHERE ml.label_id = ?
+      ORDER BY m.is_pinned DESC, m.received_at DESC, m.id DESC`,
+    [labelId]
   ) as unknown as MessageRow[]
   return rows.map(toListItem)
 }
@@ -147,6 +192,9 @@ export function getMessage(db: DB, id: number): MessageDetail | null {
     size: number | null
   }[]
   const attachments: AttachmentInfo[] = atts.map((a) => ({ id: a.id, filename: a.filename, mimeType: a.mime_type, size: a.size }))
+  const folderRole = r.folder_id != null
+    ? (db.get('SELECT role FROM folders WHERE id = ?', [r.folder_id]) as { role: string | null } | undefined)?.role ?? null
+    : null
   let invite: InviteData | null = null
   if (r.invite_json) {
     try {
@@ -163,15 +211,43 @@ export function getMessage(db: DB, id: number): MessageDetail | null {
     bodyText: r.body_text,
     bodyHtml: r.body_html,
     attachments,
-    invite
+    invite,
+    folderRole
   }
 }
 
-// Local full-text-ish search across the cached messages. Each whitespace term
-// must match somewhere (AND); matching is substring across the useful fields.
-// ponytail: LIKE scan over the local cache — fine for one person's mailbox;
-// swap for FTS5 if it ever feels slow.
+// Full-text search over the FTS5 index, with operators (from:/subject:/body:,
+// has:attachment, is:unread|read, before:/after:). Falls back to a LIKE scan if
+// the FTS MATCH can't be parsed, so a stray character never breaks search.
 export function searchMessages(db: DB, query: string, limit = 200): MessageListItem[] {
+  if (!query.trim()) return []
+  const p = parseSearchQuery(query)
+  const where: string[] = []
+  const params: (string | number)[] = []
+  if (p.fts) {
+    where.push('m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)')
+    params.push(p.fts)
+  }
+  if (p.hasAttachment) where.push('m.has_attachments = 1')
+  if (p.unread === true) where.push('m.is_read = 0')
+  if (p.unread === false) where.push('m.is_read = 1')
+  if (p.before) { where.push('m.received_at < ?'); params.push(p.before) }
+  if (p.after) { where.push('m.received_at >= ?'); params.push(p.after) }
+  if (where.length === 0) return []
+
+  try {
+    const rows = db.all(
+      `SELECT m.* FROM messages m WHERE ${where.join(' AND ')} ORDER BY m.is_pinned DESC, m.received_at DESC, m.id DESC LIMIT ?`,
+      [...params, limit]
+    ) as unknown as MessageRow[]
+    return rows.map(toListItem)
+  } catch {
+    return searchMessagesLike(db, query, limit) // malformed FTS expression → scan
+  }
+}
+
+// LIKE fallback (also the pre-FTS behaviour). Each term must match somewhere (AND).
+function searchMessagesLike(db: DB, query: string, limit: number): MessageListItem[] {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   if (terms.length === 0) return []
   const clause = terms
@@ -231,6 +307,15 @@ export function setStarred(db: DB, id: number, on: boolean): void {
 
 export function setMessageFolder(db: DB, id: number, folderId: number): void {
   db.run("UPDATE messages SET folder_id = ?, updated_at = datetime('now') WHERE id = ?", [folderId, id])
+}
+
+// Local-only flags (no IMAP equivalent). Muting also marks the message read so a
+// muted thread stops nagging in unread counts and the Today view.
+export function setPinned(db: DB, id: number, on: boolean): void {
+  db.run("UPDATE messages SET is_pinned = ?, updated_at = datetime('now') WHERE id = ?", [on ? 1 : 0, id])
+}
+export function setMuted(db: DB, id: number, on: boolean): void {
+  db.run("UPDATE messages SET is_muted = ?, is_read = CASE WHEN ? THEN 1 ELSE is_read END, updated_at = datetime('now') WHERE id = ?", [on ? 1 : 0, on ? 1 : 0, id])
 }
 
 // Minimal row for resolving IMAP write-back (source folder + remote uid).

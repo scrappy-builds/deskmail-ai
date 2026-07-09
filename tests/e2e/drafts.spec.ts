@@ -40,10 +40,14 @@ test('a Claude-created draft is visible in the Drafts view and opens in Compose'
     const modal = win.getByTestId('drafts-modal')
     await expect(modal.getByText('Re: Radiator clip — commercial licence')).toBeVisible()
 
-    // Edit it → Compose opens prefilled.
-    await modal.getByRole('button', { name: 'Edit' }).first().click()
-    await expect(win.getByRole('textbox', { name: 'Subject', exact: true })).toHaveValue('Re: Radiator clip — commercial licence')
-    await expect(win.locator('.ProseMirror')).toContainText('license this for resale')
+    // Edit it → Compose opens prefilled in its own window.
+    const [cmp] = await Promise.all([
+      app.waitForEvent('window'),
+      modal.getByRole('button', { name: 'Edit' }).first().click()
+    ])
+    await cmp.waitForLoadState()
+    await expect(cmp.getByRole('textbox', { name: 'Subject', exact: true })).toHaveValue('Re: Radiator clip — commercial licence')
+    await expect(cmp.locator('.ProseMirror')).toContainText('license this for resale')
   } finally {
     await app.close()
     safeRm(userData)

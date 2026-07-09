@@ -22,11 +22,15 @@ test('templates: insert a canned reply into compose', async () => {
   try {
     const win = await app.firstWindow()
     await win.waitForTimeout(600)
-    await win.getByRole('button', { name: 'Compose' }).click()
-    await win.getByRole('button', { name: 'Templates' }).click()
-    await win.getByRole('button', { name: 'Dispatch note' }).click()
-    await expect(win.getByRole('textbox', { name: 'Subject', exact: true })).toHaveValue('Your order is on its way')
-    await expect(win.locator('.ProseMirror')).toContainText('Royal Mail')
+    const [cmp] = await Promise.all([
+      app.waitForEvent('window'),
+      win.getByRole('button', { name: 'Compose' }).click()
+    ])
+    await cmp.waitForLoadState()
+    await cmp.getByRole('button', { name: 'Templates' }).click()
+    await cmp.getByRole('button', { name: 'Dispatch note' }).click()
+    await expect(cmp.getByRole('textbox', { name: 'Subject', exact: true })).toHaveValue('Your order is on its way')
+    await expect(cmp.locator('.ProseMirror')).toContainText('Royal Mail')
   } finally {
     await app.close()
     safeRm(userData)

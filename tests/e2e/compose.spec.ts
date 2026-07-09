@@ -44,13 +44,18 @@ test('compose saves a draft that persists across relaunch', async () => {
     let win = await app.firstWindow()
     await win.waitForTimeout(700)
 
-    await win.getByRole('button', { name: 'Compose' }).click()
-    await win.getByLabel('To', { exact: true }).fill('priya@makerspace.uk')
-    await win.getByRole('textbox', { name: 'Subject', exact: true }).fill('Licence follow-up')
-    await win.locator('.ProseMirror').click()
-    await win.keyboard.type('Following up on the clause we discussed.')
-    await win.getByRole('button', { name: 'Save draft' }).click()
-    await expect(win.getByText('Draft saved')).toBeVisible()
+    // Compose opens in its own window now.
+    const [cmp] = await Promise.all([
+      app.waitForEvent('window'),
+      win.getByRole('button', { name: 'Compose' }).click()
+    ])
+    await cmp.waitForLoadState()
+    await cmp.getByLabel('To', { exact: true }).fill('priya@makerspace.uk')
+    await cmp.getByRole('textbox', { name: 'Subject', exact: true }).fill('Licence follow-up')
+    await cmp.locator('.ProseMirror').click()
+    await cmp.keyboard.type('Following up on the clause we discussed.')
+    await cmp.getByRole('button', { name: 'Save draft' }).click()
+    await expect(cmp.getByText('Draft saved')).toBeVisible()
 
     await app.close()
 
@@ -75,18 +80,22 @@ test('sending is a manual action queued behind an undo window', async () => {
     const win = await app.firstWindow()
     await win.waitForTimeout(700)
 
-    await win.getByRole('button', { name: 'Compose' }).click()
-    await win.getByLabel('To', { exact: true }).fill('someone@example.com')
-    await win.getByRole('textbox', { name: 'Subject', exact: true }).fill('Hello')
+    const [cmp] = await Promise.all([
+      app.waitForEvent('window'),
+      win.getByRole('button', { name: 'Compose' }).click()
+    ])
+    await cmp.waitForLoadState()
+    await cmp.getByLabel('To', { exact: true }).fill('someone@example.com')
+    await cmp.getByRole('textbox', { name: 'Subject', exact: true }).fill('Hello')
 
     // Send only fires on the click, and even then it's queued with an Undo window —
     // nothing leaves automatically. Undo cancels it before it's delivered.
-    await win.getByRole('button', { name: 'Send', exact: true }).click()
-    await expect(win.getByText('Sending your message…')).toBeVisible()
+    await cmp.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect(cmp.getByText('Sending your message…')).toBeVisible()
     const scheduledBefore = await win.evaluate(() => window.deskmail.compose.listScheduled())
     expect(scheduledBefore.length).toBe(1)
 
-    await win.getByRole('button', { name: 'Undo' }).click()
+    await cmp.getByRole('button', { name: 'Undo' }).click()
     const scheduledAfter = await win.evaluate(() => window.deskmail.compose.listScheduled())
     expect(scheduledAfter.length).toBe(0)
   } finally {

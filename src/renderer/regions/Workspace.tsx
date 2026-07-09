@@ -3,9 +3,18 @@ import { useLayout } from '../store/layoutStore'
 import { Sidebar } from './Sidebar'
 import { MessageList } from './MessageList'
 import { ReadingPane } from './ReadingPane'
-import { ClaudePanel } from './ClaudePanel'
 
-export function Workspace({ onOpen, onOpenDrafts }: { onOpen?: (id: number) => void; onOpenDrafts?: () => void }): JSX.Element {
+export function Workspace({
+  onOpen,
+  onOpenDrafts,
+  onOpenOutbox,
+  onOpenSmartBuilder
+}: {
+  onOpen?: (id: number) => void
+  onOpenDrafts?: () => void
+  onOpenOutbox?: () => void
+  onOpenSmartBuilder?: () => void
+}): JSX.Element {
   const prefs = useLayout((s) => s.prefs)
   const a = computeArrangement(prefs)
 
@@ -22,7 +31,7 @@ export function Workspace({ onOpen, onOpenDrafts }: { onOpen?: (id: number) => v
             borderLeftWidth: a.sidebar.side === 'right' ? 1 : 0
           }}
         >
-          <Sidebar showLabels={a.sidebar.showLabels} onOpenDrafts={onOpenDrafts} />
+          <Sidebar showLabels={a.sidebar.showLabels} onOpenDrafts={onOpenDrafts} onOpenOutbox={onOpenOutbox} onOpenSmartBuilder={onOpenSmartBuilder} />
         </div>
       )}
 
@@ -64,9 +73,6 @@ export function Workspace({ onOpen, onOpenDrafts }: { onOpen?: (id: number) => v
           </div>
         )}
       </div>
-
-      {/* Claude — docked inline, or overlay (slide/float) when opened */}
-      {a.claude === 'docked' ? <ClaudePanel mode="docked" /> : <ClaudePanel mode={a.claude} />}
     </div>
   )
 }

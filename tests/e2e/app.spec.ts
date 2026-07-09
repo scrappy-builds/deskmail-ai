@@ -74,20 +74,20 @@ test('layout preset selection persists across relaunch', async () => {
     let win = await app.firstWindow()
 
     // Default preset is Classic.
-    await expect(win.getByRole('button', { name: 'Layout preset' })).toContainText('Classic')
+    await expect.poll(() => win.evaluate(() => window.deskmail.getSettings().then((s) => s.selectedLayoutPreset))).toBe('classic')
 
     // Switch to Focus Mode via View Settings.
     await win.getByRole('button', { name: 'View settings' }).click()
     await win.getByRole('button', { name: /Focus Mode/ }).click()
     await win.getByRole('button', { name: 'Done' }).click()
-    await expect(win.getByRole('button', { name: 'Layout preset' })).toContainText('Focus Mode')
+    await expect.poll(() => win.evaluate(() => window.deskmail.getSettings().then((s) => s.selectedLayoutPreset))).toBe('focus')
 
     await app.close()
 
     // Relaunch: the preset should have been restored.
     app = await launch(userData)
     win = await app.firstWindow()
-    await expect(win.getByRole('button', { name: 'Layout preset' })).toContainText('Focus Mode')
+    await expect.poll(() => win.evaluate(() => window.deskmail.getSettings().then((s) => s.selectedLayoutPreset))).toBe('focus')
     await app.close()
   } finally {
     safeRm(userData)

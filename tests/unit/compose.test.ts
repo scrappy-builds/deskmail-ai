@@ -33,10 +33,13 @@ describe('buildMail', () => {
     expect(mail.html).toContain('Thanks,<br>Jamie')
   })
 
-  it('escapes HTML in the signature', () => {
-    const mail = buildMail({ payload: PAYLOAD, fromName: 'Jamie', fromEmail: 'j@x', signature: '<b>x</b>' })
-    expect(mail.html).toContain('&lt;b&gt;x&lt;/b&gt;')
-    expect(mail.html).not.toContain('<b>x</b>')
+  it('keeps a rich (HTML) signature as-is, but escapes a plain-text one', () => {
+    // Rich signatures (bold/links) are preserved.
+    const rich = buildMail({ payload: PAYLOAD, fromName: 'Jamie', fromEmail: 'j@x', signature: '<b>Jamie</b>' })
+    expect(rich.html).toContain('<b>Jamie</b>')
+    // A legacy plain-text signature with stray angle brackets is still escaped.
+    const plain = buildMail({ payload: PAYLOAD, fromName: 'Jamie', fromEmail: 'j@x', signature: 'a < b' })
+    expect(plain.html).toContain('a &lt; b')
   })
 })
 

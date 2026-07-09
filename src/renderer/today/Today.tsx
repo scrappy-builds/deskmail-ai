@@ -8,12 +8,20 @@ const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: '
 
 export function Today(): JSX.Element {
   const [agenda, setAgenda] = useState<TodayAgenda>({ events: [], messages: [] })
+  const [cfg, setCfg] = useState<{ unread: boolean; starred: boolean }>({ unread: true, starred: false })
 
+  const refresh = (): void => void window.deskmail.mail.today().then(setAgenda)
   useEffect(() => {
-    const refresh = (): void => void window.deskmail.mail.today().then(setAgenda)
     refresh()
+    void window.deskmail.mail.todayConfigGet().then(setCfg)
     return window.deskmail.mail.onChanged(refresh)
   }, [])
+
+  const toggleCfg = (k: 'unread' | 'starred'): void => {
+    const next = { ...cfg, [k]: !cfg[k] }
+    setCfg(next)
+    void window.deskmail.mail.todayConfigSet({ [k]: next[k] }).then(refresh)
+  }
 
   const events = [...agenda.events].sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''))
   const dateLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -53,7 +61,20 @@ export function Today(): JSX.Element {
 
         {/* Mail needing attention */}
         <div className="mt-7">
-          <div className="mb-2.5 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Needs your attention</div>
+          <div className="mb-2.5 flex items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Needs your attention</span>
+            <div className="flex-1" />
+            {(['unread', 'starred'] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => toggleCfg(k)}
+                className="rounded-full border px-2.5 py-0.5 text-[11px] font-semibold capitalize"
+                style={cfg[k] ? { borderColor: 'var(--accent)', background: 'var(--accent-soft)', color: 'var(--accent)' } : { borderColor: 'var(--border-2)', color: 'var(--text-3)' }}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
           {agenda.messages.length === 0 ? (
             <p className="text-[13px] text-text-3">You're all caught up. Nothing unread.</p>
           ) : (

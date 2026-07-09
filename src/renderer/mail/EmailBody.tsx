@@ -16,8 +16,30 @@ function wrap(inner: string): string {
 </style></head><body>${inner}</body></html>`
 }
 
-export function EmailBody({ html, text }: { html: string | null; text: string | null }): JSX.Element {
-  const [allowImages, setAllowImages] = useState(false)
+// Remembers messages where the user chose to load images, so switching folders
+// and back doesn't re-block them. ponytail: in-memory; resets on app restart —
+// a junk message re-blocks after restart, which is the safe default.
+const imagesLoaded = new Set<number>()
+
+// Initial image state: auto-load unless the caller blocks by default (Junk), but
+// always honour a remembered manual "Load images" for this message.
+export function initialAllow(allowByDefault: boolean, remembered: boolean): boolean {
+  return allowByDefault || remembered
+}
+
+export function EmailBody({
+  html,
+  text,
+  allowByDefault = true,
+  messageId
+}: {
+  html: string | null
+  text: string | null
+  allowByDefault?: boolean
+  messageId?: number
+}): JSX.Element {
+  const remembered = messageId != null && imagesLoaded.has(messageId)
+  const [allowImages, setAllowImages] = useState(initialAllow(allowByDefault, remembered))
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const result = useMemo(() => (html ? sanitiseEmail(html, allowImages) : null), [html, allowImages])
@@ -44,7 +66,10 @@ export function EmailBody({ html, text }: { html: string | null; text: string | 
             I've blocked remote images in this message to protect your privacy.
           </span>
           <button
-            onClick={() => setAllowImages(true)}
+            onClick={() => {
+              setAllowImages(true)
+              if (messageId != null) imagesLoaded.add(messageId)
+            }}
             className="rounded-sm px-2.5 py-1 text-[12px] font-semibold text-accent hover:underline"
           >
             Load images

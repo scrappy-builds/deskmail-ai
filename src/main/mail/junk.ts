@@ -1,5 +1,6 @@
 import { applyAction } from '../../db/mailActions'
 import { getMessage } from '../../db/messages'
+import { isBayesTrained, scoreSpam } from '../../db/bayes'
 import type { DB } from '../../db/database'
 
 export interface JunkVerdict {
@@ -57,6 +58,8 @@ export function applyJunkIfSpam(db: DB, messageId: number, enabled: boolean): bo
   const m = getMessage(db, messageId)
   if (!m) return false
   const verdict = classifyJunk(m.subject, m.fromEmail, m.bodyText ?? m.bodyHtml)
-  if (!verdict.isJunk) return false
+  // Once trained, a confident Bayesian score also lands mail in Junk.
+  const bayesJunk = isBayesTrained(db) && scoreSpam(db, `${m.subject ?? ''} ${m.fromName ?? ''} ${m.bodyText ?? m.bodyHtml ?? ''}`) >= 0.9
+  if (!verdict.isJunk && !bayesJunk) return false
   return applyAction(db, messageId, 'junk')
 }

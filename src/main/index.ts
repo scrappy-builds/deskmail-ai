@@ -1,39 +1,52 @@
 import { existsSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { app, dialog, shell, BrowserWindow, ipcMain, Menu } from 'electron'
+import { app, dialog, shell, nativeImage, BrowserWindow, ipcMain, Menu, Notification, Tray } from 'electron'
 import { loadSettings } from './settings'
 import { resolveDataDir } from './dataDir'
 import { backupTo, restoreFrom } from './backup'
 import { openDatabase, type DB } from '../db/database'
 import { getAppSetting, loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty, setAppSetting } from '../db/settings'
-import { insertAccount, listAccounts } from '../db/accounts'
+import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/accounts'
+import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, renameFolder, reorderFolders } from '../db/folders'
+import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
-import { getMessage, listMessages, markRead, searchMessages } from '../db/messages'
+import { getMessage, listMessages, listMessagesByLabel, markRead, searchMessages, setMuted, setPinned } from '../db/messages'
+import { createLabel, deleteLabel, labelsForMessage, listLabels, renameLabel, setMessageLabel } from '../db/labels'
+import { createRule, deleteRule, listRules, updateRule } from '../db/rules'
+import { createSmartView, deleteSmartView, listSmartViews, runSmartView } from '../db/smartViews'
+import { printMessageToPdf } from './mail/printPdf'
+import { checkAutoBackup } from './autoBackup'
+import { getNotifySettings, notificationsSuppressed, type NotifySettings } from './notify'
 import { applyAction } from '../db/mailActions'
+import { trainBayesFromMessage } from '../db/bayes'
 import { drainMailActions } from './mail/drainer'
 import { fetchAndSaveAttachments } from './mail/attachments'
 import { listAttachmentRows } from '../db/messages'
 import { exportForNotebookLM } from '../mcp/export'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
-import { ensureDefaultSignature, getSignatureData, updateSignature } from '../db/signatures'
+import { createSignature, deleteSignature, ensureDefaultSignature, getSignatureData, listSignatures, setDefaultSignature, setSignatureAppend, updateSignature, updateSignatureById } from '../db/signatures'
 import { createEvent, deleteEvent, getEvent, listEvents, updateEvent } from '../db/events'
 import { cancelScheduled, dueScheduled, listScheduled, markError, markSent, scheduleSend } from '../db/scheduledSends'
 import { computeSnoozeTime, snoozeMessage, unsnooze } from '../db/snoozes'
 import { createTemplate, deleteTemplate, listTemplates, seedTemplatesIfEmpty, updateTemplate } from '../db/templates'
-import { listContacts, searchContacts } from '../db/contacts'
+import { createContact, deleteContact, listContacts, listContactGroups, listContactsDetail, searchContacts, updateContact } from '../db/contacts'
 import { getTodayAgenda } from '../db/today'
 import { buildTools } from '../mcp/tools'
-import { storeCredential } from './credentials'
+import { getCredential, storeCredential } from './credentials'
 import { testIncoming, testOutgoing } from './mail/connectionTest'
 import { syncAccount, syncAllAccounts } from './mail/sync'
 import { sendMail } from './mail/send'
 import { joinMeeting } from './meetings'
 import { maybeSeedDemo } from './mail/demoSeed'
 import type { AppSettings } from '@shared/types'
-import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig, EventInput, MailOp, SnoozeOption } from '@shared/db'
+import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig, ContactInput, EventInput, MailOp, RuleInput, SmartViewInput, SnoozeOption } from '@shared/db'
 
 // Undo-send window in seconds (configurable later; sensible default now).
 const UNDO_DELAY_SECONDS = 10
+
+// Current UI zoom factor (text-size accessibility). Applied to every window on
+// load and updated live from the renderer's Text-size control.
+let uiZoom = 1
 
 // Decide where data lives (OS app-data, an explicit override, or portable/USB
 // mode). Must run before the app is ready so userData points at the right place.
@@ -92,6 +105,116 @@ function startScheduledSender(): void {
 // Tell every open window the local mail cache changed, so it refetches.
 function broadcastMailChanged(): void {
   for (const w of BrowserWindow.getAllWindows()) w.webContents.send('mail:changed')
+  updateTrayUnread()
+}
+
+// --- System tray + new-mail notifications -----------------------------------
+let tray: Tray | null = null
+let mainWindow: BrowserWindow | null = null
+let isQuitting = false
+
+function trayImage(): Electron.NativeImage {
+  const img = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty()
+  return img.isEmpty() ? img : img.resize({ width: 16, height: 16 })
+}
+
+function showMainWindow(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show()
+    mainWindow.focus()
+  } else {
+    mainWindow = createMainWindow()
+  }
+}
+
+function unreadInboxCount(): number {
+  return (db.get("SELECT COUNT(*) c FROM messages WHERE is_read = 0 AND is_muted = 0 AND folder_id IN (SELECT id FROM folders WHERE role = 'inbox')") as { c: number }).c
+}
+
+function rebuildTrayMenu(): void {
+  if (!tray) return
+  const focusOn = appSetting('focus-now') === 'on'
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open DeskMail', click: showMainWindow },
+      { label: 'Sync now', click: () => void syncAndNotify() },
+      {
+        label: focusOn ? 'Turn off Focus' : 'Focus — mute notifications',
+        click: () => {
+          setAppSetting(db, 'focus-now', focusOn ? 'off' : 'on')
+          rebuildTrayMenu()
+        }
+      },
+      { type: 'separator' },
+      { label: 'Quit', click: () => { isQuitting = true; app.quit() } }
+    ])
+  )
+}
+
+function updateTrayUnread(): void {
+  if (!tray) return
+  const c = unreadInboxCount()
+  tray.setToolTip(c > 0 ? `DeskMail AI — ${c} unread` : 'DeskMail AI')
+}
+
+function createTray(): void {
+  if (tray) return
+  tray = new Tray(trayImage())
+  tray.setToolTip('DeskMail AI')
+  tray.on('click', showMainWindow)
+  rebuildTrayMenu()
+  updateTrayUnread()
+}
+
+// Show a desktop notification per new inbox message (unless suppressed by the
+// notifications toggle, Focus, or the DND schedule). Capped so a big sync can't
+// spray dozens of toasts. Clicking one opens that message in its own window.
+function notifyNewMail(ids: number[]): void {
+  if (!Notification.isSupported() || notificationsSuppressed(db)) return
+  for (const id of ids.slice(0, 5)) {
+    const m = getMessage(db, id)
+    if (!m) continue
+    const n = new Notification({ title: m.fromName || m.fromEmail || 'New mail', body: m.subject || '(no subject)' })
+    n.on('click', () => openMessageWindow(id))
+    n.show()
+  }
+}
+
+// Fire a one-off reminder for any event starting within ~10 minutes. Keyed per
+// occurrence so it only notifies once. Respects the same Focus/DND suppression.
+const remindedEvents = new Set<string>()
+function checkEventReminders(): void {
+  if (notificationsSuppressed(db)) return
+  const now = new Date()
+  const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  for (const e of listEvents(db, iso, iso)) {
+    if (!e.start) continue
+    const [h, m] = e.start.split(':').map(Number)
+    const at = new Date(now)
+    at.setHours(h, m, 0, 0)
+    const mins = (at.getTime() - now.getTime()) / 60000
+    const key = `${e.id}-${e.date}-${e.start}`
+    if (mins >= 0 && mins <= 10 && !remindedEvents.has(key)) {
+      remindedEvents.add(key)
+      if (Notification.isSupported()) {
+        const n = new Notification({ title: `Soon: ${e.title}`, body: `Starts at ${e.start}` })
+        n.on('click', showMainWindow)
+        n.show()
+      }
+    }
+  }
+}
+
+// Sync, then notify about mail that arrived in the inbox during this pass.
+async function syncAndNotify(): Promise<void> {
+  const before = (db.get('SELECT COALESCE(MAX(id), 0) m FROM messages') as { m: number }).m
+  await syncAllAccounts(db)
+  broadcastMailChanged()
+  const rows = db.all(
+    "SELECT id FROM messages WHERE id > ? AND is_read = 0 AND is_muted = 0 AND folder_id IN (SELECT id FROM folders WHERE role = 'inbox') ORDER BY id",
+    [before]
+  ) as unknown as { id: number }[]
+  if (rows.length) notifyNewMail(rows.map((r) => r.id))
 }
 
 function safeSize(path: string): number {
@@ -139,6 +262,8 @@ function hardenWindow(win: BrowserWindow): void {
     }
   })
   win.webContents.on('will-attach-webview', (e) => e.preventDefault())
+  // Apply the saved text-size zoom once the page is loaded.
+  win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor(uiZoom))
 }
 
 // Open message windows, keyed by message id, so a second double-click focuses
@@ -178,6 +303,34 @@ function openMessageWindow(id: number): void {
   win.on('closed', () => messageWindows.delete(id))
 }
 
+// Compose runs in its own resizable/movable/minimisable window (like a real mail
+// client), rather than as an in-app overlay. draftId is optional (editing a draft).
+function openComposeWindow(draftId?: number): void {
+  const win = new BrowserWindow({
+    width: 760,
+    height: 680,
+    minWidth: 460,
+    minHeight: 440,
+    show: false,
+    frame: false,
+    backgroundColor: '#f5f5f5',
+    icon: iconPath,
+    title: 'New message — DeskMail AI',
+    webPreferences: securePrefs()
+  })
+
+  win.once('ready-to-show', () => win.show())
+  hardenWindow(win)
+
+  const query = draftId != null ? { draftId: String(draftId) } : undefined
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    const q = draftId != null ? `?draftId=${draftId}` : ''
+    win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/compose.html${q}`)
+  } else {
+    win.loadFile(join(__dirname, '../renderer/compose.html'), { query })
+  }
+}
+
 function registerIpc(): void {
   ipcMain.handle('settings:get', () => loadLayoutPrefs(db))
 
@@ -186,6 +339,7 @@ function registerIpc(): void {
   })
 
   ipcMain.on('message-window:open', (_e, id: number) => openMessageWindow(id))
+  ipcMain.on('compose-window:open', (_e, draftId?: number) => openComposeWindow(draftId))
 
   // --- Account setup + connection testing (Stage 4) ---------------------------
   ipcMain.handle('account:list', () => listAccounts(db))
@@ -195,7 +349,22 @@ function registerIpc(): void {
     const id = insertAccount(db, input)
     storeCredential(db, id, input.password) // encrypted; plaintext never persisted
     ensureDefaultSignature(db, id, input.displayName)
+    ensureStandardFolders(db, id) // show the full folder tree immediately, pre-sync
     // Kick off a background sync for the new account; don't block the response.
+    void syncAccount(db, id).finally(broadcastMailChanged)
+    return { id }
+  })
+  // Full details for editing — password decrypted from the credential store so
+  // the wizard can prefill it and re-test without the user retyping it.
+  ipcMain.handle('account:get', (_e, id: number) => {
+    const acc = getAccount(db, id)
+    if (!acc) return null
+    return { ...acc, password: getCredential(db, id) ?? '' }
+  })
+  ipcMain.handle('account:update', (_e, id: number, input: AccountInput) => {
+    updateAccount(db, id, input)
+    if (input.password) storeCredential(db, id, input.password) // only if re-entered
+    // Re-sync in case the fix was to the incoming settings.
     void syncAccount(db, id).finally(broadcastMailChanged)
     return { id }
   })
@@ -207,7 +376,15 @@ function registerIpc(): void {
   ipcMain.handle('mail:get-message', (_e, id: number) => getMessage(db, id))
   ipcMain.handle('mail:mark-read', (_e, id: number, read: boolean) => markRead(db, id, read))
   ipcMain.handle('mail:action', (_e, messageId: number, op: MailOp, targetFolderId?: number) => {
+    // Capture the source folder role before the move, so "not junk" (junk→inbox)
+    // can teach the Bayesian filter. Only user actions train it — never auto-junk.
+    const sourceRole =
+      op === 'move'
+        ? (db.get("SELECT role FROM folders WHERE id = (SELECT folder_id FROM messages WHERE id = ?)", [messageId]) as { role: string | null } | undefined)?.role
+        : null
     applyAction(db, messageId, op, targetFolderId)
+    if (op === 'junk') trainBayesFromMessage(db, messageId, true)
+    else if (op === 'move' && sourceRole === 'junk') trainBayesFromMessage(db, messageId, false)
     broadcastMailChanged()
     void drainMailActions(db) // push to IMAP in the background; never blocks the UI
   })
@@ -217,9 +394,118 @@ function registerIpc(): void {
     broadcastMailChanged()
   })
 
+  // --- Folder management (create / rename / delete custom folders) -------------
+  // DB change is immediate (snappy UI); the IMAP mailbox op is pushed best-effort.
+  ipcMain.handle('mail:create-folder', (_e, accountId: number, name: string, parentId?: number | null) => {
+    const id = createFolder(db, accountId, name, parentId ?? null)
+    // ponytail: subfolders stay local — only top-level folders get an IMAP mailbox.
+    if (parentId == null) void imapCreateFolder(db, accountId, name).finally(broadcastMailChanged)
+    broadcastMailChanged()
+    return { id }
+  })
+  ipcMain.handle('mail:move-folder', (_e, id: number, parentId: number | null) => {
+    moveFolder(db, id, parentId)
+    broadcastMailChanged()
+  })
+  ipcMain.handle('mail:reorder-folders', (_e, ids: number[]) => {
+    reorderFolders(db, ids)
+    broadcastMailChanged()
+  })
+  ipcMain.handle('mail:rename-folder', (_e, id: number, name: string) => {
+    const f = getFolder(db, id)
+    renameFolder(db, id, name)
+    if (f) void imapRenameFolder(db, f.account_id, f.remote_path ?? f.name, name).finally(broadcastMailChanged)
+    broadcastMailChanged()
+  })
+  ipcMain.handle('mail:delete-folder', (_e, id: number) => {
+    const f = getFolder(db, id)
+    const moved = deleteFolder(db, id)
+    if (f) void imapDeleteFolder(db, f.account_id, f.remote_path ?? f.name).finally(broadcastMailChanged)
+    broadcastMailChanged()
+    return { moved }
+  })
+
+  // --- Notifications / tray / Focus-DND ---------------------------------------
+  ipcMain.handle('notify:get', () => getNotifySettings(db))
+  ipcMain.handle('notify:set', (_e, patch: Partial<NotifySettings>) => {
+    const map: Record<keyof NotifySettings, { key: string; enc: (v: unknown) => string }> = {
+      enabled: { key: 'notifications-enabled', enc: (v) => (v ? 'on' : 'off') },
+      minimiseToTray: { key: 'minimise-to-tray', enc: (v) => (v ? 'on' : 'off') },
+      dndEnabled: { key: 'dnd-enabled', enc: (v) => (v ? 'on' : 'off') },
+      dndFrom: { key: 'dnd-from', enc: (v) => String(v) },
+      dndTo: { key: 'dnd-to', enc: (v) => String(v) },
+      focusNow: { key: 'focus-now', enc: (v) => (v ? 'on' : 'off') }
+    }
+    for (const k of Object.keys(patch) as (keyof NotifySettings)[]) {
+      if (patch[k] !== undefined) setAppSetting(db, map[k].key, map[k].enc(patch[k]))
+    }
+    rebuildTrayMenu() // Focus state may have changed
+    return getNotifySettings(db)
+  })
+
+  // --- Saved smart views (condition-based virtual folders) --------------------
+  ipcMain.handle('smartviews:list', () => listSmartViews(db))
+  ipcMain.handle('smartviews:create', (_e, input: SmartViewInput) => ({ id: createSmartView(db, input) }))
+  ipcMain.handle('smartviews:delete', (_e, id: number) => {
+    deleteSmartView(db, id)
+    broadcastMailChanged()
+  })
+  ipcMain.handle('smartviews:run', (_e, id: number) => runSmartView(db, id))
+
+  // --- Local rules / filters (run on incoming mail) ---------------------------
+  ipcMain.handle('rules:list', () => listRules(db))
+  ipcMain.handle('rules:create', (_e, input: RuleInput) => ({ id: createRule(db, input) }))
+  ipcMain.handle('rules:update', (_e, id: number, input: RuleInput) => updateRule(db, id, input))
+  ipcMain.handle('rules:delete', (_e, id: number) => deleteRule(db, id))
+
+  // --- Local-only message flags (pin/mute) + print to PDF ----------------------
+  ipcMain.handle('mail:pin', (_e, id: number, on: boolean) => {
+    setPinned(db, id, on)
+    broadcastMailChanged()
+  })
+  ipcMain.handle('mail:mute', (_e, id: number, on: boolean) => {
+    setMuted(db, id, on)
+    broadcastMailChanged()
+  })
+  // --- Labels / tags (a message can carry several; distinct from folders) -----
+  ipcMain.handle('mail:list-by-label', (_e, labelId: number) => listMessagesByLabel(db, labelId))
+  ipcMain.handle('labels:list', () => listLabels(db))
+  ipcMain.handle('labels:create', (_e, name: string, colour?: string) => ({ id: createLabel(db, name, colour) }))
+  ipcMain.handle('labels:rename', (_e, id: number, name: string, colour?: string) => renameLabel(db, id, name, colour))
+  ipcMain.handle('labels:delete', (_e, id: number) => {
+    deleteLabel(db, id)
+    broadcastMailChanged()
+  })
+  ipcMain.handle('labels:for-message', (_e, messageId: number) => labelsForMessage(db, messageId))
+  ipcMain.handle('labels:toggle', (_e, messageId: number, labelId: number, on: boolean) => {
+    setMessageLabel(db, messageId, labelId, on)
+    broadcastMailChanged()
+  })
+
+  ipcMain.handle('mail:print-pdf', async (e, messageId: number) => {
+    const m = getMessage(db, messageId)
+    if (!m) return { path: null }
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const safe = (m.subject || 'message').replace(/[^\w -]+/g, '_').slice(0, 60)
+    const res = await dialog.showSaveDialog(win!, {
+      title: 'Save message as PDF',
+      defaultPath: `${safe}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    if (res.canceled || !res.filePath) return { path: null }
+    await printMessageToPdf(app.getPath('userData'), m, res.filePath)
+    return { path: res.filePath }
+  })
+
   // --- Compose: drafts, signatures, attachments, manual send (Stage 6/8) ------
   ipcMain.handle('compose:get-signature', (_e, accountId: number) => getSignatureData(db, accountId))
   ipcMain.handle('compose:update-signature', (_e, accountId: number, body: string, appendToNew: boolean) => updateSignature(db, accountId, body, appendToNew))
+  ipcMain.handle('compose:list-signatures', (_e, accountId: number) => listSignatures(db, accountId))
+  ipcMain.handle('compose:create-signature', (_e, accountId: number, name: string, body: string) => ({ id: createSignature(db, accountId, name, body) }))
+  ipcMain.handle('compose:update-signature-by-id', (_e, id: number, name: string, body: string) => updateSignatureById(db, id, name, body))
+  ipcMain.handle('compose:delete-signature', (_e, id: number) => deleteSignature(db, id))
+  ipcMain.handle('compose:set-default-signature', (_e, accountId: number, id: number) => setDefaultSignature(db, accountId, id))
+  ipcMain.handle('compose:set-signature-append', (_e, accountId: number, on: boolean) => setSignatureAppend(db, accountId, on))
   ipcMain.handle('compose:save-draft', (_e, payload: ComposePayload) => ({ id: saveDraft(db, payload) }))
   ipcMain.handle('compose:list-drafts', () => listDrafts(db))
   ipcMain.handle('compose:get-draft', (_e, id: number) => getDraft(db, id))
@@ -259,7 +545,18 @@ function registerIpc(): void {
   ipcMain.handle('mail:today', () => {
     const now = new Date()
     const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-    return getTodayAgenda(db, iso)
+    return getTodayAgenda(db, iso, {
+      includeUnread: getAppSetting(db, 'today-unread') !== 'off',
+      includeStarred: getAppSetting(db, 'today-starred') === 'on'
+    })
+  })
+  ipcMain.handle('today:get-config', () => ({
+    unread: getAppSetting(db, 'today-unread') !== 'off',
+    starred: getAppSetting(db, 'today-starred') === 'on'
+  }))
+  ipcMain.handle('today:set-config', (_e, patch: { unread?: boolean; starred?: boolean }) => {
+    if (patch.unread !== undefined) setAppSetting(db, 'today-unread', patch.unread ? 'on' : 'off')
+    if (patch.starred !== undefined) setAppSetting(db, 'today-starred', patch.starred ? 'on' : 'off')
   })
   ipcMain.handle('mail:junk-enabled', () => getAppSetting(db, 'junk-filter') !== 'off')
   ipcMain.handle('mail:set-junk-enabled', (_e, on: boolean) => setAppSetting(db, 'junk-filter', on ? 'on' : 'off'))
@@ -291,6 +588,11 @@ function registerIpc(): void {
   ipcMain.handle('templates:remove', (_e, id: number) => deleteTemplate(db, id))
   ipcMain.handle('contacts:list', () => listContacts(db))
   ipcMain.handle('contacts:search', (_e, query: string) => searchContacts(db, query))
+  ipcMain.handle('contacts:list-detail', () => listContactsDetail(db))
+  ipcMain.handle('contacts:groups', () => listContactGroups(db))
+  ipcMain.handle('contacts:create', (_e, input: ContactInput) => ({ id: createContact(db, input) }))
+  ipcMain.handle('contacts:update', (_e, id: number, input: ContactInput) => updateContact(db, id, input))
+  ipcMain.handle('contacts:delete', (_e, id: number) => deleteContact(db, id))
 
   // --- Claude connector (Stage 9) ---------------------------------------------
   ipcMain.handle('mcp:info', () => {
@@ -323,6 +625,27 @@ function registerIpc(): void {
     }
     return { path: backupTo(app.getPath('userData'), dir) }
   })
+  // Scheduled auto-backup config (dir + interval days), plus a folder picker.
+  ipcMain.handle('storage:auto-backup-get', () => ({
+    dir: getAppSetting(db, 'auto-backup-dir'),
+    days: Number(getAppSetting(db, 'auto-backup-days') ?? '0')
+  }))
+  ipcMain.handle('storage:auto-backup-set', (_e, dir: string | null, days: number) => {
+    setAppSetting(db, 'auto-backup-dir', dir ?? '')
+    setAppSetting(db, 'auto-backup-days', String(days))
+    checkAutoBackup(db, app.getPath('userData')) // run now if newly due
+  })
+  ipcMain.handle('storage:pick-folder', async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const res = await dialog.showOpenDialog(win!, { title: 'Choose a backup folder', properties: ['openDirectory', 'createDirectory'] })
+    return { path: res.canceled ? null : res.filePaths[0] ?? null }
+  })
+  // Text-size zoom: apply to every open window and remember for new ones.
+  ipcMain.on('ui:set-zoom', (_e, factor: number) => {
+    uiZoom = factor
+    for (const w of BrowserWindow.getAllWindows()) w.webContents.setZoomFactor(factor)
+  })
+
   ipcMain.handle('storage:restore', async (e, backupDir?: string) => {
     let dir = backupDir
     if (!dir) {
@@ -365,7 +688,9 @@ function registerIpc(): void {
       joinUrl: inv.joinUrl,
       notes: null,
       calendar: 'Invitations',
-      guests: inv.guests
+      guests: inv.guests,
+      recurFreq: 'none',
+      recurUntil: null
     })
     return { id }
   })
@@ -398,12 +723,25 @@ function createMainWindow(): BrowserWindow {
   win.once('ready-to-show', () => win.show())
   hardenWindow(win)
 
+  // Minimise / close to tray when enabled — the window hides instead of quitting,
+  // and stays reachable from the tray. Off by default (close quits as usual).
+  win.on('minimize', () => {
+    if (appSetting('minimise-to-tray') === 'on') win.hide()
+  })
+  win.on('close', (e) => {
+    if (!isQuitting && appSetting('minimise-to-tray') === 'on') {
+      e.preventDefault()
+      win.hide()
+    }
+  })
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  mainWindow = win
   return win
 }
 
@@ -411,12 +749,24 @@ app.whenReady().then(async () => {
   // Custom title bar lives in the renderer, so no native menu bar.
   Menu.setApplicationMenu(null)
   await initDatabase()
+  uiZoom = loadLayoutPrefs(db).fontScale // apply the saved text size to all windows
   registerIpc()
   createMainWindow()
+
+  // Scheduled local backup: check on launch, then hourly.
+  checkAutoBackup(db, app.getPath('userData'))
+  setInterval(() => checkAutoBackup(db, app.getPath('userData')), 60 * 60 * 1000)
+
+  createTray()
 
   // Background sync on launch (non-blocking); refresh the UI when it lands.
   void syncAllAccounts(db).then(broadcastMailChanged)
   startScheduledSender()
+  // Periodic sync that surfaces new inbox mail as desktop notifications.
+  setInterval(() => void syncAndNotify(), 2 * 60 * 1000)
+  // Event reminders: check once a minute for anything starting soon.
+  checkEventReminders()
+  setInterval(checkEventReminders, 60 * 1000)
   // Drain queued mail actions to IMAP periodically (offline changes reconcile,
   // and any actions Claude queued via MCP get pushed + reflected in the UI).
   setInterval(() => {
@@ -431,5 +781,10 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  // With minimise-to-tray the window only hides, so this won't fire; when it
+  // does (normal close), quit as usual off macOS.
   if (process.platform !== 'darwin') app.quit()
+})
+app.on('before-quit', () => {
+  isQuitting = true
 })

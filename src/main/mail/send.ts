@@ -2,10 +2,16 @@ import nodemailer, { type SendMailOptions } from 'nodemailer'
 import type { AccountRow, ComposePayload, SendResult } from '@shared/db'
 import type { DB } from '../../db/database'
 import { getCredential } from '../credentials'
-import { getDefaultSignature } from '../../db/signatures'
+import { getDefaultSignature, getSignatureBody } from '../../db/signatures'
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// A signature body may be rich HTML (bold/links) or legacy plain text with
+// newlines — render either faithfully.
+function signatureToHtml(body: string): string {
+  return /<[a-z][\s\S]*>/i.test(body) ? body : escapeHtml(body).replace(/\n/g, '<br>')
 }
 
 export interface BuildMailOpts {
@@ -19,9 +25,7 @@ export interface BuildMailOpts {
 // The signature is appended here (the editor body doesn't contain it), so it's
 // consistent whether the message is sent now or scheduled later.
 export function buildMail(o: BuildMailOpts): SendMailOptions {
-  const sigHtml = o.signature
-    ? `<br><br>--<br>${escapeHtml(o.signature).replace(/\n/g, '<br>')}`
-    : ''
+  const sigHtml = o.signature ? `<br><br>--<br>${signatureToHtml(o.signature)}` : ''
   return {
     from: `"${o.fromName}" <${o.fromEmail}>`,
     to: o.payload.to.join(', '),
@@ -41,11 +45,15 @@ export async function sendMail(db: DB, payload: ComposePayload): Promise<SendRes
   const password = getCredential(db, payload.accountId)
   if (!password) return { ok: false, error: 'No stored password for this account.' }
 
+  // An explicitly-chosen signature is always appended; otherwise the account
+  // default is used only when it's set to append to new messages.
+  const signature = payload.signatureId != null ? getSignatureBody(db, payload.signatureId) : getDefaultSignature(db, payload.accountId)
+
   const mail = buildMail({
     payload,
     fromName: acc.display_name,
     fromEmail: acc.email_address,
-    signature: getDefaultSignature(db, payload.accountId)
+    signature
   })
 
   const transport = nodemailer.createTransport({

@@ -1,5 +1,4 @@
 import { Icon } from './Icon'
-import { PRESET_LABELS } from '@shared/layout'
 import { useLayout } from './store/layoutStore'
 import { useMail } from './store/mailStore'
 
@@ -14,11 +13,11 @@ interface CommandBarProps {
 
 export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: CommandBarProps): JSX.Element {
   const theme = useLayout((s) => s.prefs.theme)
-  const preset = useLayout((s) => s.prefs.selectedLayoutPreset)
   const toggleTheme = useLayout((s) => s.toggleTheme)
-  const toggleClaude = useLayout((s) => s.toggleClaude)
   const searchQuery = useMail((s) => s.searchQuery)
   const runSearch = useMail((s) => s.runSearch)
+  const syncing = useMail((s) => s.syncing)
+  const sync = useMail((s) => s.sync)
 
   const tab = (m: Mode, label: string, icon: 'mail' | 'calendar' | 'clock'): JSX.Element => {
     const active = mode === m
@@ -42,17 +41,6 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
         {tab('calendar', 'Calendar', 'calendar')}
       </div>
 
-      <button
-        onClick={onOpenViewSettings}
-        className="flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-[7px] hover:border-border-2"
-        title="Layout preset"
-        aria-label="Layout preset"
-      >
-        <Icon name="sliders" size={16} className="text-accent" />
-        <span className="text-[13px] font-semibold">{PRESET_LABELS[preset]}</span>
-        <Icon name="chevronDown" size={14} className="text-text-3" />
-      </button>
-
       <div className="relative flex max-w-[640px] flex-1 items-center">
         <span className="pointer-events-none absolute left-3 flex text-text-3">
           <Icon name="search" size={16} />
@@ -73,21 +61,21 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
       <div className="flex-1" />
 
       <button
+        onClick={() => void sync()}
+        disabled={syncing}
+        className="flex items-center gap-2 rounded-md border border-border px-3 py-[9px] text-[13px] font-semibold text-text-2 hover:bg-raised disabled:opacity-50"
+        title="Send queued mail and check for new mail"
+      >
+        <Icon name="sync" size={16} className={syncing ? 'animate-spin' : undefined} />
+        <span>{syncing ? 'Syncing…' : 'Send / Receive'}</span>
+      </button>
+
+      <button
         onClick={onCompose}
         className="flex items-center gap-2 rounded-md bg-accent px-4 py-[9px] text-[13px] font-semibold text-accent-fg hover:bg-accent-2"
       >
         <Icon name={mode === 'calendar' ? 'calendar' : 'compose'} size={16} />
         <span>{mode === 'calendar' ? 'New event' : 'Compose'}</span>
-      </button>
-
-      <button
-        onClick={toggleClaude}
-        className="flex items-center gap-1.5 rounded-md border border-claude px-3 py-2 text-[13px] font-semibold text-claude"
-        style={{ background: 'var(--claude-soft)' }}
-        title="Claude assistant"
-      >
-        <Icon name="claude" size={16} />
-        <span>Claude</span>
       </button>
 
       <button

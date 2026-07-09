@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { Icon } from '../Icon'
+import type { RecurFreq } from '@shared/db'
 import { PROVIDERS, type MeetingProvider } from '@shared/meetings'
 import { useCalendar } from '../store/calendarStore'
+
+const RECUR_LABELS: Record<RecurFreq, string> = { none: 'Does not repeat', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }
 
 const PROVIDER_ORDER: MeetingProvider[] = ['teams', 'meet', 'zoom', 'inperson', 'custom']
 
@@ -20,6 +23,8 @@ export function EventModal(): JSX.Element {
   const [customLink, setCustomLink] = useState('')
   const [guests, setGuests] = useState('')
   const [notes, setNotes] = useState('')
+  const [recurFreq, setRecurFreq] = useState<RecurFreq>('none')
+  const [recurUntil, setRecurUntil] = useState('')
 
   const info = PROVIDERS[provider]
 
@@ -35,7 +40,9 @@ export function EventModal(): JSX.Element {
       joinUrl: null,
       notes: notes.trim() || null,
       calendar: 'Personal',
-      guests: guests.split(',').map((g) => g.trim()).filter(Boolean)
+      guests: guests.split(',').map((g) => g.trim()).filter(Boolean),
+      recurFreq,
+      recurUntil: recurFreq !== 'none' && recurUntil ? recurUntil : null
     })
   }
 
@@ -109,6 +116,21 @@ export function EventModal(): JSX.Element {
             )}
             {provider === 'custom' && (
               <input value={customLink} onChange={(e) => setCustomLink(e.target.value)} placeholder="Paste meeting link (https://…)" aria-label="Custom link" className={`${box} mt-2.5`} />
+            )}
+          </div>
+
+          <div className="flex gap-2.5">
+            <label className="flex-1">
+              <div className={`${label} mb-1.5`}>Repeat</div>
+              <select value={recurFreq} onChange={(e) => setRecurFreq(e.target.value as RecurFreq)} className={box} aria-label="Repeat">
+                {(Object.keys(RECUR_LABELS) as RecurFreq[]).map((f) => <option key={f} value={f}>{RECUR_LABELS[f]}</option>)}
+              </select>
+            </label>
+            {recurFreq !== 'none' && (
+              <label className="flex-1">
+                <div className={`${label} mb-1.5`}>Until (optional)</div>
+                <input type="date" value={recurUntil} onChange={(e) => setRecurUntil(e.target.value)} className={box} aria-label="Repeat until" />
+              </label>
             )}
           </div>
 

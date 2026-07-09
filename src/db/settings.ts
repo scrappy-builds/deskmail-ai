@@ -15,6 +15,7 @@ interface LayoutRow {
   claude_panel_position: string
   selected_layout_preset: string
   theme: string
+  font_scale: number | null
 }
 
 function rowToPrefs(r: LayoutRow): LayoutPreferences {
@@ -29,7 +30,8 @@ function rowToPrefs(r: LayoutRow): LayoutPreferences {
     openEmailBehaviour: r.open_email_behaviour as LayoutPreferences['openEmailBehaviour'],
     claudePanelPosition: r.claude_panel_position as LayoutPreferences['claudePanelPosition'],
     selectedLayoutPreset: r.selected_layout_preset as LayoutPreferences['selectedLayoutPreset'],
-    theme: r.theme as LayoutPreferences['theme']
+    theme: r.theme as LayoutPreferences['theme'],
+    fontScale: r.font_scale ?? 1
   }
 }
 
@@ -43,8 +45,8 @@ export function saveLayoutPrefs(db: DB, p: LayoutPreferences): void {
     `INSERT INTO layout_preferences (
        id, reading_pane_position, reading_pane_visible, sidebar_position, sidebar_mode,
        message_list_density, message_list_style, preview_line_count, open_email_behaviour,
-       claude_panel_position, selected_layout_preset, theme, updated_at
-     ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       claude_panel_position, selected_layout_preset, theme, font_scale, updated_at
+     ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
      ON CONFLICT(id) DO UPDATE SET
        reading_pane_position = excluded.reading_pane_position,
        reading_pane_visible  = excluded.reading_pane_visible,
@@ -57,6 +59,7 @@ export function saveLayoutPrefs(db: DB, p: LayoutPreferences): void {
        claude_panel_position = excluded.claude_panel_position,
        selected_layout_preset = excluded.selected_layout_preset,
        theme                 = excluded.theme,
+       font_scale            = excluded.font_scale,
        updated_at            = datetime('now')`,
     [
       p.readingPanePosition,
@@ -69,7 +72,8 @@ export function saveLayoutPrefs(db: DB, p: LayoutPreferences): void {
       p.openEmailBehaviour,
       p.claudePanelPosition,
       p.selectedLayoutPreset,
-      p.theme
+      p.theme,
+      p.fontScale
     ]
   )
 }

@@ -14,15 +14,27 @@ interface MsgRow {
   is_read: number
   is_starred: number
   has_attachments: number
+  is_pinned: number
+  is_muted: number
 }
 
-// The unified Today view: today's events + mail that needs attention (unread,
-// not snoozed). The first thing the owner sees to plan the day.
-export function getTodayAgenda(db: DB, todayIso: string): TodayAgenda {
+export interface TodayOpts {
+  includeUnread?: boolean // default true
+  includeStarred?: boolean // default false
+}
+
+// The unified Today view: today's events + mail that needs attention. What
+// counts as "needs attention" is tunable — unread and/or starred — so the owner
+// decides what surfaces. Muted and currently-snoozed mail is always excluded.
+export function getTodayAgenda(db: DB, todayIso: string, opts: TodayOpts = {}): TodayAgenda {
   const events = listEvents(db, todayIso, todayIso)
+  const conds: string[] = []
+  if (opts.includeUnread ?? true) conds.push('is_read = 0')
+  if (opts.includeStarred ?? false) conds.push('is_starred = 1')
+  const attention = conds.length ? `(${conds.join(' OR ')})` : '0'
   const rows = db.all(
     `SELECT * FROM messages
-       WHERE is_read = 0
+       WHERE ${attention} AND is_muted = 0
          AND id NOT IN (SELECT message_id FROM snoozes WHERE datetime(snooze_until) > datetime('now'))
      ORDER BY received_at DESC, id DESC
      LIMIT 50`
@@ -38,7 +50,9 @@ export function getTodayAgenda(db: DB, todayIso: string): TodayAgenda {
     receivedAt: r.received_at,
     isRead: !!r.is_read,
     isStarred: !!r.is_starred,
-    hasAttachments: !!r.has_attachments
+    hasAttachments: !!r.has_attachments,
+    isPinned: !!r.is_pinned,
+    isMuted: !!r.is_muted
   }))
   return { events, messages }
 }
