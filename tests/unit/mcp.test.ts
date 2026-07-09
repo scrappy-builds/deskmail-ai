@@ -20,7 +20,9 @@ function raw(from: string, subject: string, body: string, uid: number): string {
 
 const EXPECTED_TOOLS = [
   'list_accounts', 'list_folders', 'search_emails', 'read_email', 'create_draft',
-  'find_related_emails', 'find_unanswered_emails', 'extract_dates_and_deadlines', 'summarise_thread_data'
+  'find_related_emails', 'find_unanswered_emails', 'extract_dates_and_deadlines', 'summarise_thread_data',
+  'move_email', 'archive_email', 'delete_email', 'flag_email', 'mark_email_read',
+  'export_for_notebooklm'
 ].sort()
 
 describe('MCP tool surface', () => {
@@ -42,11 +44,32 @@ describe('MCP tool surface', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it('exposes exactly the nine safe tools — no send/delete/credential tools', () => {
+  it('exposes exactly the safe read/draft/manage tools — no send/permanent-delete/credential tools', () => {
     expect(tools.map((t) => t.name).sort()).toEqual(EXPECTED_TOOLS)
     for (const t of tools) {
-      expect(t.name).not.toMatch(/send|delete|remove|credential|password|secret|setting/i)
+      // No sending, no permanent deletion, no credential/settings access.
+      expect(t.name).not.toMatch(/send|permanent|purge|expunge|credential|password|secret|setting/i)
     }
+  })
+
+  it('delete_email moves to Trash (reversible) and never removes the row', () => {
+    const before = tool('read_email').handler({ message_id: 1 })
+    expect(before).not.toBeNull()
+    const r = tool('delete_email').handler({ message_id: 1 }) as { ok: boolean; op: string }
+    expect(r).toEqual({ ok: true, op: 'trash' })
+    // Still present (in Trash), not permanently gone.
+    expect(tool('read_email').handler({ message_id: 1 })).not.toBeNull()
+    const trash = db.get("SELECT id FROM folders WHERE role='trash'") as { id: number } | undefined
+    const meta = db.get('SELECT folder_id FROM messages WHERE id=1') as { folder_id: number }
+    expect(meta.folder_id).toBe(trash!.id)
+  })
+
+  it('move/flag/mark actions queue an IMAP op for the app to push', () => {
+    tool('archive_email').handler({ message_id: 2 })
+    tool('flag_email').handler({ message_id: 2, flagged: true })
+    const ops = (db.all('SELECT op FROM mail_actions ORDER BY id') as { op: string }[]).map((r) => r.op)
+    expect(ops).toContain('archive')
+    expect(ops).toContain('flag')
   })
 
   it('list_accounts returns the specified shape (no credentials)', () => {

@@ -42,9 +42,11 @@ async function applyRemote(client: ImapFlow, a: QueuedAction): Promise<void> {
 // Drain the queued mail actions to IMAP. Connection failures leave rows pending
 // (retried next cycle, so offline changes reconcile later); a failed op is marked
 // 'error' so it doesn't loop forever. Never throws — safe to fire-and-forget.
-export async function drainMailActions(db: DB): Promise<void> {
+// Returns how many rows were resolved (done or error) this cycle.
+export async function drainMailActions(db: DB): Promise<number> {
   const pending = pendingActions(db)
-  if (pending.length === 0) return
+  if (pending.length === 0) return 0
+  let resolved = 0
 
   const byAccount = new Map<number, QueuedAction[]>()
   for (const a of pending) {
@@ -68,6 +70,7 @@ export async function drainMailActions(db: DB): Promise<void> {
         } catch (err) {
           markActionError(db, a.id, (err as Error).message ?? 'IMAP op failed')
         }
+        resolved++
       }
       await client.logout()
     } catch {
@@ -79,4 +82,5 @@ export async function drainMailActions(db: DB): Promise<void> {
       // Connection failed — leave this account's actions pending for a later cycle.
     }
   }
+  return resolved
 }

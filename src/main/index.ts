@@ -11,6 +11,9 @@ import { listFolders } from '../db/folders'
 import { getMessage, listMessages, markRead, searchMessages } from '../db/messages'
 import { applyAction } from '../db/mailActions'
 import { drainMailActions } from './mail/drainer'
+import { fetchAndSaveAttachments } from './mail/attachments'
+import { listAttachmentRows } from '../db/messages'
+import { exportForNotebookLM } from '../mcp/export'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
 import { ensureDefaultSignature, getSignatureData, updateSignature } from '../db/signatures'
 import { createEvent, deleteEvent, getEvent, listEvents, updateEvent } from '../db/events'
@@ -261,6 +264,26 @@ function registerIpc(): void {
   ipcMain.handle('mail:junk-enabled', () => getAppSetting(db, 'junk-filter') !== 'off')
   ipcMain.handle('mail:set-junk-enabled', (_e, on: boolean) => setAppSetting(db, 'junk-filter', on ? 'on' : 'off'))
 
+  // --- Attachments + NotebookLM export ----------------------------------------
+  const attachDir = (messageId: number) => join(app.getPath('userData'), 'attachments', String(messageId))
+  ipcMain.handle('attachments:open', async (_e, messageId: number, attachmentId: number) => {
+    // Use the already-downloaded copy, or fetch from IMAP first.
+    let row = listAttachmentRows(db, messageId).find((r) => r.id === attachmentId)
+    if (!row?.local_path || !existsSync(row.local_path)) {
+      await fetchAndSaveAttachments(db, messageId, attachDir(messageId))
+      row = listAttachmentRows(db, messageId).find((r) => r.id === attachmentId)
+    }
+    if (!row?.local_path || !existsSync(row.local_path)) {
+      return { ok: false, error: "I couldn't download that attachment — the account may be offline." }
+    }
+    const err = await shell.openPath(row.local_path) // opens with the OS default app (explicit user action)
+    return err ? { ok: false, error: err } : { ok: true }
+  })
+  ipcMain.handle('notebooklm:export', async (_e, messageId: number, includeAttachments: boolean) => {
+    if (includeAttachments) await fetchAndSaveAttachments(db, messageId, attachDir(messageId))
+    return exportForNotebookLM(db, messageId, app.getPath('userData'), includeAttachments)
+  })
+
   // --- Templates & contacts (Stage 8) -----------------------------------------
   ipcMain.handle('templates:list', () => listTemplates(db))
   ipcMain.handle('templates:create', (_e, name: string, subject: string, body: string) => ({ id: createTemplate(db, name, subject, body) }))
@@ -394,8 +417,13 @@ app.whenReady().then(async () => {
   // Background sync on launch (non-blocking); refresh the UI when it lands.
   void syncAllAccounts(db).then(broadcastMailChanged)
   startScheduledSender()
-  // Drain any queued mail actions to IMAP periodically (offline changes reconcile).
-  setInterval(() => void drainMailActions(db), 20000)
+  // Drain queued mail actions to IMAP periodically (offline changes reconcile,
+  // and any actions Claude queued via MCP get pushed + reflected in the UI).
+  setInterval(() => {
+    void drainMailActions(db).then((n) => {
+      if (n > 0) broadcastMailChanged()
+    })
+  }, 20000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()

@@ -130,15 +130,29 @@ npm run build      # production build into out/
 
 ## Connecting Claude Desktop (local MCP server)
 
-DeskMail ships a **local MCP server** so Claude Desktop can safely **search, read, summarise, and
-draft** across your mail. It exposes only these read/draft tools:
+DeskMail ships a **local MCP server** so Claude Desktop can safely **search, read, summarise, draft,
+and organise** your mail. It exposes only these tools:
 
-`list_accounts`, `list_folders`, `search_emails`, `read_email`, `create_draft`,
-`find_related_emails`, `find_unanswered_emails`, `extract_dates_and_deadlines`, `summarise_thread_data`.
+- Read/draft: `list_accounts`, `list_folders`, `search_emails`, `read_email`, `create_draft`,
+  `find_related_emails`, `find_unanswered_emails`, `extract_dates_and_deadlines`, `summarise_thread_data`.
+- Organise (all reversible): `move_email`, `archive_email`, `delete_email` (to Trash), `flag_email`,
+  `mark_email_read`.
+- Export: `export_for_notebooklm` (see below).
 
-**It can never** send email, delete anything, read your credentials, change account settings, or touch
-files outside DeskMail's own storage. Drafts it creates are stored locally for you to review and send
-manually — Claude never sends.
+**It can never** send email, **permanently** delete anything, read your credentials, change account
+settings, or touch files outside DeskMail's own storage. `delete_email` only moves to Trash. Drafts it
+creates are stored locally and shown in DeskMail's **Drafts** view for you to review and send manually —
+Claude never sends. (Claude's organise actions update the local cache immediately and DeskMail pushes
+them to your IMAP server on its next drain cycle.)
+
+### Emails → NotebookLM
+
+`export_for_notebooklm(message_id, include_attachments)` writes the email (and its downloaded
+attachments) as source files into a `notebooklm-export/…` folder and returns the paths. Then the
+**notebooklm skill** (on the Claude side) adds those files to the notebook you choose. In the app,
+the reading pane's **NotebookLM** button does the same and downloads attachments first. So a request
+like *"add this email and its attachments to my Research notebook"* becomes: DeskMail exports → the
+notebooklm skill adds the files as sources.
 
 To connect: open **Settings → Claude connector** in DeskMail and copy the generated config into Claude
 Desktop's `claude_desktop_config.json` (Claude Desktop → Settings → Developer → Edit Config), then

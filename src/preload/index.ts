@@ -59,6 +59,12 @@ const api: DeskMailApi = {
   mcp: {
     info: () => ipcRenderer.invoke('mcp:info')
   },
+  attachments: {
+    open: (messageId: number, attachmentId: number) => ipcRenderer.invoke('attachments:open', messageId, attachmentId)
+  },
+  notebooklm: {
+    export: (messageId: number, includeAttachments: boolean) => ipcRenderer.invoke('notebooklm:export', messageId, includeAttachments)
+  },
   storage: {
     info: () => ipcRenderer.invoke('storage:info'),
     backup: (destDir?: string) => ipcRenderer.invoke('storage:backup', destDir),

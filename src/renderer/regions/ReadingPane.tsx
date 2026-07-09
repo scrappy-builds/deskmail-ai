@@ -134,6 +134,17 @@ export function ReadingPane({ onOpen }: { onOpen?: (id: number) => void }): JSX.
           <Icon name="openWindow" size={15} /> Open in window
         </button>
         <button
+          onClick={() => {
+            void window.deskmail.notebooklm.export(m.id, m.attachments.length > 0).then((r) => {
+              showToast({ text: r.note ? `Exported email to NotebookLM folder (${r.note})` : `Exported ${r.files.length} file(s) for NotebookLM` })
+            })
+          }}
+          title="Export this email (and attachments) for NotebookLM"
+          className="ml-2 flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 hover:bg-raised"
+        >
+          <Icon name="draft" size={15} /> NotebookLM
+        </button>
+        <button
           onClick={toggleClaude}
           className="ml-2 flex items-center gap-1.5 rounded-md border border-claude px-2.5 py-1.5 text-[12.5px] font-semibold text-claude"
           style={{ background: 'var(--claude-soft)' }}
@@ -174,7 +185,16 @@ export function ReadingPane({ onOpen }: { onOpen?: (id: number) => void }): JSX.
             </div>
             <div className="flex flex-wrap gap-2.5">
               {m.attachments.map((att) => (
-                <div key={att.id} className="flex items-center gap-2.5 rounded-md border border-border bg-bg px-3 py-2">
+                <button
+                  key={att.id}
+                  onClick={() => {
+                    void window.deskmail.attachments.open(m.id, att.id).then((r) => {
+                      if (!r.ok) showToast({ text: r.error ?? "Couldn't open the attachment" })
+                    })
+                  }}
+                  title="Open attachment"
+                  className="flex items-center gap-2.5 rounded-md border border-border bg-bg px-3 py-2 text-left hover:bg-hover"
+                >
                   <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-accent text-[8px] font-extrabold uppercase text-white">
                     {(att.filename?.split('.').pop() ?? 'file').slice(0, 4)}
                   </div>
@@ -182,7 +202,7 @@ export function ReadingPane({ onOpen }: { onOpen?: (id: number) => void }): JSX.
                     <div className="max-w-[180px] truncate text-[12.5px] font-semibold">{att.filename ?? 'attachment'}</div>
                     <div className="text-[10.5px] text-text-3">{fmtSize(att.size)}</div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>

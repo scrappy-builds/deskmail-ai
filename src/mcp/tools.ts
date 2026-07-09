@@ -4,6 +4,8 @@ import { listAccounts } from '../db/accounts'
 import { listFolders } from '../db/folders'
 import { getMessage, searchEmails } from '../db/messages'
 import { saveDraft } from '../db/drafts'
+import { applyAction } from '../db/mailActions'
+import { exportForNotebookLM } from './export'
 
 // A tool definition kept independent of the MCP SDK so it's directly testable.
 export interface ToolDef {
@@ -27,9 +29,12 @@ const DATE_RE =
 const DEADLINE_RE = /\b(deadline|due|by\s|before|no later than|end of (?:day|week|month)|eod|eow)\b/i
 const TASK_RE = /\b(please|can you|could you|need to|let me know|action|to do|follow up|confirm|send|review|approve)\b/i
 
-// The read/draft-only tool surface. NOTHING here sends, deletes, reads
-// credentials, changes settings, or touches files outside the app's DB.
-export function buildTools(db: DB): ToolDef[] {
+// The safe tool surface. It can read, draft, and organise mail (move/flag/read/
+// trash — all reversible), and export a message for NotebookLM. It NEVER sends,
+// permanently deletes, reads credentials, changes account settings, or writes
+// outside the app's own storage.
+export function buildTools(db: DB, opts?: { exportDir?: string }): ToolDef[] {
+  const exportDir = opts?.exportDir ?? '.'
   return [
     {
       name: 'list_accounts',
@@ -225,6 +230,42 @@ export function buildTools(db: DB): ToolDef[] {
           confidence: found >= 3 ? 'high' : found >= 1 ? 'medium' : 'low'
         }
       }
+    },
+    {
+      name: 'move_email',
+      description: 'Move an email to another folder (by folder id). Applied locally and pushed to the server.',
+      inputSchema: { message_id: z.number(), target_folder_id: z.number() },
+      handler: (a) => ({ ok: applyAction(db, a.message_id as number, 'move', a.target_folder_id as number), op: 'move' })
+    },
+    {
+      name: 'archive_email',
+      description: 'Move an email to the Archive folder.',
+      inputSchema: { message_id: z.number() },
+      handler: (a) => ({ ok: applyAction(db, a.message_id as number, 'archive'), op: 'archive' })
+    },
+    {
+      name: 'delete_email',
+      description: 'Move an email to Trash (reversible). This never permanently deletes anything.',
+      inputSchema: { message_id: z.number() },
+      handler: (a) => ({ ok: applyAction(db, a.message_id as number, 'trash'), op: 'trash' })
+    },
+    {
+      name: 'flag_email',
+      description: 'Flag (star) or unflag an email.',
+      inputSchema: { message_id: z.number(), flagged: z.boolean() },
+      handler: (a) => ({ ok: applyAction(db, a.message_id as number, (a.flagged as boolean) ? 'flag' : 'unflag'), op: 'flag' })
+    },
+    {
+      name: 'mark_email_read',
+      description: 'Mark an email read or unread.',
+      inputSchema: { message_id: z.number(), read: z.boolean() },
+      handler: (a) => ({ ok: applyAction(db, a.message_id as number, (a.read as boolean) ? 'read' : 'unread'), op: 'read' })
+    },
+    {
+      name: 'export_for_notebooklm',
+      description: 'Export an email (and its already-downloaded attachments) to a folder as source files, so they can be added to a NotebookLM notebook. Returns the folder and file paths.',
+      inputSchema: { message_id: z.number(), include_attachments: z.boolean().optional() },
+      handler: (a) => exportForNotebookLM(db, a.message_id as number, exportDir, (a.include_attachments as boolean) ?? true)
     },
     {
       name: 'summarise_thread_data',

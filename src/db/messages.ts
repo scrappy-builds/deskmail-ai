@@ -77,6 +77,22 @@ export function addAttachment(
   )
 }
 
+export interface AttachmentRow {
+  id: number
+  filename: string | null
+  mime_type: string | null
+  size: number | null
+  local_path: string | null
+}
+
+export function listAttachmentRows(db: DB, messageId: number): AttachmentRow[] {
+  return db.all('SELECT id, filename, mime_type, size, local_path FROM attachments WHERE message_id = ?', [messageId]) as unknown as AttachmentRow[]
+}
+
+export function setAttachmentPath(db: DB, id: number, localPath: string): void {
+  db.run("UPDATE attachments SET local_path = ?, downloaded_at = datetime('now') WHERE id = ?", [localPath, id])
+}
+
 interface MessageRow {
   id: number
   account_id: number

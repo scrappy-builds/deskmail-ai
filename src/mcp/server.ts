@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { openDatabase } from '../db/database'
@@ -18,10 +18,11 @@ function resolveDbPath(): string {
 }
 
 async function main(): Promise<void> {
-  const db = openDatabase(resolveDbPath())
+  const dbPath = resolveDbPath()
+  const db = openDatabase(dbPath)
   const server = new McpServer({ name: 'deskmail-ai', version: '0.1.0' })
 
-  for (const t of buildTools(db)) {
+  for (const t of buildTools(db, { exportDir: dirname(dbPath) })) {
     server.registerTool(
       t.name,
       { description: t.description, inputSchema: t.inputSchema },

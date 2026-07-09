@@ -101,6 +101,15 @@ export interface DeskMailApi {
   mcp: {
     info(): Promise<{ configJson: string; tools: string[]; dbPath: string }>
   }
+  // Attachments + NotebookLM export.
+  attachments: {
+    // Download (if needed) and open an attachment with the OS default app.
+    open(messageId: number, attachmentId: number): Promise<{ ok: boolean; error?: string }>
+  }
+  notebooklm: {
+    // Export an email (+ attachments) to a folder for the notebooklm skill to add.
+    export(messageId: number, includeAttachments: boolean): Promise<{ folder: string; files: { name: string; path: string }[]; note?: string }>
+  }
   // Local storage: backup / restore / portability (Stage 10).
   storage: {
     info(): Promise<{ dataDir: string; portable: boolean }>
