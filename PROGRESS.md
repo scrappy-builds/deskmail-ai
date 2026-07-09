@@ -9,12 +9,11 @@
 ---
 
 ## Current status
-- **Active stage:** Stage 11 complete (awaiting go-ahead for Stage 12 — final review).
-- **Last session ended:** 2026-07-09 — Stage 11 built, tested, committed. Installers at
-  `release/DeskMail AI-0.1.0-setup.exe` + `-portable.exe`.
-- **Exact next step:** On user's OK, do **Stage 12 — Final review**: re-read the brief + FEATURE_SPEC,
-  walk the §8 checklist below, verify every MVP feature / layout preset / MCP tool / security item
-  actually works, tick each in the Final review checklist, and fix any gaps before declaring done.
+- **Active stage:** **Stage 12 complete — BUILD DONE.** All 12 stages finished, tested, committed.
+- **Last session ended:** 2026-07-09 — final review passed; installers delivered.
+- **Where things stand:** 72 unit + 21 E2E green; clean rebuild + typecheck; zero console errors on
+  launch. Installers at `release/DeskMail AI-0.1.0-setup.exe` (NSIS) + `-portable.exe`. Final review
+  checklist below is ticked with evidence. One documented deferral (custom smart-view builder) — see notes.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
@@ -83,7 +82,7 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
 - [x] **Stage 9** — Local MCP server (safe tools; Claude Desktop connector config)
 - [x] **Stage 10** — Packaging (installer) + local backup + USB/portable mode
 - [x] **Stage 11** — Hardening + error/empty/loading states + docs
-- [ ] **Stage 12** — Final review (verify every feature/security item/MCP tool; fix gaps)
+- [x] **Stage 12** — Final review (verify every feature/security item/MCP tool; fix gaps)
 
 ---
 
@@ -381,18 +380,57 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
   - No app icon yet (default Electron icon).
 - Next step: Stage 12 (final review + checklist).
 
-_(Add a block like the above for each stage as you go.)_
+### Stage 12 — Final review
+- Re-read the brief + FEATURE_SPEC and walked the §8 checklist (now ticked above with evidence).
+- Verification run: `rm -rf out && npm run build` clean; `npm run typecheck` clean; `npm test` → 72 unit;
+  `npm run test:e2e` → 21 E2E; launch smoke → **0 console errors** exercising mail/reading/theme/Claude panel.
+- Packaged artefacts confirmed runnable earlier (Stage 10): app + MCP server both work from the build.
+- **One deferral** recorded (custom smart-view builder — a FEATURE_SPEC item outside the §11 Definition of
+  Done); everything in the Definition of Done is present and working. No blocking gaps.
+- **Verdict: DONE.** DeskMail AI meets the Definition of Done (§11): add IMAP/SMTP account, sync + read
+  offline, configurable layouts, independent message windows, search, compose/draft, manual send, calendar
+  + meetings, and the safe Claude MCP connector — Style-Guide styling, tests green, installer built, backup
+  + USB portability working.
+
+_(Build complete. Future work would append new stages here.)_
 
 ---
 
-## Final review checklist (complete in Stage 12)
-- [ ] Every MVP feature present and working
-- [ ] All six layout presets + persistence
-- [ ] Full independent message windows
-- [ ] Calendar + invites + meeting providers
-- [ ] All six added features
-- [ ] All MCP tools present; forbidden actions impossible
-- [ ] Security requirements all met (sanitise, block remote images, secure creds, no Node in renderer, no auto-open, manual send)
-- [ ] Installer builds; backup/restore + portable mode verified
-- [ ] Light default + easy Light/Dark toggle; styling matches the Style Guide; copy in Jamie's voice
-- [ ] `npm test` + `npm run test:e2e` green; app builds and launches clean
+## Final review checklist (Stage 12 — VERIFIED)
+- [x] **Every MVP feature present and working** — account setup + secure creds, IMAP sync, offline read,
+  layouts, full message windows, search, compose/draft, manual send, calendar + meetings, MCP connector
+  (all in the §11 Definition of Done). *Deferral: the FEATURE_SPEC "custom smart-view builder" is the one
+  spec item not built — see Deferrals below.*
+- [x] **All six layout presets + persistence** — `shared/layout.ts` PRESETS (classic/bottom/focus/wide/
+  right/noreading); `layout.test.ts` asserts each → arrangement; `app.spec.ts` proves persistence across relaunch.
+- [x] **Full independent message windows** — separate `BrowserWindow` by id, own preload, no Node;
+  `message-window.spec.ts` (isolated open, coexist + independent close, no duplicate).
+- [x] **Calendar + invites + meeting providers** — month view, event CRUD, Teams/Meet/Zoom/in-person/
+  custom, join-link + deep-link launch; ICS invite → card → **Accept adds the event** (`calendar.test.ts`,
+  `calendar.spec.ts`).
+- [x] **All six added features** — signatures (append toggle), send-later & undo-send, snooze, templates,
+  contacts, Today agenda (`features.test.ts` one per feature; `features.spec.ts` E2E).
+- [x] **All MCP tools present; forbidden actions impossible** — exactly the 9 tools, no send/delete/
+  credential tool exists (`mcp.test.ts`); live stdio client↔server verified in dev **and packaged**.
+- [x] **Security requirements all met** — sanitise (DOMPurify) + sandbox iframe; remote images blocked by
+  default; no Node in renderer (asserted); creds encrypted at rest (asserted plaintext absent from DB);
+  attachments never auto-open; **send is manual only** (undo-window queue, no auto path); `hardenWindow`
+  blocks navigation/webviews; strict CSP.
+- [x] **Installer builds; backup/restore + portable mode verified** — `release/DeskMail AI-0.1.0-setup.exe`
+  + `-portable.exe` built; **packaged app + packaged MCP server both run**; backup/restore + portable-dir
+  round-trip (`packaging.test.ts`, `storage.spec.ts`).
+- [x] **Light default + easy Light/Dark toggle; styling matches the Style Guide; copy in Jamie's voice** —
+  tokens copied verbatim from the Style Guide; one-click toggle top-right; empty/error copy first-person British.
+- [x] **`npm test` + `npm run test:e2e` green; app builds and launches clean** — **72 unit + 21 E2E green**;
+  clean `rm -rf out && npm run build` + typecheck pass; **zero console errors** on launch (verified).
+
+### Deferrals (documented, not blocking the Definition of Done)
+- **Custom smart-view builder** (FEATURE_SPEC §Custom view builder): a match-all/any condition builder +
+  saved smart views. It's in FEATURE_SPEC but **not** in the §11 Definition of Done or any staged
+  deliverable, so it was not built. Easy future add on top of `searchEmails`. *(Say the word and I'll build it.)*
+- **Placeholder Settings panes**: Folders, Sync, Appearance, Security, Privacy, About are stubs (the
+  functional ones — Accounts, Signatures, Templates, Contacts, Sending, Claude connector, Local storage —
+  all work; theme lives in the command bar; layout in View Settings).
+- **POP3 sync** not implemented (IMAP done; POP3 was "optional after IMAP" — wizard tests reachability only).
+- **Claude compose "rewrite" chips** are placeholders (they'd need an app→LLM call, outside the safe MCP model).
+- Undo-send delay is a fixed 10s; scheduled sends don't carry attachments; no custom app icon.
