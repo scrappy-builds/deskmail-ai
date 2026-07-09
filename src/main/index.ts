@@ -10,6 +10,55 @@ if (overrideUserData) app.setPath('userData', overrideUserData)
 
 const settingsPath = () => join(app.getPath('userData'), 'settings.json')
 
+// Secure webPreferences shared by every window: no Node in the renderer,
+// isolated context, sandboxed, everything via the typed preload bridge.
+const securePrefs = () => ({
+  preload: join(__dirname, '../preload/index.js'),
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: true,
+  webSecurity: true
+})
+
+// Open message windows, keyed by message id, so a second double-click focuses
+// the existing window instead of opening a duplicate.
+const messageWindows = new Map<number, BrowserWindow>()
+
+function openMessageWindow(id: number): void {
+  const existing = messageWindows.get(id)
+  if (existing && !existing.isDestroyed()) {
+    existing.focus()
+    return
+  }
+
+  const win = new BrowserWindow({
+    width: 860,
+    height: 680,
+    minWidth: 520,
+    minHeight: 400,
+    show: false,
+    frame: false,
+    backgroundColor: '#f5f5f5',
+    title: 'DeskMail AI',
+    webPreferences: securePrefs()
+  })
+
+  win.once('ready-to-show', () => win.show())
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http:') || url.startsWith('https:')) shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/message.html?id=${id}`)
+  } else {
+    win.loadFile(join(__dirname, '../renderer/message.html'), { query: { id: String(id) } })
+  }
+
+  messageWindows.set(id, win)
+  win.on('closed', () => messageWindows.delete(id))
+}
+
 function registerIpc(): void {
   ipcMain.handle('settings:get', () => loadSettings(settingsPath()))
 
@@ -17,7 +66,10 @@ function registerIpc(): void {
     saveSettings(settingsPath(), settings)
   })
 
-  // Window controls for the custom (frameless) title bar.
+  ipcMain.on('message-window:open', (_e, id: number) => openMessageWindow(id))
+
+  // Window controls for the custom (frameless) title bar — operate on whichever
+  // window sent the request, so message windows close independently.
   ipcMain.on('window:minimise', (e) => BrowserWindow.fromWebContents(e.sender)?.minimize())
   ipcMain.on('window:toggle-maximise', (e) => {
     const w = BrowserWindow.fromWebContents(e.sender)
@@ -37,14 +89,7 @@ function createMainWindow(): BrowserWindow {
     frame: false,
     backgroundColor: '#f5f5f5',
     title: 'DeskMail AI',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      // Security: renderer gets no Node access; everything goes through the preload bridge.
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true
-    }
+    webPreferences: securePrefs()
   })
 
   win.once('ready-to-show', () => win.show())

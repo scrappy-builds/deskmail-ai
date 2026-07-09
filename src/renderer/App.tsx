@@ -14,7 +14,7 @@ export function App(): JSX.Element {
       <CommandBar mode={mode} onMode={setMode} onOpenViewSettings={() => setViewSettingsOpen(true)} />
 
       {mode === 'mail' ? (
-        <Workspace />
+        <Workspace onOpen={(id) => window.deskmail.openMessage(id)} />
       ) : (
         <main className="flex min-h-0 flex-1 items-center justify-center p-8">
           <div className="max-w-[420px] text-center">

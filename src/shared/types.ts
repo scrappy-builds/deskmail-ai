@@ -17,6 +17,8 @@ export type AppSettings = LayoutPreferences
 export interface DeskMailApi {
   getSettings(): Promise<AppSettings>
   saveSettings(settings: AppSettings): Promise<void>
+  // Open a message in its own independent window, loaded by id.
+  openMessage(id: number): void
   // Window controls for the custom (frameless) title bar.
   window: {
     minimise(): void

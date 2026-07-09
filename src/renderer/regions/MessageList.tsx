@@ -1,6 +1,7 @@
 import { Icon } from '../Icon'
 import { folders, initials, messages, type MockMessage } from '../mock/mailData'
 import { useMail } from '../store/mailStore'
+import { useLayout } from '../store/layoutStore'
 
 interface MessageListProps {
   rowPaddingY: number
@@ -35,6 +36,7 @@ function Row({
   const weight = m.unread ? 700 : 500
   return (
     <div
+      data-testid={`msg-row-${m.id}`}
       onClick={onSelect}
       onDoubleClick={onOpen}
       className="flex cursor-pointer gap-2.5 border-b border-border hover:bg-hover"
@@ -98,7 +100,14 @@ export function MessageList({
   onOpen
 }: MessageListProps): JSX.Element {
   const { activeFolderId, selectedId, select } = useMail()
+  const openInFullWindow = useLayout((s) => s.prefs.openEmailBehaviour === 'full-window')
   const title = folders.find((f) => f.id === activeFolderId)?.name ?? 'Inbox'
+
+  // Single click always selects; in "full window" mode it also opens the window.
+  const handleSelect = (msgId: number): void => {
+    select(msgId)
+    if (openInFullWindow) onOpen?.(msgId)
+  }
 
   return (
     <>
@@ -119,7 +128,7 @@ export function MessageList({
             key={m.id}
             m={m}
             selected={m.id === selectedId}
-            onSelect={() => select(m.id)}
+            onSelect={() => handleSelect(m.id)}
             onOpen={() => onOpen?.(m.id)}
             rowPaddingY={rowPaddingY}
             clamp={Math.max(1, previewLineCount)}

@@ -6,6 +6,7 @@ import type { AppSettings, DeskMailApi } from '@shared/types'
 const api: DeskMailApi = {
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings: AppSettings): Promise<void> => ipcRenderer.invoke('settings:save', settings),
+  openMessage: (id: number): void => ipcRenderer.send('message-window:open', id),
   window: {
     minimise: () => ipcRenderer.send('window:minimise'),
     toggleMaximise: () => ipcRenderer.send('window:toggle-maximise'),

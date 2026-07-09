@@ -26,7 +26,13 @@ export default defineConfig({
     resolve: { alias },
     plugins: [react()],
     build: {
-      rollupOptions: { input: { index: resolve('src/renderer/index.html') } }
+      rollupOptions: {
+        input: {
+          index: resolve('src/renderer/index.html'),
+          // Independent message windows load their own entry (own preload, no Node).
+          message: resolve('src/renderer/message.html')
+        }
+      }
     }
   }
 })

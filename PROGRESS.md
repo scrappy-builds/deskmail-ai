@@ -9,12 +9,14 @@
 ---
 
 ## Current status
-- **Active stage:** Stage 2 complete (awaiting go-ahead for Stage 3).
-- **Last session ended:** 2026-07-09 — Stage 2 built, tested, committed.
-- **Exact next step:** On user's OK, start **Stage 3 — Full independent message windows**: double-click
-  a message opens it in its own `BrowserWindow` (own preload, no Node), loaded by message ID; multiple
-  windows coexist; full toolbar + Claude actions. Wire the `onOpen` hooks already threaded through
-  Workspace → MessageList/ReadingPane. Respect `openEmailBehaviour` (full-window vs reading-pane).
+- **Active stage:** Stage 3 complete (awaiting go-ahead for Stage 4).
+- **Last session ended:** 2026-07-09 — Stage 3 built, tested, committed.
+- **Exact next step:** On user's OK, start **Stage 4 — SQLite + account setup + secure credentials**:
+  schema + migration runner (better-sqlite3, `user_version` pragma) for all tables in FEATURE_SPEC;
+  account setup wizard (IMAP/POP3 + SMTP fields, Test incoming / Test outgoing with the connection
+  states); credentials via Electron `safeStorage` (never plaintext). Migrate settings.json →
+  `layout_preferences`/`app_settings` tables. Tests: schema migrates; creds encrypted at rest;
+  connection-test state machine.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
@@ -69,7 +71,7 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
 
 - [x] **Stage 1** — Scaffold & shell (secure window, title/command bars, light default + Light/Dark toggle, tokens)
 - [x] **Stage 2** — Layout system + 6 presets + View Settings + persistence
-- [ ] **Stage 3** — Full independent message windows (double-click, by ID)
+- [x] **Stage 3** — Full independent message windows (double-click, by ID)
 - [ ] **Stage 4** — SQLite + migrations + account wizard + secure credentials + connection tests
 - [ ] **Stage 5** — Sync + parsing + offline cache + safe rendering (sanitise, block remote images)
 - [ ] **Stage 6** — Search + Compose + Drafts + manual Send + signature insertion
@@ -133,6 +135,32 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
   - Calendar tab is a placeholder (Stage 7). Search input is inert (Stage 6).
   - E2E temp-dir cleanup is best-effort (`safeRm`) due to a Windows userData lock after close.
 - Next step: Stage 3 (independent message windows).
+
+### Stage 3
+- Done:
+  - Second renderer entry `message.html` + `message-main.tsx` (electron-vite multi-input). Independent
+    windows load it by URL query `?id=`, apply the persisted theme, render `MessageWindow`.
+  - Main process: `openMessageWindow(id)` creates a frameless window with the shared `securePrefs()`
+    (contextIsolation, sandbox, no nodeIntegration, own preload). Windows tracked in a `Map<id,win>` —
+    re-opening the same id focuses the existing window; each removed from the map on close.
+    Refactored the main window to use `securePrefs()` too. New IPC `message-window:open`; window
+    controls already operate on the sending window so message windows close independently.
+  - `MessageWindow` UI: chrome (subject + min/max/close), full action toolbar (Reply · Reply all ·
+    Forward · Archive · Delete · Star · Mark unread · Print · Close), Claude actions bar (7 chips),
+    body with sender/recipient/date/attachments. `data-testid` hooks on rows + window for tests.
+  - Wired `onOpen` through App → Workspace → MessageList/ReadingPane to `window.deskmail.openMessage`.
+    `openEmailBehaviour`: double-click always opens a window; single-click opens one when set to
+    "full window", otherwise just selects into the reading pane.
+- Tests: `npm test` → 11 unit (unchanged). `npm run test:e2e` → 5 Playwright-electron (2 prior + 3 new:
+  double-click opens isolated window by id with no Node; multiple windows coexist + close
+  independently; re-open focuses existing, no duplicate). Typecheck + build clean; both HTML entries
+  emitted to out/renderer.
+- Known issues / TODO:
+  - Message windows read from mock data (same as the list) — swaps to the SQLite store in Stage 5.
+  - Toolbar + Claude actions are visual only (no behaviour yet); Claude actions light up in Stage 9.
+  - No live theme sync to already-open message windows if theme changes in the main window (they read
+    theme at open). Fine for now; revisit if it matters.
+- Next step: Stage 4 (SQLite + account wizard + secure credentials).
 
 _(Add a block like the above for each stage as you go.)_
 
