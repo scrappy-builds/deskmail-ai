@@ -15,7 +15,13 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: { alias },
     build: {
-      rollupOptions: { input: { index: resolve('src/main/index.ts') } }
+      rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          // Standalone local MCP server (launched by Claude Desktop, not Electron).
+          'mcp-server': resolve('src/mcp/server.ts')
+        }
+      }
     }
   },
   preload: {

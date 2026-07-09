@@ -91,6 +91,10 @@ export interface DeskMailApi {
     list(): Promise<Contact[]>
     search(query: string): Promise<Contact[]>
   }
+  // Claude connector (local MCP server) info for the Settings pane (Stage 9).
+  mcp: {
+    info(): Promise<{ configJson: string; tools: string[]; dbPath: string }>
+  }
   // Calendar & meetings (Stage 7).
   calendar: {
     listEvents(from?: string, to?: string): Promise<EventSummary[]>

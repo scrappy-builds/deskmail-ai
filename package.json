@@ -18,6 +18,7 @@
   "dependencies": {
     "@fontsource/hanken-grotesk": "^5.1.0",
     "@fontsource/jetbrains-mono": "^5.1.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@tiptap/pm": "^3.27.3",
     "@tiptap/react": "^3.27.3",
     "@tiptap/starter-kit": "^3.27.3",

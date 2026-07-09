@@ -160,6 +160,59 @@ export function ContactsPane(): JSX.Element {
   )
 }
 
+// --- Claude connector (local MCP server) --------------------------------------
+export function ClaudeConnectorPane(): JSX.Element {
+  const [info, setInfo] = useState<{ configJson: string; tools: string[]; dbPath: string } | null>(null)
+  const showToast = useToast((s) => s.show)
+  useEffect(() => {
+    void window.deskmail.mcp.info().then(setInfo)
+  }, [])
+  if (!info) return <p className="text-[13px] text-text-3">Loading…</p>
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2 rounded-md px-3.5 py-2.5 text-[12.5px] font-semibold" style={{ background: 'var(--claude-soft)', color: 'var(--claude)' }}>
+        <span className="h-2 w-2 rounded-full" style={{ background: 'var(--green)' }} />
+        Local MCP server ready · read &amp; draft only
+      </div>
+      <p className="text-[13px] leading-relaxed text-text-2">
+        Claude Desktop can search, read, summarise and draft across your mail through a local server on
+        this PC. It can't send, delete, see your passwords, change settings, or touch anything outside
+        DeskMail's own storage — and any draft it writes waits for you to review and send.
+      </p>
+
+      <div>
+        <div className="mb-2 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Available tools</div>
+        <div className="flex flex-wrap gap-1.5">
+          {info.tools.map((t) => (
+            <span key={t} className="rounded-sm border border-border bg-raised px-2 py-1 font-mono text-[11.5px] text-text-2">{t}</span>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Connect Claude Desktop</div>
+          <button
+            onClick={() => {
+              void navigator.clipboard.writeText(info.configJson)
+              showToast({ text: 'Config copied' })
+            }}
+            className="rounded-md border border-border px-2.5 py-1 text-[12px] font-semibold text-text-2 hover:bg-raised"
+          >
+            Copy
+          </button>
+        </div>
+        <p className="mb-2 text-[12.5px] leading-relaxed text-text-3">
+          Add this to Claude Desktop's <span className="font-mono text-text-2">claude_desktop_config.json</span>
+          {' '}(Settings → Developer → Edit Config), then restart Claude Desktop.
+        </p>
+        <pre className="max-h-[220px] overflow-auto rounded-md border border-border bg-inset p-3 font-mono text-[11.5px] leading-relaxed text-text-2">{info.configJson}</pre>
+      </div>
+    </div>
+  )
+}
+
 // --- Sending (scheduled sends) ------------------------------------------------
 export function SendingPane(): JSX.Element {
   const [scheduled, setScheduled] = useState<ScheduledSend[]>([])

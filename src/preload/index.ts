@@ -53,6 +53,9 @@ const api: DeskMailApi = {
     list: () => ipcRenderer.invoke('contacts:list'),
     search: (query: string) => ipcRenderer.invoke('contacts:search', query)
   },
+  mcp: {
+    info: () => ipcRenderer.invoke('mcp:info')
+  },
   calendar: {
     listEvents: (from?: string, to?: string) => ipcRenderer.invoke('calendar:list-events', from, to),
     createEvent: (input: EventInput) => ipcRenderer.invoke('calendar:create-event', input),

@@ -109,3 +109,38 @@ Sunset, Plum, Cobalt) but **brand green is the default**.
 
 Full behaviour for each is in `FEATURE_SPEC.md`. Build order, packaging, backup/portability, testing,
 and the staged working method are in `CLAUDE_CODE_PROMPT.md`.
+
+---
+
+## Running the app (development)
+
+```bash
+npm install
+npm run dev        # launch the app with hot reload
+npm test           # unit tests (Vitest)
+npm run test:e2e   # end-to-end tests (Playwright for Electron)
+npm run build      # production build into out/
+```
+
+> Note: on this machine the `electron` binary and `node-sqlite3-wasm` are plain downloads/WASM — no
+> native compiler is needed. If `node_modules/electron/dist` ends up empty after install, extract the
+> cached zip from `%LOCALAPPDATA%\electron\Cache` into it (see `PROGRESS.md`).
+
+---
+
+## Connecting Claude Desktop (local MCP server)
+
+DeskMail ships a **local MCP server** so Claude Desktop can safely **search, read, summarise, and
+draft** across your mail. It exposes only these read/draft tools:
+
+`list_accounts`, `list_folders`, `search_emails`, `read_email`, `create_draft`,
+`find_related_emails`, `find_unanswered_emails`, `extract_dates_and_deadlines`, `summarise_thread_data`.
+
+**It can never** send email, delete anything, read your credentials, change account settings, or touch
+files outside DeskMail's own storage. Drafts it creates are stored locally for you to review and send
+manually — Claude never sends.
+
+To connect: open **Settings → Claude connector** in DeskMail and copy the generated config into Claude
+Desktop's `claude_desktop_config.json` (Claude Desktop → Settings → Developer → Edit Config), then
+restart Claude Desktop. The config launches `out/main/mcp-server.js` via DeskMail's own binary in Node
+mode (`ELECTRON_RUN_AS_NODE=1`) and points it at your local `deskmail.db` through `DESKMAIL_DB`.

@@ -9,14 +9,15 @@
 ---
 
 ## Current status
-- **Active stage:** Stage 8 complete (awaiting go-ahead for Stage 9).
-- **Last session ended:** 2026-07-09 — Stage 8 built, tested, committed.
-- **Exact next step:** On user's OK, start **Stage 9 — Local MCP server**: a local server (`/mcp`) exposing
-  exactly the safe read/draft tools (`list_accounts, list_folders, search_emails, read_email,
-  create_draft, find_related_emails, find_unanswered_emails, extract_dates_and_deadlines,
-  summarise_thread_data`) with the shapes in FEATURE_SPEC §MCP; **no** send/delete/credential/settings/
-  filesystem access. Include Claude Desktop connector config + instructions in Settings and the README.
-  Tests: each tool returns the specified shape; forbidden actions are impossible.
+- **Active stage:** Stage 9 complete (awaiting go-ahead for Stage 10).
+- **Last session ended:** 2026-07-09 — Stage 9 built, tested, committed.
+- **Exact next step:** On user's OK, start **Stage 10 — Packaging, backup & portability**: electron-builder
+  Windows installer (NSIS) + portable target (skip code-signing); **Settings → Local storage** with
+  Back up now / Restore (copy DB + attachments + settings to a chosen folder); **USB/portable mode**
+  (detect a `portable.txt`/`data/` marker or `--portable` → store DB/attachments/creds/settings in a
+  portable data dir, via the existing `DESKMAIL_USER_DATA` hook). **Must unpack node-sqlite3-wasm's
+  `.wasm` (and keep the mcp-server + deps) out of the asar** so the DB and MCP server work when packaged.
+  Tests: installer produces a runnable app; backup/restore round-trips; portable mode reads/writes the portable dir.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
@@ -82,7 +83,7 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
 - [x] **Stage 6** — Search + Compose + Drafts + manual Send + signature insertion
 - [x] **Stage 7** — Calendar + invites + meeting providers
 - [x] **Stage 8** — Added features: per-account signatures · send-later/undo-send · snooze · templates · contacts · Today agenda
-- [ ] **Stage 9** — Local MCP server (safe tools; Claude Desktop connector config)
+- [x] **Stage 9** — Local MCP server (safe tools; Claude Desktop connector config)
 - [ ] **Stage 10** — Packaging (installer) + local backup + USB/portable mode
 - [ ] **Stage 11** — Hardening + error/empty/loading states + docs
 - [ ] **Stage 12** — Final review (verify every feature/security item/MCP tool; fix gaps)
@@ -310,6 +311,31 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
   - Contacts autocomplete is a native datalist (no rich dropdown); no manual contact add/edit yet.
   - Meetings/Claude connector/Appearance/Security/Local storage settings panes are still placeholders (Stages 9–11).
 - Next step: Stage 9 (local MCP server).
+
+### Stage 9
+- Done:
+  - `src/mcp/tools.ts` — `buildTools(db)` returns exactly the **9 safe read/draft tools** (per
+    FEATURE_SPEC §MCP), each a `{name, description, inputSchema (zod), handler}` kept independent of the
+    SDK so it's directly unit-testable. Handlers reuse the db layer + `searchEmails(db, opts)` (new
+    filtered search). `create_draft` writes a draft with `created_by='claude'`. extract/summarise are
+    heuristic **data providers** (regex dates/deadlines, extractive key points/questions) — the actual
+    reasoning is Claude's. No send/delete/credential/settings/filesystem tool exists.
+  - `src/mcp/server.ts` — standalone stdio MCP server (@modelcontextprotocol/sdk `McpServer`), DB path
+    from `DESKMAIL_DB` (else the platform userData default). Built as a second main input →
+    `out/main/mcp-server.js`. **Verified end-to-end**: an MCP `Client` over stdio listed exactly the 9
+    tools and calls returned correct data.
+  - **Settings → Claude connector** pane: read-&-draft-only status, the tool list, and a ready-to-paste
+    `claude_desktop_config.json` (launches the server via DeskMail's binary with `ELECTRON_RUN_AS_NODE=1`
+    + `DESKMAIL_DB`) with a Copy button. README gained a "Connecting Claude Desktop" section + dev run steps.
+- Tests: `npm test` → 65 unit (+10 MCP: exact 9-tool surface with no send/delete/credential names; every
+  tool's output shape; create_draft stored as claude-authored). `npm run test:e2e` → 18 (unchanged).
+  Plus a manual client↔server stdio smoke that confirmed the real bundle works.
+- Known issues / TODO:
+  - Claude-created drafts persist (created_by='claude') but there's no **Drafts list UI** yet to view
+    them in-app — add a Drafts view (Stage 11) so create_draft is visibly surfaced.
+  - extract/summarise are heuristic; fine as data for Claude, not a replacement for its reasoning.
+  - Packaging must unpack the `.wasm` + keep mcp-server/deps outside the asar (Stage 10).
+- Next step: Stage 10 (packaging + backup + portability).
 
 _(Add a block like the above for each stage as you go.)_
 

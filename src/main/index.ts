@@ -15,6 +15,7 @@ import { computeSnoozeTime, snoozeMessage, unsnooze } from '../db/snoozes'
 import { createTemplate, deleteTemplate, listTemplates, seedTemplatesIfEmpty, updateTemplate } from '../db/templates'
 import { listContacts, searchContacts } from '../db/contacts'
 import { getTodayAgenda } from '../db/today'
+import { buildTools } from '../mcp/tools'
 import { storeCredential } from './credentials'
 import { testIncoming, testOutgoing } from './mail/connectionTest'
 import { syncAccount, syncAllAccounts } from './mail/sync'
@@ -229,6 +230,23 @@ function registerIpc(): void {
   ipcMain.handle('templates:remove', (_e, id: number) => deleteTemplate(db, id))
   ipcMain.handle('contacts:list', () => listContacts(db))
   ipcMain.handle('contacts:search', (_e, query: string) => searchContacts(db, query))
+
+  // --- Claude connector (Stage 9) ---------------------------------------------
+  ipcMain.handle('mcp:info', () => {
+    const serverPath = join(__dirname, 'mcp-server.js')
+    const dbPath = join(app.getPath('userData'), 'deskmail.db')
+    // Launch via DeskMail's own binary in Node mode — no separate Node install needed.
+    const config = {
+      mcpServers: {
+        'deskmail-ai': {
+          command: process.execPath,
+          args: [serverPath],
+          env: { ELECTRON_RUN_AS_NODE: '1', DESKMAIL_DB: dbPath }
+        }
+      }
+    }
+    return { configJson: JSON.stringify(config, null, 2), tools: buildTools(db).map((t) => t.name), dbPath }
+  })
 
   // --- Calendar & meetings (Stage 7) ------------------------------------------
   ipcMain.handle('calendar:list-events', (_e, from?: string, to?: string) => listEvents(db, from, to))

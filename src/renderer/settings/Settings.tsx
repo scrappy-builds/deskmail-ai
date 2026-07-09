@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../Icon'
 import type { AccountSummary } from '@shared/db'
 import { AccountWizard } from './AccountWizard'
-import { ContactsPane, SendingPane, SignaturesPane, TemplatesPane } from './panes'
+import { ClaudeConnectorPane, ContactsPane, SendingPane, SignaturesPane, TemplatesPane } from './panes'
 
 const SECTIONS = [
   'Accounts',
@@ -129,11 +129,13 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
             {section === 'Templates' && <TemplatesPane />}
             {section === 'Contacts' && <ContactsPane />}
             {section === 'Sending' && <SendingPane />}
+            {section === 'Claude connector' && <ClaudeConnectorPane />}
             {section !== 'Accounts' &&
               section !== 'Signatures' &&
               section !== 'Templates' &&
               section !== 'Contacts' &&
-              section !== 'Sending' && <Placeholder name={section} />}
+              section !== 'Sending' &&
+              section !== 'Claude connector' && <Placeholder name={section} />}
           </div>
         </div>
       </div>

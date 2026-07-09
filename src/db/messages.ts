@@ -169,6 +169,42 @@ export function searchMessages(db: DB, query: string, limit = 200): MessageListI
   return rows.map(toListItem)
 }
 
+export interface SearchEmailsOpts {
+  query?: string
+  accountId?: number
+  folderId?: number
+  dateFrom?: string
+  dateTo?: string
+  unreadOnly?: boolean
+  hasAttachments?: boolean
+  limit?: number
+}
+
+// Filtered search used by the MCP search_emails tool.
+export function searchEmails(db: DB, opts: SearchEmailsOpts): MessageListItem[] {
+  const where: string[] = []
+  const params: (string | number)[] = []
+
+  for (const t of (opts.query ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean)) {
+    where.push('(LOWER(subject) LIKE ? OR LOWER(from_name) LIKE ? OR LOWER(from_email) LIKE ? OR LOWER(snippet) LIKE ? OR LOWER(body_text) LIKE ?)')
+    params.push(...Array<string>(5).fill(`%${t}%`))
+  }
+  if (opts.accountId != null) { where.push('account_id = ?'); params.push(opts.accountId) }
+  if (opts.folderId != null) { where.push('folder_id = ?'); params.push(opts.folderId) }
+  if (opts.dateFrom) { where.push('received_at >= ?'); params.push(opts.dateFrom) }
+  if (opts.dateTo) { where.push('received_at <= ?'); params.push(opts.dateTo) }
+  if (opts.unreadOnly) where.push('is_read = 0')
+  if (opts.hasAttachments) where.push('has_attachments = 1')
+
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : ''
+  const limit = Math.min(Math.max(opts.limit ?? 25, 1), 200)
+  const rows = db.all(
+    `SELECT * FROM messages ${clause} ORDER BY received_at DESC, id DESC LIMIT ?`,
+    [...params, limit]
+  ) as unknown as MessageRow[]
+  return rows.map(toListItem)
+}
+
 export function markRead(db: DB, id: number, read = true): void {
   db.run("UPDATE messages SET is_read = ?, updated_at = datetime('now') WHERE id = ?", [read ? 1 : 0, id])
 }
