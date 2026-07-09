@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="height:100%;width:100%;display:flex;flex-direction:column;min-height:0;background:var(--bg-2);color:var(--text);font-family:'Hanken Grotesk',system-ui,sans-serif">
+  <!-- header -->
+  <div style="flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)">
+    <div style="width:30px;height:30px;border-radius:9px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;background:linear-gradient(135deg,var(--claude),color-mix(in srgb,var(--claude) 68%,#000))">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l1.8 5L19 10l-5.2 1.9L12 17l-1.8-5.1L5 10l5.2-2z M18.5 14.5l.9 2.4 2.6 1-2.6 1-.9 2.4-.9-2.4-2.6-1 2.6-1z"></path></svg>
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:700;font-size:14px">Claude</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3)">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:block"></span>
+        MCP connected · read &amp; draft only
+      </div>
+    </div>
+  </div>
+
+  <!-- transcript -->
+  <div style="flex:1;min-height:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;gap:10px">
+      <div style="width:26px;height:26px;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;background:var(--claude);font-size:11px;font-weight:800">C</div>
+      <div style="flex:1;background:var(--bg-3);border-radius:4px 12px 12px 12px;padding:11px 13px;font-size:13px;line-height:1.55;color:var(--text-2)">
+        Hi Jordan — I can search, read, summarise, and draft replies across your accounts. I can't send or delete anything; you approve those. What would you like to do?
+      </div>
+    </div>
+
+    <div style="align-self:flex-end;max-width:82%;background:var(--accent);color:var(--accent-fg);border-radius:12px 12px 4px 12px;padding:9px 13px;font-size:13px;line-height:1.5">
+      Summarise the unread emails from Northwind.
+    </div>
+
+    <div style="display:flex;gap:10px">
+      <div style="width:26px;height:26px;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;background:var(--claude);font-size:11px;font-weight:800">C</div>
+      <div style="flex:1;background:var(--bg-3);border-radius:4px 12px 12px 12px;padding:12px 13px;font-size:13px;line-height:1.6;color:var(--text)">
+        <div style="font-weight:700;margin-bottom:6px">3 unread from Northwind</div>
+        <div style="display:flex;flex-direction:column;gap:8px;color:var(--text-2)">
+          <div style="display:flex;gap:8px"><span style="color:var(--claude)">•</span><span><b style="color:var(--text)">Maya Chen</b> needs your sign-off on the Q3 timeline before Friday — beta Aug 12, GA Sep 9.</span></div>
+          <div style="display:flex;gap:8px"><span style="color:var(--claude)">•</span><span><b style="color:var(--text)">Alex Reed</b> asks to move tomorrow's standup to 10:30.</span></div>
+          <div style="display:flex;gap:8px"><span style="color:var(--claude)">•</span><span><b style="color:var(--text)">GitHub</b> — 3 new PRs on desk-mail awaiting review.</span></div>
+        </div>
+        <div style="margin-top:11px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3)">2 look like they need a reply. Want me to draft responses?</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- action chips -->
+  <div style="flex:0 0 auto;padding:12px 14px 0;display:flex;flex-wrap:wrap;gap:6px">
+    <sc-for list="{{ chips }}" as="c" hint-placeholder-count="7">
+      <span style="font-size:11.5px;font-weight:600;color:var(--claude);border:1px solid var(--claude);background:var(--claude-soft);border-radius:20px;padding:4px 10px;cursor:pointer">{{ c }}</span>
+    </sc-for>
+  </div>
+
+  <!-- input -->
+  <div style="flex:0 0 auto;padding:12px 14px 14px">
+    <div style="border:1px solid var(--border);border-radius:12px;background:var(--bg);padding:8px 8px 8px 12px;display:flex;align-items:flex-end;gap:8px">
+      <textarea placeholder="Ask Claude about your mail…" rows="1" style="flex:1;resize:none;border:none;background:transparent;color:var(--text);font-size:13px;line-height:1.5;max-height:90px;padding:5px 0"></textarea>
+      <div style="width:32px;height:32px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:9px;background:var(--claude);color:#fff;cursor:pointer">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13 M22 2l-7 20-4-9-9-4z"></path></svg>
+      </div>
+    </div>
+    <div style="font-size:10.5px;color:var(--text-3);text-align:center;margin-top:8px">Claude can't send or delete — those need your approval.</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:360,&quot;height&quot;:640}}">
+class Component extends DCLogic {
+  renderVals(){
+    return { chips: ['Summarise','Draft reply','Explain simply','Extract details','Extract dates','Find related','Turn into task'] };
+  }
+}
+</script>
+</body>
+</html>
