@@ -38,6 +38,7 @@ interface DraftRow {
   bcc_json: string | null
   subject: string | null
   body: string | null
+  created_by: string
   updated_at: string
 }
 
@@ -50,6 +51,7 @@ function toSummary(r: DraftRow): DraftSummary {
     bcc: parseArr(r.bcc_json),
     subject: r.subject,
     bodyHtml: r.body,
+    createdBy: r.created_by ?? 'user',
     updatedAt: r.updated_at
   }
 }

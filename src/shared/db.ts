@@ -215,6 +215,7 @@ export interface DraftSummary {
   bcc: string[]
   subject: string | null
   bodyHtml: string | null
+  createdBy: string
   updatedAt: string
 }
 

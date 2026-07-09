@@ -112,6 +112,23 @@ const securePrefs = () => ({
   webSecurity: true
 })
 
+// Lock a window down: external links open in the browser, the app can never be
+// navigated away from its own pages, and webviews are refused.
+function hardenWindow(win: BrowserWindow): void {
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http:') || url.startsWith('https:')) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (e, url) => {
+    const current = win.webContents.getURL()
+    if (url !== current) {
+      e.preventDefault()
+      if (url.startsWith('http:') || url.startsWith('https:')) void shell.openExternal(url)
+    }
+  })
+  win.webContents.on('will-attach-webview', (e) => e.preventDefault())
+}
+
 // Open message windows, keyed by message id, so a second double-click focuses
 // the existing window instead of opening a duplicate.
 const messageWindows = new Map<number, BrowserWindow>()
@@ -136,10 +153,7 @@ function openMessageWindow(id: number): void {
   })
 
   win.once('ready-to-show', () => win.show())
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http:') || url.startsWith('https:')) shell.openExternal(url)
-    return { action: 'deny' }
-  })
+  hardenWindow(win)
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/message.html?id=${id}`)
@@ -341,12 +355,7 @@ function createMainWindow(): BrowserWindow {
   })
 
   win.once('ready-to-show', () => win.show())
-
-  // External links open in the user's browser, never in-app.
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http:') || url.startsWith('https:')) shell.openExternal(url)
-    return { action: 'deny' }
-  })
+  hardenWindow(win)
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Icon, type IconName } from '../Icon'
 import { useMail } from '../store/mailStore'
 
@@ -16,8 +17,15 @@ function Overline({ children }: { children: React.ReactNode }): JSX.Element {
   return <div className="px-2 pb-2 pt-1 text-[10.5px] font-bold uppercase tracking-[.7px] text-text-3">{children}</div>
 }
 
-export function Sidebar({ showLabels }: { showLabels: boolean }): JSX.Element {
+export function Sidebar({ showLabels, onOpenDrafts }: { showLabels: boolean; onOpenDrafts?: () => void }): JSX.Element {
   const { accounts, folders, activeFolderId, setFolder } = useMail()
+  const [draftCount, setDraftCount] = useState(0)
+
+  useEffect(() => {
+    const refresh = (): void => void window.deskmail.compose.listDrafts().then((d) => setDraftCount(d.length))
+    refresh()
+    return window.deskmail.mail.onChanged(refresh)
+  }, [])
 
   if (accounts.length === 0) {
     return (
@@ -49,7 +57,8 @@ export function Sidebar({ showLabels }: { showLabels: boolean }): JSX.Element {
 
       <div className="h-3.5" />
       {showLabels && <Overline>Folders</Overline>}
-      {folders.map((f) => {
+      {/* The server 'Drafts' folder is superseded by the local Drafts view below. */}
+      {folders.filter((f) => f.role !== 'drafts').map((f) => {
         const active = f.id === activeFolderId
         return (
           <button
@@ -77,6 +86,22 @@ export function Sidebar({ showLabels }: { showLabels: boolean }): JSX.Element {
           </button>
         )
       })}
+
+      {/* Local drafts (incl. any Claude wrote via the connector) */}
+      <button
+        onClick={onOpenDrafts}
+        title="Drafts"
+        className="mb-px flex w-full items-center gap-3 rounded-md px-[9px] py-2 text-text-2 hover:bg-hover"
+        style={{ justifyContent: showLabels ? 'flex-start' : 'center' }}
+      >
+        <Icon name="draft" size={18} className="flex-none" />
+        {showLabels && (
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+            <span className="truncate text-[13.5px]">Drafts</span>
+            {draftCount > 0 && <span className="text-[11.5px] font-semibold text-text-3">{draftCount}</span>}
+          </div>
+        )}
+      </button>
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { MessageList } from './MessageList'
 import { ReadingPane } from './ReadingPane'
 import { ClaudePanel } from './ClaudePanel'
 
-export function Workspace({ onOpen }: { onOpen?: (id: number) => void }): JSX.Element {
+export function Workspace({ onOpen, onOpenDrafts }: { onOpen?: (id: number) => void; onOpenDrafts?: () => void }): JSX.Element {
   const prefs = useLayout((s) => s.prefs)
   const a = computeArrangement(prefs)
 
@@ -22,7 +22,7 @@ export function Workspace({ onOpen }: { onOpen?: (id: number) => void }): JSX.El
             borderLeftWidth: a.sidebar.side === 'right' ? 1 : 0
           }}
         >
-          <Sidebar showLabels={a.sidebar.showLabels} />
+          <Sidebar showLabels={a.sidebar.showLabels} onOpenDrafts={onOpenDrafts} />
         </div>
       )}
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '../Icon'
-import type { ComposeAttachment, ComposePayload, Contact, SignatureData, Template } from '@shared/db'
+import type { ComposeAttachment, ComposePayload, Contact, DraftSummary, SignatureData, Template } from '@shared/db'
 import { useMail } from '../store/mailStore'
 import { useToast } from '../store/toastStore'
 
@@ -24,15 +24,15 @@ function bodyToHtml(body: string): string {
     .join('')
 }
 
-export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
+export function Compose({ onClose, draft }: { onClose: () => void; draft?: DraftSummary }): JSX.Element {
   const accounts = useMail((s) => s.accounts)
   const showToast = useToast((s) => s.show)
-  const [accountId, setAccountId] = useState<number | null>(accounts[0]?.id ?? null)
-  const [to, setTo] = useState('')
-  const [cc, setCc] = useState('')
-  const [bcc, setBcc] = useState('')
-  const [showCc, setShowCc] = useState(false)
-  const [subject, setSubject] = useState('')
+  const [accountId, setAccountId] = useState<number | null>(draft?.accountId ?? accounts[0]?.id ?? null)
+  const [to, setTo] = useState(draft?.to.join(', ') ?? '')
+  const [cc, setCc] = useState(draft?.cc.join(', ') ?? '')
+  const [bcc, setBcc] = useState(draft?.bcc.join(', ') ?? '')
+  const [showCc, setShowCc] = useState(!!(draft?.cc.length || draft?.bcc.length))
+  const [subject, setSubject] = useState(draft?.subject ?? '')
   const [attachments, setAttachments] = useState<ComposeAttachment[]>([])
   const [signature, setSignature] = useState<SignatureData | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
@@ -41,7 +41,7 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
   const [laterAt, setLaterAt] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const editor = useEditor({ extensions: [StarterKit], content: '' })
+  const editor = useEditor({ extensions: [StarterKit], content: draft?.bodyHtml ?? '' })
 
   useEffect(() => {
     if (accountId != null) void window.deskmail.compose.getSignature(accountId).then(setSignature)
@@ -53,6 +53,7 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
 
   const payload = useMemo(
     (): ComposePayload => ({
+      draftId: draft?.id ?? null, // so Save/Send updates the existing draft
       accountId: accountId ?? 0,
       to: splitAddrs(to),
       cc: splitAddrs(cc),
@@ -61,7 +62,7 @@ export function Compose({ onClose }: { onClose: () => void }): JSX.Element {
       bodyHtml: editor?.getHTML() ?? '',
       attachments
     }),
-    [accountId, to, cc, bcc, subject, editor, attachments]
+    [draft, accountId, to, cc, bcc, subject, editor, attachments]
   )
 
   const canSend = accountId != null && payload.to.length > 0 && !busy

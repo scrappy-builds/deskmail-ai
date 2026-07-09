@@ -9,13 +9,12 @@
 ---
 
 ## Current status
-- **Active stage:** Stage 10 complete (awaiting go-ahead for Stage 11).
-- **Last session ended:** 2026-07-09 — Stage 10 built, tested, committed. **Installers delivered** to
-  `release/DeskMail AI-0.1.0-setup.exe` (NSIS) and `release/DeskMail AI-0.1.0-portable.exe`.
-- **Exact next step:** On user's OK, start **Stage 11 — Hardening, error/empty/loading states, docs**:
-  security review pass; friendly error messages; loading + empty states everywhere (add the **Drafts
-  view** so Claude/user drafts are visible — the Stage 9 gap); final README + developer docs. Then
-  Stage 12 = full final review against the brief + FEATURE_SPEC.
+- **Active stage:** Stage 11 complete (awaiting go-ahead for Stage 12 — final review).
+- **Last session ended:** 2026-07-09 — Stage 11 built, tested, committed. Installers at
+  `release/DeskMail AI-0.1.0-setup.exe` + `-portable.exe`.
+- **Exact next step:** On user's OK, do **Stage 12 — Final review**: re-read the brief + FEATURE_SPEC,
+  walk the §8 checklist below, verify every MVP feature / layout preset / MCP tool / security item
+  actually works, tick each in the Final review checklist, and fix any gaps before declaring done.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
@@ -83,7 +82,7 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
 - [x] **Stage 8** — Added features: per-account signatures · send-later/undo-send · snooze · templates · contacts · Today agenda
 - [x] **Stage 9** — Local MCP server (safe tools; Claude Desktop connector config)
 - [x] **Stage 10** — Packaging (installer) + local backup + USB/portable mode
-- [ ] **Stage 11** — Hardening + error/empty/loading states + docs
+- [x] **Stage 11** — Hardening + error/empty/loading states + docs
 - [ ] **Stage 12** — Final review (verify every feature/security item/MCP tool; fix gaps)
 
 ---
@@ -360,6 +359,27 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
   - No app icon set (default Electron icon). Add a Functional 3D UK icon if wanted.
   - `release/` is gitignored (binaries not committed) — the installers live on disk at the paths above.
 - Next step: Stage 11 (hardening + error/empty/loading states + Drafts view + docs).
+
+### Stage 11
+- Done:
+  - **Drafts view (closes the Stage 9 gap):** `DraftsModal` lists local drafts — including any Claude
+    wrote via the connector (badge on `created_by='claude'`); Edit opens Compose **prefilled** (Compose
+    now accepts a `draft` and updates it via `draftId`); Delete works. Sidebar "Drafts" entry with a live
+    count; the server-side `role='drafts'` folder is hidden so there's a single, unambiguous Drafts view.
+  - **Hardening:** `hardenWindow()` on every window — external links → browser, in-app navigation blocked
+    (`will-navigate`), webviews refused (`will-attach-webview`), plus the existing window-open handler.
+    Renderer **`ErrorBoundary`** (friendly reload panel in Jamie's voice) wraps the main and message windows.
+  - **States review:** loading/empty states confirmed across list, reading pane, message window, Today,
+    Calendar, Drafts, Settings panes; connection tests and sending already surface friendly outcomes.
+  - **Docs:** new `DEVELOPMENT.md` (stack rationale, folder layout, run/test/package, architecture rules,
+    **security model**). README already has connector + dev-run sections.
+- Tests: `npm test` → 72 unit (unchanged). `npm run test:e2e` → 21 (+1: a Claude-authored draft appears
+  in the Drafts view and opens prefilled in Compose). Typecheck + build clean.
+- Known issues / TODO:
+  - Sidebar draft count refreshes on `mail:changed`/mount; a draft Claude adds shows immediately when the
+    Drafts view is opened (it always refetches), but the sidebar number may lag until the next refresh.
+  - No app icon yet (default Electron icon).
+- Next step: Stage 12 (final review + checklist).
 
 _(Add a block like the above for each stage as you go.)_
 

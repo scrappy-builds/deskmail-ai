@@ -9,6 +9,7 @@ import './styles.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MessageWindow } from './MessageWindow'
+import { ErrorBoundary } from './ErrorBoundary'
 
 // The message id is passed on the URL by the main process.
 const id = Number(new URLSearchParams(location.search).get('id'))
@@ -20,6 +21,8 @@ void window.deskmail.getSettings().then((s) => {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MessageWindow id={id} />
+    <ErrorBoundary>
+      <MessageWindow id={id} />
+    </ErrorBoundary>
   </StrictMode>
 )
