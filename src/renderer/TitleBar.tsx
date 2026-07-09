@@ -51,14 +51,14 @@ function Dropdown({ items, onPick }: { items: MenuItem[]; onPick: () => void }):
   )
 }
 
-export function TitleBar({ onOpenSettings }: { onOpenSettings: () => void }): JSX.Element {
+export function TitleBar({ onOpenSettings, onCompose }: { onOpenSettings: () => void; onCompose: () => void }): JSX.Element {
   const { open, toggle, close, rootRef } = useMenus()
   const toggleTheme = useLayout((s) => s.toggleTheme)
   const w = window.deskmail.window
 
   const menus: Record<string, MenuItem[]> = {
     File: [
-      { label: 'New email', kbd: 'Ctrl N' },
+      { label: 'New email', kbd: 'Ctrl N', onClick: onCompose },
       { label: 'New event', kbd: 'Ctrl E' },
       'sep',
       { label: 'Settings…', kbd: 'Ctrl ,', onClick: onOpenSettings },

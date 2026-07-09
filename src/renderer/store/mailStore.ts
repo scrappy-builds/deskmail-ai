@@ -13,12 +13,14 @@ interface MailState {
   selectedId: number | null
   selected: MessageDetail | null
   syncing: boolean
+  searchQuery: string
 
   init: () => Promise<void>
   refresh: () => Promise<void>
   setFolder: (id: number) => Promise<void>
   select: (id: number) => Promise<void>
   sync: () => Promise<void>
+  runSearch: (query: string) => Promise<void>
 }
 
 export const useMail = create<MailState>((set, get) => ({
@@ -29,6 +31,7 @@ export const useMail = create<MailState>((set, get) => ({
   selectedId: null,
   selected: null,
   syncing: false,
+  searchQuery: '',
 
   init: async () => {
     await get().refresh()
@@ -51,7 +54,18 @@ export const useMail = create<MailState>((set, get) => ({
 
   setFolder: async (id) => {
     const messages = await window.deskmail.mail.listMessages(id)
-    set({ activeFolderId: id, messages, selectedId: null, selected: null })
+    set({ activeFolderId: id, messages, selectedId: null, selected: null, searchQuery: '' })
+  },
+
+  // Empty query returns to the active folder; otherwise show search results.
+  runSearch: async (query) => {
+    set({ searchQuery: query })
+    if (!query.trim()) {
+      const fid = get().activeFolderId
+      set({ messages: fid != null ? await window.deskmail.mail.listMessages(fid) : [] })
+      return
+    }
+    set({ messages: await window.deskmail.mail.search(query) })
   },
 
   select: async (id) => {

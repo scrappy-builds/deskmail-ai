@@ -5,10 +5,14 @@ import type { LayoutPreferences, Theme } from './layout'
 import type {
   AccountInput,
   AccountSummary,
+  ComposeAttachment,
+  ComposePayload,
   ConnectionConfig,
+  DraftSummary,
   FolderSummary,
   MessageDetail,
   MessageListItem,
+  SendResult,
   TestResult
 } from './db'
 
@@ -37,11 +41,23 @@ export interface DeskMailApi {
   mail: {
     listFolders(accountId?: number): Promise<FolderSummary[]>
     listMessages(folderId: number): Promise<MessageListItem[]>
+    search(query: string): Promise<MessageListItem[]>
     getMessage(id: number): Promise<MessageDetail | null>
     markRead(id: number, read: boolean): Promise<void>
     sync(accountId?: number): Promise<void>
     // Subscribe to "mail changed" (after a sync/seed). Returns an unsubscribe fn.
     onChanged(cb: () => void): () => void
+  }
+  // Compose: drafts, signatures, attachments and manual send (Stage 6).
+  compose: {
+    getSignature(accountId: number): Promise<string | null>
+    saveDraft(payload: ComposePayload): Promise<{ id: number }>
+    listDrafts(): Promise<DraftSummary[]>
+    getDraft(id: number): Promise<DraftSummary | null>
+    deleteDraft(id: number): Promise<void>
+    pickAttachments(): Promise<ComposeAttachment[]>
+    // Send is a manual action only — this is the sole path that sends mail.
+    send(payload: ComposePayload): Promise<SendResult>
   }
   // Window controls for the custom (frameless) title bar.
   window: {

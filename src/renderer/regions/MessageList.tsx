@@ -84,9 +84,10 @@ function Row({
 }
 
 export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAvatars, onOpen }: MessageListProps): JSX.Element {
-  const { folders, messages, activeFolderId, selectedId, select } = useMail()
+  const { folders, messages, activeFolderId, selectedId, select, searchQuery } = useMail()
   const openInFullWindow = useLayout((s) => s.prefs.openEmailBehaviour === 'full-window')
-  const title = folders.find((f) => f.id === activeFolderId)?.name ?? 'Inbox'
+  const searching = searchQuery.trim().length > 0
+  const title = searching ? `Search: ${searchQuery}` : folders.find((f) => f.id === activeFolderId)?.name ?? 'Inbox'
 
   const handleSelect = (msgId: number): void => {
     void select(msgId)
@@ -109,9 +110,13 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {messages.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <div className="text-[14px] font-bold text-text-2">Nothing here yet</div>
+            <div className="text-[14px] font-bold text-text-2">
+              {searching ? `No messages match "${searchQuery}"` : 'Nothing here yet'}
+            </div>
             <p className="mx-auto mt-1.5 max-w-[280px] text-[12.5px] text-text-3">
-              When your mail syncs it'll show up here. Add an account in Settings if you haven't yet.
+              {searching
+                ? 'Try a different term, or clear the search to go back to the folder.'
+                : "When your mail syncs it'll show up here. Add an account in Settings if you haven't yet."}
             </p>
           </div>
         ) : (

@@ -1,6 +1,7 @@
 import { Icon } from './Icon'
 import { PRESET_LABELS } from '@shared/layout'
 import { useLayout } from './store/layoutStore'
+import { useMail } from './store/mailStore'
 
 export type Mode = 'mail' | 'calendar'
 
@@ -8,13 +9,16 @@ interface CommandBarProps {
   mode: Mode
   onMode: (m: Mode) => void
   onOpenViewSettings: () => void
+  onCompose: () => void
 }
 
-export function CommandBar({ mode, onMode, onOpenViewSettings }: CommandBarProps): JSX.Element {
+export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: CommandBarProps): JSX.Element {
   const theme = useLayout((s) => s.prefs.theme)
   const preset = useLayout((s) => s.prefs.selectedLayoutPreset)
   const toggleTheme = useLayout((s) => s.toggleTheme)
   const toggleClaude = useLayout((s) => s.toggleClaude)
+  const searchQuery = useMail((s) => s.searchQuery)
+  const runSearch = useMail((s) => s.runSearch)
 
   const tab = (m: Mode, label: string, icon: 'mail' | 'calendar'): JSX.Element => {
     const active = mode === m
@@ -54,6 +58,9 @@ export function CommandBar({ mode, onMode, onOpenViewSettings }: CommandBarProps
         </span>
         <input
           placeholder={mode === 'mail' ? 'Search mail…' : 'Search events…'}
+          value={mode === 'mail' ? searchQuery : ''}
+          onChange={(e) => mode === 'mail' && void runSearch(e.target.value)}
+          disabled={mode !== 'mail'}
           className="h-[38px] w-full rounded-md border border-border bg-bg pl-10 pr-[90px] text-[13.5px] text-text outline-none focus:border-accent"
         />
         <span className="pointer-events-none absolute right-3 flex gap-1.5">
@@ -64,7 +71,10 @@ export function CommandBar({ mode, onMode, onOpenViewSettings }: CommandBarProps
 
       <div className="flex-1" />
 
-      <button className="flex items-center gap-2 rounded-md bg-accent px-4 py-[9px] text-[13px] font-semibold text-accent-fg hover:bg-accent-2">
+      <button
+        onClick={onCompose}
+        className="flex items-center gap-2 rounded-md bg-accent px-4 py-[9px] text-[13px] font-semibold text-accent-fg hover:bg-accent-2"
+      >
         <Icon name={mode === 'mail' ? 'compose' : 'calendar'} size={16} />
         <span>{mode === 'mail' ? 'Compose' : 'New event'}</span>
       </button>

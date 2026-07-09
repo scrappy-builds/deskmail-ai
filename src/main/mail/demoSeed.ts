@@ -1,5 +1,6 @@
 import type { DB } from '../../db/database'
 import { upsertFolder, refreshFolderCounts } from '../../db/folders'
+import { ensureDefaultSignature } from '../../db/signatures'
 import { ingestRaw } from './ingest'
 
 // Env-gated demo data so the app (and the E2E suite) can show a populated
@@ -88,6 +89,7 @@ export async function seedDemo(db: DB): Promise<void> {
      VALUES ('Demo Mailbox','jamie@example.com','imap','imap.example.com',993,'ssl','smtp.example.com',465,'ssl','jamie@example.com','#1e7a38')`
   )
   const accountId = (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
+  ensureDefaultSignature(db, accountId, 'Jamie')
   const inboxId = upsertFolder(db, accountId, 'Inbox', 'inbox', 'INBOX')
   upsertFolder(db, accountId, 'Sent', 'sent', 'Sent')
   upsertFolder(db, accountId, 'Drafts', 'drafts', 'Drafts')

@@ -101,6 +101,38 @@ export interface MessageDetail extends MessageListItem {
   attachments: AttachmentInfo[]
 }
 
+export interface ComposeAttachment {
+  path: string
+  name: string
+  size: number
+}
+
+// Compose payload used for saving a draft and for sending.
+export interface ComposePayload {
+  draftId?: number | null
+  accountId: number
+  to: string[]
+  cc: string[]
+  bcc: string[]
+  subject: string
+  bodyHtml: string
+  attachments?: ComposeAttachment[]
+  inReplyToMessageId?: number | null
+}
+
+export interface DraftSummary {
+  id: number
+  accountId: number | null
+  to: string[]
+  cc: string[]
+  bcc: string[]
+  subject: string | null
+  bodyHtml: string | null
+  updatedAt: string
+}
+
+export type SendResult = { ok: true } | { ok: false; error: string }
+
 // What the sync/ingest layer inserts for one parsed message.
 export interface MessageInsert {
   accountId: number

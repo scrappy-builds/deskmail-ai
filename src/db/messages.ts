@@ -138,6 +138,24 @@ export function getMessage(db: DB, id: number): MessageDetail | null {
   }
 }
 
+// Local full-text-ish search across the cached messages. Each whitespace term
+// must match somewhere (AND); matching is substring across the useful fields.
+// ponytail: LIKE scan over the local cache — fine for one person's mailbox;
+// swap for FTS5 if it ever feels slow.
+export function searchMessages(db: DB, query: string, limit = 200): MessageListItem[] {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return []
+  const clause = terms
+    .map(() => '(LOWER(subject) LIKE ? OR LOWER(from_name) LIKE ? OR LOWER(from_email) LIKE ? OR LOWER(snippet) LIKE ? OR LOWER(body_text) LIKE ?)')
+    .join(' AND ')
+  const params = terms.flatMap((t) => Array<string>(5).fill(`%${t}%`))
+  const rows = db.all(
+    `SELECT * FROM messages WHERE ${clause} ORDER BY received_at DESC, id DESC LIMIT ?`,
+    [...params, limit]
+  ) as unknown as MessageRow[]
+  return rows.map(toListItem)
+}
+
 export function markRead(db: DB, id: number, read = true): void {
   db.run("UPDATE messages SET is_read = ?, updated_at = datetime('now') WHERE id = ?", [read ? 1 : 0, id])
 }

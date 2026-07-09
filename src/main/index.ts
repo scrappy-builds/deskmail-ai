@@ -1,18 +1,21 @@
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
-import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
+import { existsSync, statSync } from 'node:fs'
+import { basename, join } from 'node:path'
+import { app, dialog, shell, BrowserWindow, ipcMain, Menu } from 'electron'
 import { loadSettings } from './settings'
 import { openDatabase, type DB } from '../db/database'
 import { loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty } from '../db/settings'
 import { insertAccount, listAccounts } from '../db/accounts'
 import { listFolders } from '../db/folders'
-import { getMessage, listMessages, markRead } from '../db/messages'
+import { getMessage, listMessages, markRead, searchMessages } from '../db/messages'
+import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
+import { ensureDefaultSignature, getDefaultSignature } from '../db/signatures'
 import { storeCredential } from './credentials'
 import { testIncoming, testOutgoing } from './mail/connectionTest'
 import { syncAccount, syncAllAccounts } from './mail/sync'
+import { sendMail } from './mail/send'
 import { maybeSeedDemo } from './mail/demoSeed'
 import type { AppSettings } from '@shared/types'
-import type { AccountInput, ConnectionConfig } from '@shared/db'
+import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig } from '@shared/db'
 
 // Allow an override data directory (used by E2E tests now; the basis for
 // portable/USB mode in Stage 10). Must be set before the app is ready.
@@ -34,6 +37,14 @@ async function initDatabase(): Promise<void> {
 // Tell every open window the local mail cache changed, so it refetches.
 function broadcastMailChanged(): void {
   for (const w of BrowserWindow.getAllWindows()) w.webContents.send('mail:changed')
+}
+
+function safeSize(path: string): number {
+  try {
+    return statSync(path).size
+  } catch {
+    return 0
+  }
 }
 
 // Secure webPreferences shared by every window: no Node in the renderer,
@@ -101,6 +112,7 @@ function registerIpc(): void {
   ipcMain.handle('account:save', (_e, input: AccountInput) => {
     const id = insertAccount(db, input)
     storeCredential(db, id, input.password) // encrypted; plaintext never persisted
+    ensureDefaultSignature(db, id, input.displayName)
     // Kick off a background sync for the new account; don't block the response.
     void syncAccount(db, id).finally(broadcastMailChanged)
     return { id }
@@ -109,6 +121,7 @@ function registerIpc(): void {
   // --- Mail data + sync (Stage 5) ---------------------------------------------
   ipcMain.handle('mail:list-folders', (_e, accountId?: number) => listFolders(db, accountId))
   ipcMain.handle('mail:list-messages', (_e, folderId: number) => listMessages(db, folderId))
+  ipcMain.handle('mail:search', (_e, query: string) => searchMessages(db, query))
   ipcMain.handle('mail:get-message', (_e, id: number) => getMessage(db, id))
   ipcMain.handle('mail:mark-read', (_e, id: number, read: boolean) => markRead(db, id, read))
   ipcMain.handle('mail:sync', async (_e, accountId?: number) => {
@@ -116,6 +129,23 @@ function registerIpc(): void {
     else await syncAllAccounts(db)
     broadcastMailChanged()
   })
+
+  // --- Compose: drafts, signatures, attachments, manual send (Stage 6) --------
+  ipcMain.handle('compose:get-signature', (_e, accountId: number) => getDefaultSignature(db, accountId))
+  ipcMain.handle('compose:save-draft', (_e, payload: ComposePayload) => ({ id: saveDraft(db, payload) }))
+  ipcMain.handle('compose:list-drafts', () => listDrafts(db))
+  ipcMain.handle('compose:get-draft', (_e, id: number) => getDraft(db, id))
+  ipcMain.handle('compose:delete-draft', (_e, id: number) => deleteDraft(db, id))
+  ipcMain.handle('compose:pick-attachments', async (e): Promise<ComposeAttachment[]> => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const res = win
+      ? await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'] })
+      : await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
+    if (res.canceled) return []
+    return res.filePaths.map((p) => ({ path: p, name: basename(p), size: safeSize(p) }))
+  })
+  // The ONLY path that sends mail — reached solely from the user's Send click.
+  ipcMain.handle('compose:send', (_e, payload: ComposePayload) => sendMail(db, payload))
 
   // Window controls for the custom (frameless) title bar — operate on whichever
   // window sent the request, so message windows close independently.

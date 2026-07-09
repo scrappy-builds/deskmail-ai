@@ -70,3 +70,28 @@ body {
 .no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* TipTap compose editor */
+.ProseMirror {
+  outline: none;
+  min-height: 120px;
+  color: var(--text);
+}
+.ProseMirror p {
+  margin: 0 0 10px;
+}
+.ProseMirror:focus {
+  outline: none;
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: 'Write your message…';
+  color: var(--text-3);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 22px;
+  margin: 0 0 10px;
+}

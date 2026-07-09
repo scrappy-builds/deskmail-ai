@@ -9,13 +9,14 @@
 ---
 
 ## Current status
-- **Active stage:** Stage 5 complete (awaiting go-ahead for Stage 6).
-- **Last session ended:** 2026-07-09 — Stage 5 built, tested, committed.
-- **Exact next step:** On user's OK, start **Stage 6 — Search, Compose, Drafts, Sending**: local
-  full-text search over the cached messages; Compose (from/to/cc/bcc/subject/body with **TipTap** rich
-  editor → sanitised HTML, attachments, Claude rewrite hooks, **signature insertion**); save drafts to
-  the `drafts` table; **send only on explicit user action** via SMTP (nodemailer). Tests: search hits;
-  draft persists; send never automatic.
+- **Active stage:** Stage 6 complete (awaiting go-ahead for Stage 7).
+- **Last session ended:** 2026-07-09 — Stage 6 built, tested, committed.
+- **Exact next step:** On user's OK, start **Stage 7 — Calendar & meetings**: month view, events in the
+  `events` table, New Event modal, meeting-provider selection (Teams / Google Meet / Zoom / in-person /
+  custom link) that generates a join link and launches the installed desktop app (fallback to browser);
+  email invites parse to an invite card, Accept adds the event to the calendar. Wire the Calendar tab +
+  "New event" primary button (already switches label in the command bar). Tests: event CRUD; invite →
+  event; provider link/launch.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
@@ -78,7 +79,7 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
 - [x] **Stage 3** — Full independent message windows (double-click, by ID)
 - [x] **Stage 4** — SQLite + migrations + account wizard + secure credentials + connection tests
 - [x] **Stage 5** — Sync + parsing + offline cache + safe rendering (sanitise, block remote images)
-- [ ] **Stage 6** — Search + Compose + Drafts + manual Send + signature insertion
+- [x] **Stage 6** — Search + Compose + Drafts + manual Send + signature insertion
 - [ ] **Stage 7** — Calendar + invites + meeting providers
 - [ ] **Stage 8** — Added features: per-account signatures · send-later/undo-send · snooze · templates · contacts · Today agenda
 - [ ] **Stage 9** — Local MCP server (safe tools; Claude Desktop connector config)
@@ -228,6 +229,32 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
   - Email body iframe links are inert (safe); external-open bridge can come later.
   - Search box + Compose are still inert — Stage 6.
 - Next step: Stage 6 (search + compose + drafts + sending).
+
+### Stage 6
+- Done:
+  - **Search:** `searchMessages(db, query)` — LIKE across subject/from/snippet/body_text, AND over terms,
+    case-insensitive (ponytail: swap for FTS5 if slow). `mail:search` IPC; command-bar search input is
+    controlled by the mail store (`runSearch`) → results into the list with a "Search: …" header and a
+    search-specific empty state; clearing returns to the folder.
+  - **Drafts + send backend:** `src/db/drafts.ts` (save/update/list/get/delete), `signatures.ts`
+    (`getDefaultSignature` + `ensureDefaultSignature` — first-person default seeded on account create and
+    for the demo account). `src/main/mail/send.ts`: pure `buildMail(payload, signature)` (recipients,
+    subject, body, HTML-escaped appended signature, attachments) + `sendMail` via nodemailer SMTP.
+  - **Compose UI** (`compose/Compose.tsx`): bottom-anchored modal — From selector (accounts), To +
+    Cc/Bcc toggle, Subject, **Claude rewrite bar** (chips present; transform deferred to the connector),
+    **TipTap** rich body → HTML, signature preview, attachments via native file dialog, Save draft, Send.
+    Wired to the command-bar Compose button and File → New email.
+  - IPC/bridge: `compose:get-signature/save-draft/list-drafts/get-draft/delete-draft/pick-attachments/send`.
+    **Send is a manual action only** — `compose:send` is the sole send path, reached only from the Send button.
+- Tests: `npm test` → 40 unit (+5 search, +6 compose: buildMail mapping/signature/escaping, draft
+  persist/update, default-signature once). `npm run test:e2e` → 12 (+3: search filters + clears; draft
+  persists across relaunch; **send only on click** — bad SMTP surfaces an error and never auto-sends).
+- Known issues / TODO:
+  - Claude **rewrite** chips are visual placeholders (need an LLM call, not in scope until the connector).
+  - Reply/Reply-all/Forward toolbar buttons don't yet prefill Compose (compose-new works; reply context later).
+  - Sent mail isn't appended to the IMAP Sent folder yet (SMTP send only). Drafts don't persist attachments.
+  - No Drafts list UI yet (drafts persist + are queryable; a browse/reopen view can come later).
+- Next step: Stage 7 (calendar + invites + meeting providers).
 
 _(Add a block like the above for each stage as you go.)_
 

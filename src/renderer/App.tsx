@@ -4,16 +4,23 @@ import { CommandBar, type Mode } from './CommandBar'
 import { Workspace } from './regions/Workspace'
 import { ViewSettings } from './ViewSettings'
 import { Settings } from './settings/Settings'
+import { Compose } from './compose/Compose'
 
 export function App(): JSX.Element {
   const [mode, setMode] = useState<Mode>('mail')
   const [viewSettingsOpen, setViewSettingsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [composeOpen, setComposeOpen] = useState(false)
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-bg text-text">
-      <TitleBar onOpenSettings={() => setSettingsOpen(true)} />
-      <CommandBar mode={mode} onMode={setMode} onOpenViewSettings={() => setViewSettingsOpen(true)} />
+      <TitleBar onOpenSettings={() => setSettingsOpen(true)} onCompose={() => setComposeOpen(true)} />
+      <CommandBar
+        mode={mode}
+        onMode={setMode}
+        onOpenViewSettings={() => setViewSettingsOpen(true)}
+        onCompose={() => setComposeOpen(true)}
+      />
 
       {mode === 'mail' ? (
         <Workspace onOpen={(id) => window.deskmail.openMessage(id)} />
@@ -31,6 +38,7 @@ export function App(): JSX.Element {
 
       {viewSettingsOpen && <ViewSettings onClose={() => setViewSettingsOpen(false)} />}
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
+      {composeOpen && <Compose onClose={() => setComposeOpen(false)} />}
     </div>
   )
 }
