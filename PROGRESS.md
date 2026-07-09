@@ -9,13 +9,13 @@
 ---
 
 ## Current status
-- **Active stage:** Stage 4 complete (awaiting go-ahead for Stage 5).
-- **Last session ended:** 2026-07-09 — Stage 4 built, tested, committed.
-- **Exact next step:** On user's OK, start **Stage 5 — Sync + parsing + safe rendering**: IMAP folder +
-  recent-message sync in a background service (main/utility process), parse + store messages/attachments
-  (mailparser), offline reading from the SQLite cache; **sanitise HTML (DOMPurify) + block remote images
-  by default** with a "load images" affordance, no script execution, attachments never auto-open. Swap
-  the renderer's mock mail for the DB-backed mailStore (IPC queries). POP3 optional after IMAP works.
+- **Active stage:** Stage 5 complete (awaiting go-ahead for Stage 6).
+- **Last session ended:** 2026-07-09 — Stage 5 built, tested, committed.
+- **Exact next step:** On user's OK, start **Stage 6 — Search, Compose, Drafts, Sending**: local
+  full-text search over the cached messages; Compose (from/to/cc/bcc/subject/body with **TipTap** rich
+  editor → sanitised HTML, attachments, Claude rewrite hooks, **signature insertion**); save drafts to
+  the `drafts` table; **send only on explicit user action** via SMTP (nodemailer). Tests: search hits;
+  draft persists; send never automatic.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
@@ -77,7 +77,7 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
 - [x] **Stage 2** — Layout system + 6 presets + View Settings + persistence
 - [x] **Stage 3** — Full independent message windows (double-click, by ID)
 - [x] **Stage 4** — SQLite + migrations + account wizard + secure credentials + connection tests
-- [ ] **Stage 5** — Sync + parsing + offline cache + safe rendering (sanitise, block remote images)
+- [x] **Stage 5** — Sync + parsing + offline cache + safe rendering (sanitise, block remote images)
 - [ ] **Stage 6** — Search + Compose + Drafts + manual Send + signature insertion
 - [ ] **Stage 7** — Calendar + invites + meeting providers
 - [ ] **Stage 8** — Added features: per-account signatures · send-later/undo-send · snooze · templates · contacts · Today agenda
@@ -197,6 +197,37 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
   - `src/main/settings.ts` (JSON) is now only used for the one-time legacy import; keep until confident.
   - Packaging note (Stage 10): unpack node-sqlite3-wasm's `.wasm` from the asar.
 - Next step: Stage 5 (sync + parsing + safe rendering).
+
+### Stage 5
+- Done:
+  - **DB stores:** `src/db/folders.ts` (upsert by remote_path, refresh counts, list) and `messages.ts`
+    (idempotent upsert by account+folder+uid, list by folder, get detail w/ attachments, mark read).
+  - **Parse + ingest** (`src/main/mail/ingest.ts`): mailparser `simpleParser` → MessageInsert +
+    attachment metadata. Pure over the DB, so unit-tested without a network (this is the offline write path).
+  - **Safe rendering:** `src/renderer/mail/sanitise.ts` (DOMPurify) strips scripts/handlers/iframes/forms
+    and, by default, removes remote `<img src>`/`srcset` + remote `url()` backgrounds, flagging when it
+    blocked something. `EmailBody.tsx` renders the sanitised HTML in a `sandbox="allow-same-origin"`
+    (no-scripts) iframe on a white card, auto-sized to content, with a "Load images" opt-in banner.
+    CSP relaxed to `img-src 'self' data: https:` (default-block enforced by the sanitiser, not CSP).
+  - **IMAP sync** (`sync.ts` + reuse of imapflow): list folders → upsert; fetch recent 50 from INBOX →
+    ingest with \Seen/\Flagged flags; record sync_state. `syncAccount`/`syncAllAccounts`; runs on launch
+    and after account save (non-blocking); `mail:sync` IPC; `mail:changed` broadcast → renderer refetch.
+  - **Renderer swap to DB-backed data:** rewrote `mailStore` (accounts/folders/messages/selected via IPC,
+    marks read on open, subscribes to `mail:changed`); Sidebar/MessageList/ReadingPane/MessageWindow now
+    read the store (deleted the mock data module). Friendly empty states when there's no account/mail.
+  - **Env-gated demo seed** (`DESKMAIL_SEED_DEMO=1`, `demoSeed.ts`): 6 emails incl. one with a tracking
+    pixel + `<script>` — lets the app/E2E show a populated mailbox without a live IMAP account.
+- Tests: `npm test` → 29 unit (+3 parse/offline ingest, +6 sanitiser [scripts stripped, remote images
+  blocked/allowed, data: kept, bg url neutralised]). `npm run test:e2e` → 9 (+2 mail: sanitised body
+  renders with tracker+script neutralised and `__pwned` never set, remote-image block+Load-images,
+  offline read from cache after relaunch with no reseed). jsdom added for the sanitiser test env.
+- Known issues / TODO:
+  - Sync pulls INBOX only (recent 50) — extend to more folders if wanted. POP3 sync still not implemented.
+  - Attachments store metadata only; content is fetched to disk when opened (open flow is a later stage).
+  - Reading-pane/full-window toolbar buttons still visual (reply/archive/etc. wired in Stage 6+).
+  - Email body iframe links are inert (safe); external-open bridge can come later.
+  - Search box + Compose are still inert — Stage 6.
+- Next step: Stage 6 (search + compose + drafts + sending).
 
 _(Add a block like the above for each stage as you go.)_
 

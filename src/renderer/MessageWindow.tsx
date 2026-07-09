@@ -1,15 +1,17 @@
+import { useEffect, useState } from 'react'
 import { Icon, type IconName } from './Icon'
-import { initials, messages } from './mock/mailData'
+import type { MessageDetail } from '@shared/db'
+import { fmtFullDate, initials } from './mail/format'
+import { EmailBody } from './mail/EmailBody'
 
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
 
-// Full-window actions (FEATURE_SPEC §Full email window).
-const ACTIONS: { icon: IconName; label: string; danger?: boolean }[] = [
+const ACTIONS: { icon: IconName; label: string }[] = [
   { icon: 'reply', label: 'Reply' },
   { icon: 'replyAll', label: 'Reply all' },
   { icon: 'forward', label: 'Forward' },
   { icon: 'archive', label: 'Archive' },
-  { icon: 'trash', label: 'Delete', danger: true },
+  { icon: 'trash', label: 'Delete' },
   { icon: 'star', label: 'Star' },
   { icon: 'markUnread', label: 'Mark unread' },
   { icon: 'print', label: 'Print' }
@@ -26,8 +28,12 @@ const CLAUDE_ACTIONS = [
 ]
 
 export function MessageWindow({ id }: { id: number }): JSX.Element {
-  const m = messages.find((x) => x.id === id)
+  const [m, setM] = useState<MessageDetail | null | 'loading'>('loading')
   const w = window.deskmail.window
+
+  useEffect(() => {
+    void window.deskmail.mail.getMessage(id).then(setM)
+  }, [id])
 
   const chrome = (title: string): JSX.Element => (
     <div className="drag-region flex h-[38px] flex-none items-center border-b border-border bg-raised pl-3.5 pr-1.5">
@@ -47,6 +53,15 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
     </div>
   )
 
+  if (m === 'loading') {
+    return (
+      <div className="flex h-screen flex-col bg-panel text-text">
+        {chrome('Loading…')}
+        <div className="flex flex-1 items-center justify-center text-[13px] text-text-3">Loading message…</div>
+      </div>
+    )
+  }
+
   if (!m) {
     return (
       <div className="flex h-screen flex-col bg-panel text-text">
@@ -65,84 +80,53 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
 
   return (
     <div data-testid="message-window" data-message-id={m.id} className="flex h-screen flex-col overflow-hidden bg-panel text-text">
-      {chrome(m.subject)}
+      {chrome(m.subject || '(no subject)')}
 
-      {/* action toolbar */}
       <div className="flex flex-none flex-wrap items-center gap-0.5 border-b border-border px-3 py-2">
         {ACTIONS.map((a) => (
-          <button
-            key={a.label}
-            title={a.label}
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold hover:bg-raised"
-            style={{ color: a.danger ? 'var(--text-2)' : 'var(--text-2)' }}
-          >
+          <button key={a.label} title={a.label} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 hover:bg-raised">
             <Icon name={a.icon} size={16} fill={a.icon === 'star'} />
             <span>{a.label}</span>
           </button>
         ))}
         <div className="flex-1" />
-        <button
-          onClick={() => w.close()}
-          title="Close"
-          className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 hover:bg-raised"
-        >
+        <button onClick={() => w.close()} title="Close" className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-semibold text-text-2 hover:bg-raised">
           <Icon name="close" size={16} />
           <span>Close</span>
         </button>
       </div>
 
-      {/* Claude actions */}
-      <div
-        className="flex flex-none flex-wrap items-center gap-1.5 border-b border-border px-3.5 py-2.5"
-        style={{ background: 'var(--claude-soft)' }}
-      >
+      <div className="flex flex-none flex-wrap items-center gap-1.5 border-b border-border px-3.5 py-2.5" style={{ background: 'var(--claude-soft)' }}>
         <span className="flex items-center gap-1.5 text-[12px] font-bold text-claude">
           <Icon name="claude" size={15} fill /> Claude
         </span>
         {CLAUDE_ACTIONS.map((c) => (
-          <span
-            key={c}
-            className="cursor-pointer rounded-pill border border-claude bg-panel px-2.5 py-1 text-[12px] font-semibold text-claude"
-          >
+          <span key={c} className="cursor-pointer rounded-pill border border-claude bg-panel px-2.5 py-1 text-[12px] font-semibold text-claude">
             {c}
           </span>
         ))}
       </div>
 
-      {/* body */}
       <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
         <div className="mx-auto max-w-[720px]">
-          <h1 className="mb-4 text-[22px] font-bold leading-tight">{m.subject}</h1>
+          <h1 className="mb-4 text-[22px] font-bold leading-tight">{m.subject || '(no subject)'}</h1>
           <div className="flex items-center gap-3.5 border-b border-border pb-[18px]">
-            <div
-              className="flex h-11 w-11 flex-none items-center justify-center rounded-full text-[15px] font-bold"
-              style={{ background: AVATAR.bg, color: AVATAR.fg }}
-            >
-              {initials(m.fromName)}
+            <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full text-[15px] font-bold" style={{ background: AVATAR.bg, color: AVATAR.fg }}>
+              {initials(m.fromName || m.fromEmail)}
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[14.5px] font-bold">
-                {m.fromName} <span className="text-[12.5px] font-normal text-text-3">&lt;{m.fromEmail}&gt;</span>
+                {m.fromName || m.fromEmail}{' '}
+                {m.fromEmail && <span className="text-[12.5px] font-normal text-text-3">&lt;{m.fromEmail}&gt;</span>}
               </div>
-              <div className="mt-0.5 text-[12.5px] text-text-3">to {m.to}</div>
+              <div className="mt-0.5 truncate text-[12.5px] text-text-3">to {m.to.join(', ') || '—'}</div>
             </div>
-            <div className="text-[12.5px] text-text-3">{m.time}</div>
+            <div className="text-[12.5px] text-text-3">{fmtFullDate(m.receivedAt)}</div>
           </div>
-          <div className="mt-[18px] whitespace-pre-line text-[14.5px] leading-[1.65]">{m.body}</div>
 
-          {m.attach && (
-            <div className="mt-[22px] flex flex-wrap gap-2.5 border-t border-border pt-[18px]">
-              <div className="flex min-w-[200px] items-center gap-3 rounded-md border border-border px-3.5 py-2.5">
-                <div className="flex h-[34px] w-[34px] items-center justify-center rounded-md bg-danger text-[9px] font-extrabold text-white">
-                  PDF
-                </div>
-                <div>
-                  <div className="text-[12.5px] font-semibold">INV-2041.pdf</div>
-                  <div className="text-[11px] text-text-3">148 KB</div>
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="mt-[18px]">
+            <EmailBody html={m.bodyHtml} text={m.bodyText} />
+          </div>
         </div>
       </div>
     </div>

@@ -11,9 +11,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { useLayout } from './store/layoutStore'
+import { useMail } from './store/mailStore'
 
-// Restore persisted layout + theme before first paint settles.
+// Restore persisted layout + theme, and load mail from the local cache.
 void useLayout.getState().hydrate()
+void useMail.getState().init()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

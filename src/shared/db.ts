@@ -61,3 +61,63 @@ export interface AccountSummary {
   emailAddress: string
   colour: string | null
 }
+
+export interface FolderSummary {
+  id: number
+  accountId: number
+  name: string
+  role: string | null
+  unreadCount: number
+  totalCount: number
+}
+
+export interface AttachmentInfo {
+  id: number
+  filename: string | null
+  mimeType: string | null
+  size: number | null
+}
+
+export interface MessageListItem {
+  id: number
+  accountId: number
+  folderId: number | null
+  fromName: string | null
+  fromEmail: string | null
+  subject: string | null
+  snippet: string | null
+  receivedAt: string | null
+  isRead: boolean
+  isStarred: boolean
+  hasAttachments: boolean
+}
+
+export interface MessageDetail extends MessageListItem {
+  to: string[]
+  cc: string[]
+  bcc: string[]
+  bodyText: string | null
+  bodyHtml: string | null
+  attachments: AttachmentInfo[]
+}
+
+// What the sync/ingest layer inserts for one parsed message.
+export interface MessageInsert {
+  accountId: number
+  folderId: number | null
+  remoteUid: number | null
+  messageIdHeader: string | null
+  fromName: string | null
+  fromEmail: string | null
+  to: string[]
+  cc: string[]
+  bcc: string[]
+  subject: string | null
+  snippet: string | null
+  bodyText: string | null
+  bodyHtml: string | null
+  receivedAt: string | null
+  sentAt: string | null
+  isRead: boolean
+  isStarred: boolean
+}

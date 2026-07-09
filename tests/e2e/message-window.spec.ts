@@ -6,7 +6,8 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 const MAIN = join(process.cwd(), 'out', 'main', 'index.js')
 
 function launch(userData: string): Promise<ElectronApplication> {
-  return electron.launch({ args: [MAIN], env: { ...process.env, DESKMAIL_USER_DATA: userData } })
+  // Seed demo mail so message rows exist to open.
+  return electron.launch({ args: [MAIN], env: { ...process.env, DESKMAIL_USER_DATA: userData, DESKMAIL_SEED_DEMO: '1' } })
 }
 function safeRm(dir: string): void {
   try {

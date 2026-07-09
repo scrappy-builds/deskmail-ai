@@ -1,5 +1,6 @@
 import { Icon } from '../Icon'
-import { folders, initials, messages, type MockMessage } from '../mock/mailData'
+import type { MessageListItem } from '@shared/db'
+import { fmtTime, initials } from '../mail/format'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
 
@@ -11,7 +12,6 @@ interface MessageListProps {
   onOpen?: (id: number) => void
 }
 
-// Accent-tinted avatar for now; the real app will colour by contact (Stage 8).
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
 
 function Row({
@@ -24,7 +24,7 @@ function Row({
   showSnippet,
   showAvatars
 }: {
-  m: MockMessage
+  m: MessageListItem
   selected: boolean
   onSelect: () => void
   onOpen: () => void
@@ -33,7 +33,8 @@ function Row({
   showSnippet: boolean
   showAvatars: boolean
 }): JSX.Element {
-  const weight = m.unread ? 700 : 500
+  const weight = m.isRead ? 500 : 700
+  const name = m.fromName || m.fromEmail || 'Unknown sender'
   return (
     <div
       data-testid={`msg-row-${m.id}`}
@@ -47,29 +48,29 @@ function Row({
       }}
     >
       <div className="flex w-[7px] flex-none justify-center pt-[15px]">
-        {m.unread && <span className="block h-[7px] w-[7px] rounded-full bg-accent" />}
+        {!m.isRead && <span className="block h-[7px] w-[7px] rounded-full bg-accent" />}
       </div>
       {showAvatars && (
         <div
           className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-[13px] font-bold"
           style={{ background: AVATAR.bg, color: AVATAR.fg }}
         >
-          {initials(m.fromName)}
+          {initials(m.fromName || m.fromEmail)}
         </div>
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-[7px]">
           <span className="flex-1 truncate text-[13.5px] text-text" style={{ fontWeight: weight }}>
-            {m.fromName}
+            {name}
           </span>
-          {m.attach && <Icon name="clip" size={14} className="text-text-3" />}
-          {m.starred && <Icon name="star" size={14} className="text-star" fill />}
-          <span className="flex-none whitespace-nowrap text-[11.5px] text-text-3">{m.time}</span>
+          {m.hasAttachments && <Icon name="clip" size={14} className="text-text-3" />}
+          {m.isStarred && <Icon name="star" size={14} className="text-star" fill />}
+          <span className="flex-none whitespace-nowrap text-[11.5px] text-text-3">{fmtTime(m.receivedAt)}</span>
         </div>
         <div className="mt-px truncate text-[13px] text-text" style={{ fontWeight: weight }}>
-          {m.subject}
+          {m.subject || '(no subject)'}
         </div>
-        {showSnippet && (
+        {showSnippet && m.snippet && (
           <div
             className="mt-0.5 overflow-hidden text-[12.5px] leading-[1.45] text-text-2"
             style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: clamp }}
@@ -77,35 +78,18 @@ function Row({
             {m.snippet}
           </div>
         )}
-        {m.label && (
-          <div className="mt-1.5">
-            <span
-              className="rounded-sm px-[7px] py-0.5 text-[10.5px] font-bold tracking-[.2px]"
-              style={{ color: 'var(--claude)', background: 'var(--claude-soft)' }}
-            >
-              {m.label}
-            </span>
-          </div>
-        )}
       </div>
     </div>
   )
 }
 
-export function MessageList({
-  rowPaddingY,
-  previewLineCount,
-  showSnippet,
-  showAvatars,
-  onOpen
-}: MessageListProps): JSX.Element {
-  const { activeFolderId, selectedId, select } = useMail()
+export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAvatars, onOpen }: MessageListProps): JSX.Element {
+  const { folders, messages, activeFolderId, selectedId, select } = useMail()
   const openInFullWindow = useLayout((s) => s.prefs.openEmailBehaviour === 'full-window')
   const title = folders.find((f) => f.id === activeFolderId)?.name ?? 'Inbox'
 
-  // Single click always selects; in "full window" mode it also opens the window.
   const handleSelect = (msgId: number): void => {
-    select(msgId)
+    void select(msgId)
     if (openInFullWindow) onOpen?.(msgId)
   }
 
@@ -123,19 +107,28 @@ export function MessageList({
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-        {messages.map((m) => (
-          <Row
-            key={m.id}
-            m={m}
-            selected={m.id === selectedId}
-            onSelect={() => handleSelect(m.id)}
-            onOpen={() => onOpen?.(m.id)}
-            rowPaddingY={rowPaddingY}
-            clamp={Math.max(1, previewLineCount)}
-            showSnippet={showSnippet}
-            showAvatars={showAvatars}
-          />
-        ))}
+        {messages.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <div className="text-[14px] font-bold text-text-2">Nothing here yet</div>
+            <p className="mx-auto mt-1.5 max-w-[280px] text-[12.5px] text-text-3">
+              When your mail syncs it'll show up here. Add an account in Settings if you haven't yet.
+            </p>
+          </div>
+        ) : (
+          messages.map((m) => (
+            <Row
+              key={m.id}
+              m={m}
+              selected={m.id === selectedId}
+              onSelect={() => handleSelect(m.id)}
+              onOpen={() => onOpen?.(m.id)}
+              rowPaddingY={rowPaddingY}
+              clamp={Math.max(1, previewLineCount)}
+              showSnippet={showSnippet}
+              showAvatars={showAvatars}
+            />
+          ))
+        )}
       </div>
     </>
   )

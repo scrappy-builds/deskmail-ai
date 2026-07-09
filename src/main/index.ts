@@ -5,8 +5,12 @@ import { loadSettings } from './settings'
 import { openDatabase, type DB } from '../db/database'
 import { loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty } from '../db/settings'
 import { insertAccount, listAccounts } from '../db/accounts'
+import { listFolders } from '../db/folders'
+import { getMessage, listMessages, markRead } from '../db/messages'
 import { storeCredential } from './credentials'
 import { testIncoming, testOutgoing } from './mail/connectionTest'
+import { syncAccount, syncAllAccounts } from './mail/sync'
+import { maybeSeedDemo } from './mail/demoSeed'
 import type { AppSettings } from '@shared/types'
 import type { AccountInput, ConnectionConfig } from '@shared/db'
 
@@ -20,10 +24,16 @@ const settingsPath = () => join(app.getPath('userData'), 'settings.json')
 let db: DB
 
 // Open the SQLite store and, on first run, import the Stage 1–3 settings.json.
-function initDatabase(): void {
+async function initDatabase(): Promise<void> {
   db = openDatabase(join(app.getPath('userData'), 'deskmail.db'))
   const legacy = existsSync(settingsPath()) ? loadSettings(settingsPath()) : null
   seedLayoutIfEmpty(db, legacy)
+  await maybeSeedDemo(db)
+}
+
+// Tell every open window the local mail cache changed, so it refetches.
+function broadcastMailChanged(): void {
+  for (const w of BrowserWindow.getAllWindows()) w.webContents.send('mail:changed')
 }
 
 // Secure webPreferences shared by every window: no Node in the renderer,
@@ -91,7 +101,20 @@ function registerIpc(): void {
   ipcMain.handle('account:save', (_e, input: AccountInput) => {
     const id = insertAccount(db, input)
     storeCredential(db, id, input.password) // encrypted; plaintext never persisted
+    // Kick off a background sync for the new account; don't block the response.
+    void syncAccount(db, id).finally(broadcastMailChanged)
     return { id }
+  })
+
+  // --- Mail data + sync (Stage 5) ---------------------------------------------
+  ipcMain.handle('mail:list-folders', (_e, accountId?: number) => listFolders(db, accountId))
+  ipcMain.handle('mail:list-messages', (_e, folderId: number) => listMessages(db, folderId))
+  ipcMain.handle('mail:get-message', (_e, id: number) => getMessage(db, id))
+  ipcMain.handle('mail:mark-read', (_e, id: number, read: boolean) => markRead(db, id, read))
+  ipcMain.handle('mail:sync', async (_e, accountId?: number) => {
+    if (accountId) await syncAccount(db, accountId)
+    else await syncAllAccounts(db)
+    broadcastMailChanged()
   })
 
   // Window controls for the custom (frameless) title bar — operate on whichever
@@ -135,12 +158,15 @@ function createMainWindow(): BrowserWindow {
   return win
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Custom title bar lives in the renderer, so no native menu bar.
   Menu.setApplicationMenu(null)
-  initDatabase()
+  await initDatabase()
   registerIpc()
   createMainWindow()
+
+  // Background sync on launch (non-blocking); refresh the UI when it lands.
+  void syncAllAccounts(db).then(broadcastMailChanged)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()

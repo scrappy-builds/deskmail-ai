@@ -2,7 +2,15 @@
 // truth for IPC payloads so the bridge stays strongly typed on both sides.
 
 import type { LayoutPreferences, Theme } from './layout'
-import type { AccountInput, AccountSummary, ConnectionConfig, TestResult } from './db'
+import type {
+  AccountInput,
+  AccountSummary,
+  ConnectionConfig,
+  FolderSummary,
+  MessageDetail,
+  MessageListItem,
+  TestResult
+} from './db'
 
 export type { LayoutPreferences, Theme }
 
@@ -25,6 +33,16 @@ export interface DeskMailApi {
   testIncoming(config: ConnectionConfig): Promise<TestResult>
   testOutgoing(config: ConnectionConfig): Promise<TestResult>
   saveAccount(input: AccountInput): Promise<{ id: number }>
+  // Mail data (DB-backed; reads work offline) + background sync (Stage 5).
+  mail: {
+    listFolders(accountId?: number): Promise<FolderSummary[]>
+    listMessages(folderId: number): Promise<MessageListItem[]>
+    getMessage(id: number): Promise<MessageDetail | null>
+    markRead(id: number, read: boolean): Promise<void>
+    sync(accountId?: number): Promise<void>
+    // Subscribe to "mail changed" (after a sync/seed). Returns an unsubscribe fn.
+    onChanged(cb: () => void): () => void
+  }
   // Window controls for the custom (frameless) title bar.
   window: {
     minimise(): void
