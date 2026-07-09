@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings, DeskMailApi } from '@shared/types'
-import type { AccountInput, ComposePayload, ConnectionConfig } from '@shared/db'
+import type { AccountInput, ComposePayload, ConnectionConfig, EventInput } from '@shared/db'
 
 // The only surface the renderer can touch. No Node, no ipcRenderer directly —
 // just these typed methods.
@@ -33,6 +33,14 @@ const api: DeskMailApi = {
     deleteDraft: (id: number) => ipcRenderer.invoke('compose:delete-draft', id),
     pickAttachments: () => ipcRenderer.invoke('compose:pick-attachments'),
     send: (payload: ComposePayload) => ipcRenderer.invoke('compose:send', payload)
+  },
+  calendar: {
+    listEvents: (from?: string, to?: string) => ipcRenderer.invoke('calendar:list-events', from, to),
+    createEvent: (input: EventInput) => ipcRenderer.invoke('calendar:create-event', input),
+    updateEvent: (id: number, input: EventInput) => ipcRenderer.invoke('calendar:update-event', id, input),
+    deleteEvent: (id: number) => ipcRenderer.invoke('calendar:delete-event', id),
+    join: (eventId: number) => ipcRenderer.invoke('calendar:join', eventId),
+    acceptInvite: (messageId: number) => ipcRenderer.invoke('calendar:accept-invite', messageId)
   },
   window: {
     minimise: () => ipcRenderer.send('window:minimise'),

@@ -23,14 +23,14 @@ test('search filters the message list and clears back', async () => {
   try {
     const win = await app.firstWindow()
     await win.waitForTimeout(700)
-    await expect(rows(win)).toHaveCount(6)
+    await expect(rows(win)).toHaveCount(7)
 
     await win.getByPlaceholder('Search mail…').fill('invoice')
     await expect(rows(win)).toHaveCount(1)
     await expect(win.getByText('Search: invoice')).toBeVisible()
 
     await win.getByPlaceholder('Search mail…').fill('')
-    await expect(rows(win)).toHaveCount(6)
+    await expect(rows(win)).toHaveCount(7)
   } finally {
     await app.close()
     safeRm(userData)

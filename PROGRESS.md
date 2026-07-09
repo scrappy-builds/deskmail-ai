@@ -9,14 +9,14 @@
 ---
 
 ## Current status
-- **Active stage:** Stage 6 complete (awaiting go-ahead for Stage 7).
-- **Last session ended:** 2026-07-09 — Stage 6 built, tested, committed.
-- **Exact next step:** On user's OK, start **Stage 7 — Calendar & meetings**: month view, events in the
-  `events` table, New Event modal, meeting-provider selection (Teams / Google Meet / Zoom / in-person /
-  custom link) that generates a join link and launches the installed desktop app (fallback to browser);
-  email invites parse to an invite card, Accept adds the event to the calendar. Wire the Calendar tab +
-  "New event" primary button (already switches label in the command bar). Tests: event CRUD; invite →
-  event; provider link/launch.
+- **Active stage:** Stage 7 complete (awaiting go-ahead for Stage 8).
+- **Last session ended:** 2026-07-09 — Stage 7 built, tested, committed.
+- **Exact next step:** On user's OK, start **Stage 8 — Added power features**: per-account **signatures**
+  (management UI in Settings, live preview, append toggle — table + default already exist); **send-later
+  & undo-send** (`scheduled_sends`, background sender, configurable undo window); **snooze / remind-me**
+  (`snoozes`); **canned reply templates** (`templates`, seed a few in Jamie's voice); **contacts /
+  address book** (`contacts`, auto-collect + autocomplete); unified **Today agenda** (unread + due +
+  today's events). One test per feature covering its core path.
 
 ### Environment gotcha (read on a fresh machine / after `rm -rf node_modules`)
 The `electron` npm postinstall did **not** extract the binary automatically here — `npm install`
@@ -80,7 +80,7 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
 - [x] **Stage 4** — SQLite + migrations + account wizard + secure credentials + connection tests
 - [x] **Stage 5** — Sync + parsing + offline cache + safe rendering (sanitise, block remote images)
 - [x] **Stage 6** — Search + Compose + Drafts + manual Send + signature insertion
-- [ ] **Stage 7** — Calendar + invites + meeting providers
+- [x] **Stage 7** — Calendar + invites + meeting providers
 - [ ] **Stage 8** — Added features: per-account signatures · send-later/undo-send · snooze · templates · contacts · Today agenda
 - [ ] **Stage 9** — Local MCP server (safe tools; Claude Desktop connector config)
 - [ ] **Stage 10** — Packaging (installer) + local backup + USB/portable mode
@@ -255,6 +255,33 @@ Tick only when the stage's tests pass AND the app builds + launches. Then ask th
   - Sent mail isn't appended to the IMAP Sent folder yet (SMTP send only). Drafts don't persist attachments.
   - No Drafts list UI yet (drafts persist + are queryable; a browse/reopen view can come later).
 - Next step: Stage 7 (calendar + invites + meeting providers).
+
+### Stage 7
+- Done:
+  - `shared/meetings.ts` — providers (Teams/Meet/Zoom/in-person/custom) with colours, `generateJoinLink`
+    (format-correct placeholder links; custom uses the pasted URL), `providerFromText`.
+  - `db/events.ts` — event CRUD + attendees; video providers auto-get a join link. `listEvents(from,to)`
+    for the month. Migration **v2**: `messages.invite_json`.
+  - `main/mail/ics.ts` — minimal RFC-5545 parser (unfold, VEVENT, SUMMARY/DTSTART/DTEND/LOCATION/URL/
+    ORGANIZER/ATTENDEE; literal HH:MM). Ingest detects a text/calendar part or .ics attachment → stores
+    parsed invite JSON on the message; `MessageDetail.invite`.
+  - `main/meetings.ts` — `appUriFor` (Teams `msteams:` / Zoom `zoommtg:` deep links; others browser) +
+    `joinMeeting` (respects the launch-desktop-app app_setting, browser fallback via shell.openExternal).
+  - IPC/bridge: `calendar:list-events/create/update/delete/join/accept-invite`. accept-invite builds an
+    event from the message's parsed invite.
+  - **UI:** `calendarStore` + `Calendar` (sidebar with New event + Upcoming; month grid, Monday-first,
+    today highlight, colour-coded events, click a day to add); `EventModal` (title, native date/time,
+    provider picker with join note / custom link field, guests, notes); `InviteCard` in the reading pane
+    + full window (Accept/Tentative/Decline; **Accept adds the event**). Command-bar primary button is
+    Compose in mail, New event in calendar. Demo seed gained an ICS invite email.
+- Tests: `npm test` → 49 unit (+9: events CRUD, link generation, deep-link derivation, provider detect,
+  ICS parse). `npm run test:e2e` → 14 (+2: create event shows in the grid; **accept invite → event in the
+  calendar**). Adjusted db user_version (→2) and the demo row count (→7) after the migration/seed changes.
+- Known issues / TODO:
+  - Week/Day views are labels only (Month works). No event edit/delete UI yet (CRUD exists in the DB/IPC).
+  - ICS times are taken literally (no timezone conversion). Real per-provider meetings use placeholder links.
+  - `join` launches via shell.openExternal (not E2E-tested to avoid opening real apps); pure parts are unit-tested.
+- Next step: Stage 8 (added power features).
 
 _(Add a block like the above for each stage as you go.)_
 

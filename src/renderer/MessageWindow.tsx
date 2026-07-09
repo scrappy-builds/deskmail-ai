@@ -3,6 +3,7 @@ import { Icon, type IconName } from './Icon'
 import type { MessageDetail } from '@shared/db'
 import { fmtFullDate, initials } from './mail/format'
 import { EmailBody } from './mail/EmailBody'
+import { InviteCard } from './mail/InviteCard'
 
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
 
@@ -123,6 +124,12 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
             </div>
             <div className="text-[12.5px] text-text-3">{fmtFullDate(m.receivedAt)}</div>
           </div>
+
+          {m.invite && (
+            <div className="-mx-6 mt-4">
+              <InviteCard messageId={m.id} invite={m.invite} />
+            </div>
+          )}
 
           <div className="mt-[18px]">
             <EmailBody html={m.bodyHtml} text={m.bodyText} />

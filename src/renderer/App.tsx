@@ -5,12 +5,18 @@ import { Workspace } from './regions/Workspace'
 import { ViewSettings } from './ViewSettings'
 import { Settings } from './settings/Settings'
 import { Compose } from './compose/Compose'
+import { Calendar } from './calendar/Calendar'
+import { useCalendar } from './store/calendarStore'
 
 export function App(): JSX.Element {
   const [mode, setMode] = useState<Mode>('mail')
   const [viewSettingsOpen, setViewSettingsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
+  const openNewEvent = useCalendar((s) => s.openNew)
+
+  // The command-bar primary button is Compose in mail, New event in calendar.
+  const onPrimary = (): void => (mode === 'mail' ? setComposeOpen(true) : openNewEvent())
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-bg text-text">
@@ -19,22 +25,10 @@ export function App(): JSX.Element {
         mode={mode}
         onMode={setMode}
         onOpenViewSettings={() => setViewSettingsOpen(true)}
-        onCompose={() => setComposeOpen(true)}
+        onCompose={onPrimary}
       />
 
-      {mode === 'mail' ? (
-        <Workspace onOpen={(id) => window.deskmail.openMessage(id)} />
-      ) : (
-        <main className="flex min-h-0 flex-1 items-center justify-center p-8">
-          <div className="max-w-[420px] text-center">
-            <div className="text-[17px] font-bold">The calendar goes here</div>
-            <p className="mt-2 text-[13.5px] leading-relaxed text-text-2">
-              Month view, events and meeting links land in Stage 7. For now the layout system is what
-              I'm building — try the presets in View Settings.
-            </p>
-          </div>
-        </main>
-      )}
+      {mode === 'mail' ? <Workspace onOpen={(id) => window.deskmail.openMessage(id)} /> : <Calendar />}
 
       {viewSettingsOpen && <ViewSettings onClose={() => setViewSettingsOpen(false)} />}
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}

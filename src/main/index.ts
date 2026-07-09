@@ -9,13 +9,15 @@ import { listFolders } from '../db/folders'
 import { getMessage, listMessages, markRead, searchMessages } from '../db/messages'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
 import { ensureDefaultSignature, getDefaultSignature } from '../db/signatures'
+import { createEvent, deleteEvent, getEvent, listEvents, updateEvent } from '../db/events'
 import { storeCredential } from './credentials'
 import { testIncoming, testOutgoing } from './mail/connectionTest'
 import { syncAccount, syncAllAccounts } from './mail/sync'
 import { sendMail } from './mail/send'
+import { joinMeeting } from './meetings'
 import { maybeSeedDemo } from './mail/demoSeed'
 import type { AppSettings } from '@shared/types'
-import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig } from '@shared/db'
+import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig, EventInput } from '@shared/db'
 
 // Allow an override data directory (used by E2E tests now; the basis for
 // portable/USB mode in Stage 10). Must be set before the app is ready.
@@ -45,6 +47,11 @@ function safeSize(path: string): number {
   } catch {
     return 0
   }
+}
+
+function appSetting(key: string): string | null {
+  const row = db.get('SELECT value FROM app_settings WHERE key = ?', [key]) as { value: string | null } | undefined
+  return row?.value ?? null
 }
 
 // Secure webPreferences shared by every window: no Node in the renderer,
@@ -146,6 +153,37 @@ function registerIpc(): void {
   })
   // The ONLY path that sends mail — reached solely from the user's Send click.
   ipcMain.handle('compose:send', (_e, payload: ComposePayload) => sendMail(db, payload))
+
+  // --- Calendar & meetings (Stage 7) ------------------------------------------
+  ipcMain.handle('calendar:list-events', (_e, from?: string, to?: string) => listEvents(db, from, to))
+  ipcMain.handle('calendar:create-event', (_e, input: EventInput) => ({ id: createEvent(db, input) }))
+  ipcMain.handle('calendar:update-event', (_e, id: number, input: EventInput) => updateEvent(db, id, input))
+  ipcMain.handle('calendar:delete-event', (_e, id: number) => deleteEvent(db, id))
+  ipcMain.handle('calendar:join', async (_e, eventId: number) => {
+    const ev = getEvent(db, eventId)
+    if (!ev) return
+    const launchDesktopApp = appSetting('launch-desktop-app') !== 'false'
+    await joinMeeting({ provider: ev.provider, joinUrl: ev.joinUrl, launchDesktopApp })
+  })
+  // Accept an email invite → create a calendar event from its parsed data.
+  ipcMain.handle('calendar:accept-invite', (_e, messageId: number) => {
+    const msg = getMessage(db, messageId)
+    if (!msg?.invite) return null
+    const inv = msg.invite
+    const id = createEvent(db, {
+      title: inv.title,
+      date: inv.date,
+      start: inv.start,
+      end: inv.end,
+      provider: inv.provider,
+      location: inv.location,
+      joinUrl: inv.joinUrl,
+      notes: null,
+      calendar: 'Invitations',
+      guests: inv.guests
+    })
+    return { id }
+  })
 
   // Window controls for the custom (frameless) title bar — operate on whichever
   // window sent the request, so message windows close independently.

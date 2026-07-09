@@ -1,6 +1,7 @@
 import { simpleParser, type AddressObject } from 'mailparser'
 import type { MessageInsert } from '@shared/db'
 import { addAttachment, upsertMessage } from '../../db/messages'
+import { parseIcs } from './ics'
 import type { DB } from '../../db/database'
 
 export interface IngestMeta {
@@ -50,7 +51,18 @@ export async function ingestRaw(db: DB, meta: IngestMeta, raw: Buffer | string):
   }
 
   const attachments = parsed.attachments ?? []
-  const id = upsertMessage(db, insert, attachments.length > 0)
+
+  // Detect a calendar invite (a text/calendar part or an .ics attachment).
+  let inviteJson: string | null = null
+  const cal = attachments.find(
+    (a) => (a.contentType ?? '').toLowerCase().includes('calendar') || (a.filename ?? '').toLowerCase().endsWith('.ics')
+  )
+  if (cal?.content) {
+    const invite = parseIcs(cal.content.toString('utf-8'))
+    if (invite) inviteJson = JSON.stringify(invite)
+  }
+
+  const id = upsertMessage(db, insert, attachments.length > 0, inviteJson)
   for (const att of attachments) {
     // ponytail: store metadata only; attachment content is fetched to disk when
     // the user chooses to open it (attachments never auto-open, per the spec).

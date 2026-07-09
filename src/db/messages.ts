@@ -1,4 +1,4 @@
-import type { AttachmentInfo, MessageDetail, MessageInsert, MessageListItem } from '@shared/db'
+import type { AttachmentInfo, InviteData, MessageDetail, MessageInsert, MessageListItem } from '@shared/db'
 import type { DB } from './database'
 
 function parseJsonArray(s: string | null): string[] {
@@ -13,7 +13,7 @@ function parseJsonArray(s: string | null): string[] {
 
 // Insert or replace a message identified by (account_id, folder_id, remote_uid).
 // Returns the message id. Idempotent so re-syncing a folder doesn't duplicate rows.
-export function upsertMessage(db: DB, m: MessageInsert, hasAttachments = false): number {
+export function upsertMessage(db: DB, m: MessageInsert, hasAttachments = false, inviteJson: string | null = null): number {
   let id: number | undefined
   if (m.remoteUid != null && m.folderId != null) {
     const existing = db.get(
@@ -41,14 +41,15 @@ export function upsertMessage(db: DB, m: MessageInsert, hasAttachments = false):
     sent_at: m.sentAt,
     is_read: m.isRead ? 1 : 0,
     is_starred: m.isStarred ? 1 : 0,
-    has_attachments: hasAttachments ? 1 : 0
+    has_attachments: hasAttachments ? 1 : 0,
+    invite_json: inviteJson
   }
 
   if (id != null) {
     db.run(
       `UPDATE messages SET is_read = ?, is_starred = ?, snippet = ?, body_text = ?, body_html = ?,
-         has_attachments = ?, updated_at = datetime('now') WHERE id = ?`,
-      [cols.is_read, cols.is_starred, cols.snippet, cols.body_text, cols.body_html, cols.has_attachments, id]
+         has_attachments = ?, invite_json = ?, updated_at = datetime('now') WHERE id = ?`,
+      [cols.is_read, cols.is_starred, cols.snippet, cols.body_text, cols.body_html, cols.has_attachments, cols.invite_json, id]
     )
     return id
   }
@@ -117,7 +118,7 @@ export function listMessages(db: DB, folderId: number): MessageListItem[] {
 
 export function getMessage(db: DB, id: number): MessageDetail | null {
   const r = db.get('SELECT * FROM messages WHERE id = ?', [id]) as unknown as
-    | (MessageRow & { to_json: string | null; cc_json: string | null; bcc_json: string | null; body_text: string | null; body_html: string | null })
+    | (MessageRow & { to_json: string | null; cc_json: string | null; bcc_json: string | null; body_text: string | null; body_html: string | null; invite_json: string | null })
     | undefined
   if (!r) return null
   const atts = db.all('SELECT id, filename, mime_type, size FROM attachments WHERE message_id = ?', [id]) as unknown as {
@@ -127,6 +128,14 @@ export function getMessage(db: DB, id: number): MessageDetail | null {
     size: number | null
   }[]
   const attachments: AttachmentInfo[] = atts.map((a) => ({ id: a.id, filename: a.filename, mimeType: a.mime_type, size: a.size }))
+  let invite: InviteData | null = null
+  if (r.invite_json) {
+    try {
+      invite = JSON.parse(r.invite_json) as InviteData
+    } catch {
+      invite = null
+    }
+  }
   return {
     ...toListItem(r),
     to: parseJsonArray(r.to_json),
@@ -134,7 +143,8 @@ export function getMessage(db: DB, id: number): MessageDetail | null {
     bcc: parseJsonArray(r.bcc_json),
     bodyText: r.body_text,
     bodyHtml: r.body_html,
-    attachments
+    attachments,
+    invite
   }
 }
 

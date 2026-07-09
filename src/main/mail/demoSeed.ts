@@ -20,6 +20,48 @@ function rawEmail(opts: { from: string; to: string; subject: string; date: strin
   ].join('\r\n')
 }
 
+// A calendar invite email: multipart with an inline text/calendar (ICS) part.
+const INVITE_ICS = [
+  'BEGIN:VCALENDAR',
+  'VERSION:2.0',
+  'METHOD:REQUEST',
+  'BEGIN:VEVENT',
+  'SUMMARY:Q3 launch sync',
+  'DTSTART:20260709T140000Z',
+  'DTEND:20260709T143000Z',
+  'LOCATION:Microsoft Teams Meeting',
+  'URL:https://teams.microsoft.com/l/meetup-join/demo-q3-sync',
+  'ORGANIZER;CN=Maya Chen:mailto:maya@northwind.studio',
+  'ATTENDEE;CN=Jamie Bell:mailto:jamie@example.com',
+  'ATTENDEE;CN=Alex Reed:mailto:alex@northwind.studio',
+  'END:VEVENT',
+  'END:VCALENDAR'
+].join('\r\n')
+
+function inviteEmail(): string {
+  return [
+    'From: "Maya Chen" <maya@northwind.studio>',
+    'To: jamie@example.com',
+    'Subject: Invitation: Q3 launch sync (Thu 9 Jul, 14:00)',
+    'Date: Tue, 07 Jul 2026 09:20:00 +0100',
+    `Message-ID: <invite-${Math.random().toString(36).slice(2)}@northwind.studio>`,
+    'MIME-Version: 1.0',
+    'Content-Type: multipart/mixed; boundary="MIX"',
+    '',
+    '--MIX',
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    '<p>Sending a calendar invite for a short sync on the Q3 launch timeline so we can confirm sign-off before the vendor call.</p>',
+    '--MIX',
+    'Content-Type: text/calendar; method=REQUEST; name="invite.ics"',
+    'Content-Disposition: attachment; filename="invite.ics"',
+    '',
+    INVITE_ICS,
+    '--MIX--',
+    ''
+  ].join('\r\n')
+}
+
 const EMAILS = [
   {
     from: '"Maya Chen" <maya@northwind.studio>',
@@ -102,6 +144,8 @@ export async function seedDemo(db: DB): Promise<void> {
       rawEmail(e)
     )
   }
+  // A calendar-invite email so the invite card + Accept can be demoed/tested.
+  await ingestRaw(db, { accountId, folderId: inboxId, remoteUid: uid++, isRead: false, isStarred: false }, inviteEmail())
   refreshFolderCounts(db, inboxId)
 }
 

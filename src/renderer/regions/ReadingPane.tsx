@@ -1,6 +1,7 @@
 import { Icon, type IconName } from '../Icon'
 import { fmtFullDate, initials } from '../mail/format'
 import { EmailBody } from '../mail/EmailBody'
+import { InviteCard } from '../mail/InviteCard'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
 
@@ -85,6 +86,8 @@ export function ReadingPane({ onOpen }: { onOpen?: (id: number) => void }): JSX.
             <div className="flex-none text-[12px] text-text-3">{fmtFullDate(m.receivedAt)}</div>
           </div>
         </div>
+
+        {m.invite && <InviteCard messageId={m.id} invite={m.invite} />}
 
         <EmailBody html={m.bodyHtml} text={m.bodyText} />
 

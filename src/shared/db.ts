@@ -1,5 +1,7 @@
 // Shared types for DB rows and account setup / connection testing.
 
+import type { MeetingProvider } from './meetings'
+
 export type IncomingType = 'imap' | 'pop3'
 export type Security = 'ssl' | 'starttls' | 'none'
 
@@ -99,6 +101,54 @@ export interface MessageDetail extends MessageListItem {
   bodyText: string | null
   bodyHtml: string | null
   attachments: AttachmentInfo[]
+  invite: InviteData | null
+}
+
+// --- Calendar & meetings -------------------------------------------------------
+export interface EventAttendee {
+  name: string | null
+  email: string | null
+  response: string | null
+}
+
+export interface EventInput {
+  title: string
+  date: string // YYYY-MM-DD
+  start: string | null // HH:MM
+  end: string | null
+  provider: MeetingProvider
+  location: string | null
+  joinUrl: string | null
+  notes: string | null
+  calendar: string | null
+  guests: string[]
+}
+
+export interface EventSummary {
+  id: number
+  title: string
+  date: string
+  start: string | null
+  end: string | null
+  provider: MeetingProvider
+  location: string | null
+  joinUrl: string | null
+  notes: string | null
+  calendar: string | null
+  attendees: EventAttendee[]
+}
+
+// Parsed from an email calendar invite (ICS).
+export interface InviteData {
+  title: string
+  date: string
+  start: string | null
+  end: string | null
+  location: string | null
+  organiser: string | null
+  guests: string[]
+  provider: MeetingProvider
+  joinUrl: string | null
 }
 
 export interface ComposeAttachment {

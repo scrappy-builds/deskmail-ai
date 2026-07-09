@@ -201,5 +201,8 @@ export const MIGRATIONS: string[] = [
     email TEXT,
     response TEXT
   );
-  `
+  `,
+
+  // --- v2: parsed calendar-invite data attached to a message ------------------
+  `ALTER TABLE messages ADD COLUMN invite_json TEXT;`
 ]

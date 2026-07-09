@@ -9,6 +9,8 @@ import type {
   ComposePayload,
   ConnectionConfig,
   DraftSummary,
+  EventInput,
+  EventSummary,
   FolderSummary,
   MessageDetail,
   MessageListItem,
@@ -58,6 +60,16 @@ export interface DeskMailApi {
     pickAttachments(): Promise<ComposeAttachment[]>
     // Send is a manual action only — this is the sole path that sends mail.
     send(payload: ComposePayload): Promise<SendResult>
+  }
+  // Calendar & meetings (Stage 7).
+  calendar: {
+    listEvents(from?: string, to?: string): Promise<EventSummary[]>
+    createEvent(input: EventInput): Promise<{ id: number }>
+    updateEvent(id: number, input: EventInput): Promise<void>
+    deleteEvent(id: number): Promise<void>
+    join(eventId: number): Promise<void>
+    // Accept an email invite → adds it to the calendar, returns the new event id.
+    acceptInvite(messageId: number): Promise<{ id: number } | null>
   }
   // Window controls for the custom (frameless) title bar.
   window: {
