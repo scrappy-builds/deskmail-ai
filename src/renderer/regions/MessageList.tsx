@@ -3,6 +3,7 @@ import { Icon } from '../Icon'
 import type { MessageListItem } from '@shared/db'
 import { fmtTime, initials, messageDateGroup } from '../mail/format'
 import { sortMessages, SORT_LABELS, type SortDir, type SortField } from '../mail/sortMessages'
+import { MSG_DND_TYPE } from '../mail/dnd'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
 
@@ -34,6 +35,7 @@ function Row({
   onToggleCheck,
   onSelect,
   onOpen,
+  onDragStart,
   rowPaddingY,
   clamp,
   showSnippet,
@@ -45,6 +47,7 @@ function Row({
   onToggleCheck: () => void
   onSelect: () => void
   onOpen: () => void
+  onDragStart: (e: React.DragEvent) => void
   rowPaddingY: number
   clamp: number
   showSnippet: boolean
@@ -55,6 +58,8 @@ function Row({
   return (
     <div
       data-testid={`msg-row-${m.id}`}
+      draggable
+      onDragStart={onDragStart}
       onClick={onSelect}
       onDoubleClick={onOpen}
       className="flex cursor-pointer gap-2.5 border-b border-border hover:bg-hover"
@@ -149,6 +154,14 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
     if (openInFullWindow) onOpen?.(msgId)
   }
 
+  // Dragging a row carries its id — or every ticked id if the row is part of a
+  // multi-selection — so it can be dropped on a sidebar folder to move it.
+  const startDrag = (e: React.DragEvent, msgId: number): void => {
+    const ids = selectedIds.has(msgId) && selectedIds.size > 0 ? [...selectedIds] : [msgId]
+    e.dataTransfer.setData(MSG_DND_TYPE, JSON.stringify(ids))
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
   return (
     <>
       <div className="flex h-12 flex-none items-center gap-2.5 border-b border-border px-3.5">
@@ -237,6 +250,7 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
                   onToggleCheck={() => toggleSelected(m.id)}
                   onSelect={() => handleSelect(m.id)}
                   onOpen={() => onOpen?.(m.id)}
+                  onDragStart={(e) => startDrag(e, m.id)}
                   rowPaddingY={rowPaddingY}
                   clamp={Math.max(1, previewLineCount)}
                   showSnippet={showSnippet}

@@ -37,7 +37,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 - [x] **Edit menu** — [easy]. Undo (last mail action), Select all, Find / Find in message, Mark read / unread, Delete.
 - [x] **View menu** — [med]. View settings, a **Layout drop-down** showing the preset views (Classic / Bottom / Focus / Wide / Right / List-only) as a menu, **Folder-pane show/hide**, reading-pane position, message-list density, **Expand / collapse all conversations**, **Zoom (text size) in/out/reset**, and Sort / Arrange-by.
 - [x] **Message / Actions menu** — [easy]. Reply, Reply all, Forward, Move to, Categorise, Flag / Unflag, Pin, Snooze, Block sender, Mark all read — the same actions as the ribbon, reachable from the menu bar.
-- [x] **Drag an email onto a sidebar folder to move it** — [med]. Direct drag-to-file, in addition to the Move menu.
 
 ---
 

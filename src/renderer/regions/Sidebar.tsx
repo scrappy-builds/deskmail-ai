@@ -3,6 +3,22 @@ import { Icon, type IconName } from '../Icon'
 import type { FolderSummary } from '@shared/db'
 import { useMail } from '../store/mailStore'
 import { useToast } from '../store/toastStore'
+import { MSG_DND_TYPE } from '../mail/dnd'
+
+// Move any dragged message rows into a folder (returns true if it handled a drop).
+function handleMessageDrop(e: React.DragEvent, folderId: number, name: string, toast: (t: { text: string }) => void): boolean {
+  const raw = e.dataTransfer.getData(MSG_DND_TYPE)
+  if (!raw) return false
+  e.preventDefault()
+  try {
+    const ids = JSON.parse(raw) as number[]
+    for (const mid of ids) void window.deskmail.mail.action(mid, 'move', folderId)
+    toast({ text: `Moved ${ids.length} message${ids.length > 1 ? 's' : ''} to ${name}` })
+  } catch {
+    /* malformed payload */
+  }
+  return true
+}
 
 // Display order for the familiar mailboxes; custom folders (role null) sort after.
 const ROLE_ORDER: Record<string, number> = { inbox: 0, sent: 2, junk: 3, trash: 4, archive: 5 }
@@ -163,7 +179,7 @@ function CustomFolderRow({
         const y = e.clientY - r.top
         onDragOver(y < r.height * 0.28 ? 'before' : y > r.height * 0.72 ? 'after' : 'inside')
       }}
-      onDrop={(e) => { e.preventDefault(); onDrop() }}
+      onDrop={(e) => { if (handleMessageDrop(e, f.id, f.name, showToast)) return; e.preventDefault(); onDrop() }}
       onDragEnd={onDragEnd}
       style={{
         marginLeft: indent,
@@ -498,6 +514,8 @@ export function Sidebar({
               <button
                 onClick={() => void setFolder(f.id)}
                 onContextMenu={showLabels ? (e) => { e.preventDefault(); setMenuFolderId(f.id) } : undefined}
+                onDragOver={(e) => { if (e.dataTransfer.types.includes(MSG_DND_TYPE)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move' } }}
+                onDrop={(e) => handleMessageDrop(e, f.id, f.name, showToast)}
                 title={f.name}
                 className="mb-px flex w-full items-center gap-3 rounded-md px-[9px] py-2 hover:bg-hover"
                 style={{
