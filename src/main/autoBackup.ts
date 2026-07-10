@@ -1,6 +1,6 @@
 import { backupTo } from './backup'
 import { getAppSetting, setAppSetting } from '../db/settings'
-import type { DB } from '../db/database'
+import { quickCheckOk, type DB } from '../db/database'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -13,6 +13,12 @@ export function checkAutoBackup(db: DB, userDataDir: string): void {
   if (!dir || !days || days < 1) return
   const last = getAppSetting(db, 'auto-backup-last')
   if (last && Date.now() - new Date(last).getTime() < days * DAY_MS) return
+  // Never let a corrupt database overwrite the last good backup — that's the
+  // actual data-loss vector this check closes.
+  if (!quickCheckOk(db)) {
+    console.error('Auto-backup skipped: database failed its integrity check.')
+    return
+  }
   try {
     backupTo(userDataDir, dir)
     setAppSetting(db, 'auto-backup-last', new Date().toISOString())

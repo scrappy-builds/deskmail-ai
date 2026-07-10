@@ -4,7 +4,7 @@ import { app, dialog, session, shell, nativeImage, BrowserWindow, ipcMain, Menu,
 import { loadSettings } from './settings'
 import { resolveDataDir } from './dataDir'
 import { backupTo, restoreFrom } from './backup'
-import { openDatabase, type DB } from '../db/database'
+import { openDatabase, quarantineIfCorrupt, type DB } from '../db/database'
 import { getAppSetting, loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty, setAppSetting } from '../db/settings'
 import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/accounts'
 import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
@@ -71,8 +71,13 @@ const spoolDir = () => join(app.getPath('userData'), 'sent-spool')
 let db: DB
 
 // Open the SQLite store and, on first run, import the Stage 1–3 settings.json.
+// A corrupt store is quarantined first (never written into); the user is told
+// once the window is up and pointed at restore-from-backup.
+let corruptDbBackupPath: string | null = null
 async function initDatabase(): Promise<void> {
-  db = openDatabase(join(app.getPath('userData'), 'deskmail.db'))
+  const file = join(app.getPath('userData'), 'deskmail.db')
+  corruptDbBackupPath = quarantineIfCorrupt(file)
+  db = openDatabase(file)
   const legacy = existsSync(settingsPath()) ? loadSettings(settingsPath()) : null
   seedLayoutIfEmpty(db, legacy)
   seedTemplatesIfEmpty(db) // canned replies exist for real use, not just demo
@@ -1024,6 +1029,15 @@ app.whenReady().then(async () => {
   // A Windows sign-in launch passes --hidden (see setStartup) so we come up in
   // the tray, syncing quietly, instead of opening the window.
   createMainWindow(process.argv.includes('--hidden'))
+
+  if (corruptDbBackupPath) {
+    void dialog.showMessageBox({
+      type: 'warning',
+      title: 'DeskMail AI',
+      message: 'Your mail database was damaged, so I set it aside and started fresh.',
+      detail: `The damaged file is kept at:\n${corruptDbBackupPath}\n\nIf you have a backup, restore it from Settings → Local storage. Your mail on the server re-syncs automatically either way.`
+    })
+  }
 
   // Scheduled local backup: check on launch, then hourly.
   checkAutoBackup(db, app.getPath('userData'))
