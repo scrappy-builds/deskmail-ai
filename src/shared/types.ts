@@ -3,6 +3,7 @@
 
 import type { LayoutPreferences, Theme } from './layout'
 import type { CustomTheme } from './theme'
+import type { Keymap } from './shortcuts'
 import type {
   AccountInput,
   AccountSummary,
@@ -209,6 +210,12 @@ export interface DeskMailApi {
   // Claude connector (local MCP server) info for the Settings pane (Stage 9).
   mcp: {
     info(): Promise<{ configJson: string; tools: string[]; dbPath: string }>
+  }
+  // Keyboard shortcuts: master on/off flag + the remappable key→action map.
+  shortcuts: {
+    get(): Promise<{ enabled: boolean; map: Keymap }>
+    setEnabled(on: boolean): Promise<void>
+    setMap(map: Keymap): Promise<void>
   }
   // Senders whose remote images always load ("always for this sender").
   trust: {

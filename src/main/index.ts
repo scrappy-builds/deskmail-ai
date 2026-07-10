@@ -6,6 +6,7 @@ import { resolveDataDir } from './dataDir'
 import { backupTo, restoreFrom } from './backup'
 import { openDatabase, quarantineIfCorrupt, type DB } from '../db/database'
 import { getAppSetting, loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty, setAppSetting } from '../db/settings'
+import { mergeKeymap, type Keymap } from '@shared/shortcuts'
 import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/accounts'
 import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
 import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
@@ -816,6 +817,21 @@ function registerIpc(): void {
 
   ipcMain.handle('mail:junk-enabled', () => getAppSetting(db, 'junk-filter') !== 'off')
   ipcMain.handle('mail:set-junk-enabled', (_e, on: boolean) => setAppSetting(db, 'junk-filter', on ? 'on' : 'off'))
+  // Keyboard shortcuts: a master on/off flag plus a remappable key→action map.
+  // The map is stored as a JSON blob of overrides; get merges it onto the
+  // defaults so a partial/missing/corrupt blob still yields a full valid map.
+  ipcMain.handle('shortcuts:get', () => {
+    let stored: Partial<Keymap> | null = null
+    try {
+      const raw = getAppSetting(db, 'shortcuts-map')
+      stored = raw ? (JSON.parse(raw) as Partial<Keymap>) : null
+    } catch {
+      stored = null
+    }
+    return { enabled: getAppSetting(db, 'shortcuts-enabled') !== 'off', map: mergeKeymap(stored) }
+  })
+  ipcMain.handle('shortcuts:set-enabled', (_e, on: boolean) => setAppSetting(db, 'shortcuts-enabled', on ? 'on' : 'off'))
+  ipcMain.handle('shortcuts:set-map', (_e, map: Keymap) => setAppSetting(db, 'shortcuts-map', JSON.stringify(map)))
   // Trusted senders (always load remote images). User-visible in Settings.
   ipcMain.handle('trust:is', (_e, email: string) => isTrustedSender(db, email))
   ipcMain.handle('trust:add', (_e, email: string) => trustSender(db, email))

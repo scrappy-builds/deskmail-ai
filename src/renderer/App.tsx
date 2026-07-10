@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { TitleBar } from './TitleBar'
 import { useMail } from './store/mailStore'
+import { useToast } from './store/toastStore'
+import { installShortcuts } from './shortcuts'
+import { ShortcutHelp } from './ShortcutHelp'
+import { buildReplyDraft } from './mail/reply'
+import { DEFAULT_KEYMAP, type Keymap } from '@shared/shortcuts'
+import type { MailOp } from '@shared/db'
 import { CommandBar, type Mode } from './CommandBar'
 import { Workspace } from './regions/Workspace'
 import { ViewSettings } from './ViewSettings'
@@ -41,8 +47,59 @@ export function App(): JSX.Element {
   const [outboxOpen, setOutboxOpen] = useState(false)
   const [smartBuilderOpen, setSmartBuilderOpen] = useState(false)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
+  const [shortcutCfg, setShortcutCfg] = useState<{ enabled: boolean; map: Keymap }>({ enabled: false, map: DEFAULT_KEYMAP })
   const openNewEvent = useCalendar((s) => s.openNew)
   const folders = useMail((s) => s.folders)
+
+  const reloadShortcuts = (): void => void window.deskmail.shortcuts.get().then(setShortcutCfg)
+  useEffect(reloadShortcuts, [])
+
+  // Global keyboard shortcuts. The listener mounts once and reads the live config
+  // through a ref each keypress, so remaps and the master toggle apply instantly
+  // and without re-binding. Shortcuts are gated to Mail mode with no modal open.
+  const anyModalOpen = viewSettingsOpen || settingsOpen || draftsOpen || outboxOpen || smartBuilderOpen || attachmentsOpen || shortcutHelpOpen
+  const gateRef = useRef({ enabled: false, map: DEFAULT_KEYMAP as Keymap, active: false })
+  gateRef.current = { enabled: shortcutCfg.enabled, map: shortcutCfg.map, active: mode === 'mail' && !anyModalOpen }
+  useEffect(() => {
+    const quick = (op: MailOp, toast: string): void => {
+      const s = useMail.getState()
+      const id = s.selectedId
+      if (id == null) return
+      void window.deskmail.mail.action(id, op).then(() => {
+        void s.refresh()
+        useToast.getState().show({ text: toast })
+      })
+    }
+    return installShortcuts(
+      () => ({ enabled: gateRef.current.enabled && gateRef.current.active, map: gateRef.current.map }),
+      {
+        nextMessage: () => void useMail.getState().selectNext(),
+        prevMessage: () => void useMail.getState().selectPrev(),
+        open: () => {
+          const id = useMail.getState().selectedId
+          if (id != null) window.deskmail.openMessage(id)
+        },
+        archive: () => quick('archive', 'Archived'),
+        delete: () => quick('trash', 'Moved to Bin'),
+        reply: () => {
+          const s = useMail.getState()
+          const sel = s.selected
+          if (!sel) return
+          const selfEmail = s.accounts.find((a) => a.id === sel.accountId)?.emailAddress
+          void window.deskmail.compose.saveDraft(buildReplyDraft(sel, 'reply', selfEmail)).then(({ id }) => window.deskmail.openCompose(id))
+        },
+        compose: () => window.deskmail.openCompose(),
+        search: () => (document.getElementById('deskmail-search') as HTMLInputElement | null)?.focus(),
+        toggleUnread: () => {
+          const sel = useMail.getState().selected
+          if (!sel) return
+          quick(sel.isRead ? 'unread' : 'read', sel.isRead ? 'Marked unread' : 'Marked read')
+        },
+        help: () => setShortcutHelpOpen(true)
+      }
+    )
+  }, [])
 
   // Windows taskbar unread badge: draw a small PNG from the total Inbox unread and
   // hand it to the main process (or clear it at zero).
@@ -85,7 +142,7 @@ export function App(): JSX.Element {
       {mode === 'today' && <Today />}
 
       {viewSettingsOpen && <ViewSettings onClose={() => setViewSettingsOpen(false)} />}
-      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <Settings onClose={() => { setSettingsOpen(false); reloadShortcuts() }} />}
       {draftsOpen && (
         <DraftsModal
           onClose={() => setDraftsOpen(false)}
@@ -98,6 +155,7 @@ export function App(): JSX.Element {
       {outboxOpen && <OutboxModal onClose={() => setOutboxOpen(false)} />}
       {smartBuilderOpen && <SmartViewBuilder onClose={() => setSmartBuilderOpen(false)} />}
       {attachmentsOpen && <AttachmentsBrowser onClose={() => setAttachmentsOpen(false)} />}
+      {shortcutHelpOpen && <ShortcutHelp map={shortcutCfg.map} onClose={() => setShortcutHelpOpen(false)} />}
       <Toast />
     </div>
   )

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings, DeskMailApi } from '@shared/types'
 import type { CustomTheme } from '@shared/theme'
+import type { Keymap } from '@shared/shortcuts'
 import type { AccountInput, ComposePayload, ConnectionConfig, ContactInput, EventInput, MailOp, NotifySettings, RuleInput, SmartViewInput, SnoozeOption } from '@shared/db'
 
 // The only surface the renderer can touch. No Node, no ipcRenderer directly —
@@ -132,6 +133,11 @@ const api: DeskMailApi = {
   },
   mcp: {
     info: () => ipcRenderer.invoke('mcp:info')
+  },
+  shortcuts: {
+    get: () => ipcRenderer.invoke('shortcuts:get'),
+    setEnabled: (on: boolean) => ipcRenderer.invoke('shortcuts:set-enabled', on),
+    setMap: (map: Keymap) => ipcRenderer.invoke('shortcuts:set-map', map)
   },
   trust: {
     is: (email: string) => ipcRenderer.invoke('trust:is', email),

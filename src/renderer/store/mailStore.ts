@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { AccountSummary, FolderSummary, LabelInfo, MessageDetail, MessageListItem, SmartView } from '@shared/db'
 import { useLayout } from './layoutStore'
-import type { SortDir, SortField } from '../mail/sortMessages'
+import { sortMessages, type SortDir, type SortField } from '../mail/sortMessages'
 
 function loadSort(): { field: SortField; dir: SortDir } {
   try {
@@ -46,11 +46,26 @@ interface MailState {
   setSmartView: (id: number) => Promise<void>
   setUnified: () => Promise<void>
   select: (id: number) => Promise<void>
+  selectNext: () => Promise<void> // keyboard j: move down the sorted list
+  selectPrev: () => Promise<void> // keyboard k: move up the sorted list
   toggleSelected: (id: number) => void
   clearSelected: () => void
   selectAll: (ids: number[]) => void
   sync: () => Promise<void>
   runSearch: (query: string) => Promise<void>
+}
+
+// Shared by selectNext/selectPrev: order the current list the way the user sees
+// it, then select the row `dir` steps from the current one (clamped to the ends;
+// first row if nothing is selected yet).
+async function step(get: () => MailState, dir: 1 | -1): Promise<void> {
+  const s = get()
+  const ordered = sortMessages(s.messages, s.sort.field, s.sort.dir)
+  if (ordered.length === 0) return
+  const cur = ordered.findIndex((m) => m.id === s.selectedId)
+  const nextIndex = cur < 0 ? 0 : Math.min(ordered.length - 1, Math.max(0, cur + dir))
+  const target = ordered[nextIndex]
+  if (target && target.id !== s.selectedId) await s.select(target.id)
 }
 
 export const useMail = create<MailState>((set, get) => ({
@@ -175,6 +190,13 @@ export const useMail = create<MailState>((set, get) => ({
       void doMark()
     }
   },
+
+  // Move selection one row down/up the list in the same order the user sees it
+  // (the store's current sort). Selecting the first row when nothing's selected.
+  // ponytail: navigates the flat sorted list — ignores thread-collapse and the
+  // Focused/Other tab filter, which are view-only concerns.
+  selectNext: async () => step(get, +1),
+  selectPrev: async () => step(get, -1),
 
   sync: async () => {
     set({ syncing: true })

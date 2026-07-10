@@ -9,10 +9,20 @@
 ---
 
 ## Current status
-- **Active stage:** **BUILD DONE (12 stages) + post-build feature round.**
-- **Last session ended:** 2026-07-09 — post-build features added, tested, committed; installers rebuilt.
-- **Where things stand:** **83 unit + 24 E2E green**; clean rebuild + typecheck; packaged app + MCP server
-  verified. Installers (with the app icon) at `release/DeskMail AI-0.1.0-setup.exe` + `-portable.exe`.
+- **Active stage:** **Backlog batch — building Plans 3, 4, 1 (in that order).**
+- **Last session ended:** 2026-07-10 — mid-batch. Plan 3 (keyboard shortcuts) in progress.
+- **Where things stand:** unit + E2E green after each committed stage; clean typecheck. See the
+  **Backlog batch** log at the bottom of this file for the live per-stage state and next step.
+
+### Backlog batch progress (Plans 3 → 4 → 1)
+- **Plan 3 — Keyboard shortcuts** (customisable):
+  - [x] 3.1 shared model + pure dispatch + unit test (`src/shared/shortcuts.ts`).
+  - [x] 3.2 persistence (app_settings + IPC `shortcuts:get/set-enabled/set-map`), `mailStore`
+    `selectNext/selectPrev`, `installShortcuts`, `App` wiring, `ShortcutHelp` cheat-sheet. E2E: j/k
+    nav + Enter opens; `/` focuses search; `?` opens help; typing in search doesn't navigate.
+  - [ ] 3.3 Settings → Shortcuts pane (master toggle + per-action rebind/clear/reset) + E2E. ← **next**
+- **Plan 4 — Default mail app (mailto)** — not started.
+- **Plan 1 — Full mail sync** — not started.
 
 ### Post-build features (requested after the 12 stages)
 - **App icon + title-bar logo** — `icon/icon.png` → electron-builder icon + the top-left logo.
