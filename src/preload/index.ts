@@ -141,7 +141,9 @@ const api: DeskMailApi = {
     autoBackupSet: (dir: string | null, days: number) => ipcRenderer.invoke('storage:auto-backup-set', dir, days),
     pickFolder: () => ipcRenderer.invoke('storage:pick-folder'),
     dedupeCount: () => ipcRenderer.invoke('storage:dedupe-count'),
-    dedupe: () => ipcRenderer.invoke('storage:dedupe')
+    dedupe: () => ipcRenderer.invoke('storage:dedupe'),
+    attachmentCacheGet: () => ipcRenderer.invoke('storage:attachment-cache-get'),
+    attachmentCacheSet: (mb: number) => ipcRenderer.invoke('storage:attachment-cache-set', mb)
   },
   theme: {
     export: (theme: CustomTheme) => ipcRenderer.invoke('theme:export', theme),

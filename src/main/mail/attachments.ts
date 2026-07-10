@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { simpleParser } from 'mailparser'
 import { getFolder } from '../../db/folders'
@@ -8,6 +8,47 @@ import type { DB } from '../../db/database'
 
 function safeName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '_')
+}
+
+// --- Attachment cache limit ----------------------------------------------------
+// Downloaded attachment files are a cache: metadata rows persist and files are
+// re-downloadable from IMAP, so capping the folder is safe. Evicts oldest
+// download first until under budget. maxBytes <= 0 means unlimited (still tidies
+// rows whose files vanished). `protect` = message ids currently open in windows.
+export function sweepAttachmentCache(db: DB, maxBytes: number, protect: Set<number> = new Set()): { evicted: number; bytesUsed: number } {
+  const rows = db.all(
+    'SELECT id, message_id, local_path FROM attachments WHERE local_path IS NOT NULL ORDER BY downloaded_at ASC, id ASC'
+  ) as unknown as { id: number; message_id: number; local_path: string }[]
+
+  const entries: { id: number; messageId: number; path: string; size: number }[] = []
+  let total = 0
+  for (const r of rows) {
+    try {
+      const size = statSync(r.local_path).size
+      entries.push({ id: r.id, messageId: r.message_id, path: r.local_path, size })
+      total += size
+    } catch {
+      // File already gone (user tidied the folder) — just clear the row.
+      db.run('UPDATE attachments SET local_path = NULL, downloaded_at = NULL WHERE id = ?', [r.id])
+    }
+  }
+
+  let evicted = 0
+  if (maxBytes > 0) {
+    for (const e of entries) {
+      if (total <= maxBytes) break
+      if (protect.has(e.messageId)) continue
+      try {
+        unlinkSync(e.path)
+      } catch {
+        /* locked or already gone — the row is cleared either way */
+      }
+      db.run('UPDATE attachments SET local_path = NULL, downloaded_at = NULL WHERE id = ?', [e.id])
+      total -= e.size
+      evicted++
+    }
+  }
+  return { evicted, bytesUsed: total }
 }
 
 // Download a message's attachments from IMAP into destDir and record their paths.

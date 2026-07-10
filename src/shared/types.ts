@@ -217,6 +217,9 @@ export interface DeskMailApi {
     // One-off duplicate-message cleanup (exact Message-ID matches only).
     dedupeCount(): Promise<number>
     dedupe(): Promise<{ removed: number }>
+    // Downloaded-attachment cache cap in MB (0 = unlimited) + current usage.
+    attachmentCacheGet(): Promise<{ mb: number; bytesUsed: number }>
+    attachmentCacheSet(mb: number): Promise<{ evicted: number; bytesUsed: number }>
   }
   // Custom colour themes: export one to / import one from a .deskmailtheme file.
   theme: {

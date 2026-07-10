@@ -23,7 +23,7 @@ import { getNotifySettings, notificationsSuppressed, type NotifySettings } from 
 import { applyAction, emptyFolder } from '../db/mailActions'
 import { trainBayesFromMessage } from '../db/bayes'
 import { drainMailActions } from './mail/drainer'
-import { fetchAndSaveAttachments } from './mail/attachments'
+import { fetchAndSaveAttachments, sweepAttachmentCache } from './mail/attachments'
 import { listAttachmentRows } from '../db/messages'
 import { exportForNotebookLM } from '../mcp/export'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
@@ -265,6 +265,16 @@ function safeSize(path: string): number {
 function appSetting(key: string): string | null {
   const row = db.get('SELECT value FROM app_settings WHERE key = ?', [key]) as { value: string | null } | undefined
   return row?.value ?? null
+}
+
+// Attachment cache cap in MB (Settings → Local storage; 0 = unlimited).
+function attachmentCacheMb(): number {
+  const n = Number(appSetting('attachment-cache-mb') ?? '500')
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : 500
+}
+// Evict oldest downloaded attachments over budget; open message windows are safe.
+function sweepAttachments(): { evicted: number; bytesUsed: number } {
+  return sweepAttachmentCache(db, attachmentCacheMb() * 1024 * 1024, new Set(messageWindows.keys()))
 }
 
 // Undo-send window in seconds (Settings → Sending; 0 = off, send immediately).
@@ -761,6 +771,7 @@ function registerIpc(): void {
     if (!row?.local_path || !existsSync(row.local_path)) {
       await fetchAndSaveAttachments(db, messageId, attachDir(messageId))
       row = listAttachmentRows(db, messageId).find((r) => r.id === attachmentId)
+      sweepAttachments() // keep the cache under its cap after each download
     }
     if (!row?.local_path || !existsSync(row.local_path)) {
       return { ok: false, error: "I couldn't download that attachment — the account may be offline." }
@@ -855,6 +866,13 @@ function registerIpc(): void {
     } catch {
       return { theme: null, error: 'Not a valid DeskMail theme file.' }
     }
+  })
+
+  // Attachment cache cap (downloaded copies are re-fetchable, so evicting is safe).
+  ipcMain.handle('storage:attachment-cache-get', () => ({ mb: attachmentCacheMb(), bytesUsed: sweepAttachments().bytesUsed }))
+  ipcMain.handle('storage:attachment-cache-set', (_e, mb: number) => {
+    setAppSetting(db, 'attachment-cache-mb', String(Math.max(0, Math.round(mb))))
+    return sweepAttachments()
   })
 
   // One-off duplicate cleanup (same Message-ID left over from imports).
@@ -1038,6 +1056,8 @@ app.whenReady().then(async () => {
       detail: `The damaged file is kept at:\n${corruptDbBackupPath}\n\nIf you have a backup, restore it from Settings → Local storage. Your mail on the server re-syncs automatically either way.`
     })
   }
+
+  sweepAttachments() // enforce the attachment-cache cap on launch
 
   // Scheduled local backup: check on launch, then hourly.
   checkAutoBackup(db, app.getPath('userData'))

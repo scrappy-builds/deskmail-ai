@@ -741,6 +741,8 @@ export function LocalStoragePane(): JSX.Element {
   const [info, setInfo] = useState<{ dataDir: string; portable: boolean } | null>(null)
   const [autoDir, setAutoDir] = useState<string | null>(null)
   const [autoDays, setAutoDays] = useState(0)
+  const [cacheMb, setCacheMb] = useState<number | null>(null)
+  const [cacheUsed, setCacheUsed] = useState<number | null>(null)
   const showToast = useToast((s) => s.show)
   useEffect(() => {
     void window.deskmail.storage.info().then(setInfo)
@@ -748,7 +750,17 @@ export function LocalStoragePane(): JSX.Element {
       setAutoDir(a.dir || null)
       setAutoDays(a.days)
     })
+    void window.deskmail.storage.attachmentCacheGet().then((c) => {
+      setCacheMb(c.mb)
+      setCacheUsed(c.bytesUsed)
+    })
   }, [])
+
+  const saveCache = (mb: number): void => {
+    const clamped = Math.max(0, Math.round(mb))
+    setCacheMb(clamped)
+    void window.deskmail.storage.attachmentCacheSet(clamped).then((r) => setCacheUsed(r.bytesUsed))
+  }
 
   const backup = async (): Promise<void> => {
     const r = await window.deskmail.storage.backup()
@@ -839,6 +851,27 @@ export function LocalStoragePane(): JSX.Element {
           )}
         </div>
         {autoDir && <div className="mt-2 break-all font-mono text-[11.5px] text-text-3">{autoDir}</div>}
+      </div>
+
+      <div className="rounded-md border border-border bg-bg px-3.5 py-3">
+        <div className="text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Attachment cache</div>
+        <p className="mt-1 text-[12px] leading-relaxed text-text-3">
+          Attachments you open are kept on disk so they open instantly next time. Over the cap, the
+          oldest are removed — they re-download from the server whenever needed.
+        </p>
+        <div className="mt-2.5 flex flex-wrap items-center gap-2.5 text-[12.5px] text-text-2">
+          Cap at
+          <input
+            type="number"
+            min={0}
+            value={cacheMb ?? ''}
+            onChange={(e) => saveCache(Number(e.target.value))}
+            aria-label="Attachment cache MB"
+            className="w-[80px] rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent"
+          />
+          MB (0 = unlimited)
+          <span className="text-text-3">· currently using {((cacheUsed ?? 0) / (1024 * 1024)).toFixed(1)} MB</span>
+        </div>
       </div>
 
       <div className="rounded-md border border-border bg-bg px-3.5 py-3">
