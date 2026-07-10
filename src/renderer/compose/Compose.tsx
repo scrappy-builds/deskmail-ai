@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import { Node } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '../Icon'
+
+// Minimal inline image node (avoids adding @tiptap/extension-image just for this).
+const InlineImage = Node.create({
+  name: 'image',
+  group: 'inline',
+  inline: true,
+  draggable: true,
+  addAttributes: () => ({ src: { default: null }, alt: { default: null } }),
+  parseHTML: () => [{ tag: 'img[src]' }],
+  renderHTML: ({ HTMLAttributes }) => ['img', { ...HTMLAttributes, style: 'max-width:100%' }]
+})
 import type { AccountSummary, ComposeAttachment, ComposePayload, Contact, DraftSummary, SignatureItem, Template } from '@shared/db'
 import { mentionsAttachment } from '../mail/reply'
 import { useToast } from '../store/toastStore'
@@ -44,8 +56,41 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
   const [importance, setImportance] = useState<'high' | 'normal' | 'low'>('normal')
   const [busy, setBusy] = useState(false)
 
+  // Paste/drop images inline; drop other files to attach them.
+  const handleFiles = (files: File[]): void => {
+    for (const f of files) {
+      if (f.type.startsWith('image/')) {
+        const r = new FileReader()
+        r.onload = () => editor?.chain().focus().insertContent({ type: 'image', attrs: { src: r.result } }).run()
+        r.readAsDataURL(f)
+      } else {
+        const path = (f as File & { path?: string }).path
+        if (path) setAttachments((prev) => [...prev, { path, name: f.name, size: f.size }])
+      }
+    }
+  }
+
   // spellcheck: 'true' turns on Electron's live spell-check underlines in the body.
-  const editor = useEditor({ extensions: [StarterKit], content: draft?.bodyHtml ?? '', editorProps: { attributes: { spellcheck: 'true' } } })
+  const editor = useEditor({
+    extensions: [StarterKit, InlineImage],
+    content: draft?.bodyHtml ?? '',
+    editorProps: {
+      attributes: { spellcheck: 'true' },
+      handlePaste: (_v, event) => {
+        const files = Array.from(event.clipboardData?.files ?? [])
+        if (files.length === 0) return false
+        handleFiles(files)
+        return true
+      },
+      handleDrop: (_v, event) => {
+        const files = Array.from((event as DragEvent).dataTransfer?.files ?? [])
+        if (files.length === 0) return false
+        event.preventDefault()
+        handleFiles(files)
+        return true
+      }
+    }
+  })
 
   useEffect(() => {
     if (accountId == null) return

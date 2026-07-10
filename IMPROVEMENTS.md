@@ -38,7 +38,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 ## Tier 3 — nice-to-haves
 
 - [x] **Multi-column list view (optional)** — [big]. A classic table view (sortable From / Subject / Date / Size columns) as an alternative to the current card rows.
-- [x] **Inline images + attach from the compose window** — [med]. Confirm/extend drag-in attachments and inline image paste.
 - [ ] **Local database encryption / master password** — [big]. SQLCipher-style, so a stolen laptop can't read the cached message bodies. (Passwords are already OS-encrypted; this would extend that to message content.)
 - [ ] **Per-account colour accents throughout** — [easy]. Dots exist; extend to the reading pane.
 - [ ] **Accent-colour picker** — [easy]. Let the user pick the single accent colour (the green) without a full theming system — small, high-impact polish.
