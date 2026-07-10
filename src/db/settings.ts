@@ -1,4 +1,5 @@
 import { DEFAULT_LAYOUT, type LayoutPreferences } from '@shared/layout'
+import type { CustomTheme } from '@shared/theme'
 import type { DB } from './database'
 
 // Maps the single-row layout_preferences table <-> the LayoutPreferences shape.
@@ -18,6 +19,17 @@ interface LayoutRow {
   selected_layout_preset: string
   theme: string
   font_scale: number | null
+  custom_themes_json: string | null
+  active_theme_id: string | null
+}
+
+function parseThemes(json: string | null | undefined): CustomTheme[] {
+  try {
+    const parsed = JSON.parse(json ?? '') as unknown
+    return Array.isArray(parsed) ? (parsed as CustomTheme[]) : []
+  } catch {
+    return []
+  }
 }
 
 function rowToPrefs(r: LayoutRow): LayoutPreferences {
@@ -35,7 +47,9 @@ function rowToPrefs(r: LayoutRow): LayoutPreferences {
     claudePanelPosition: r.claude_panel_position as LayoutPreferences['claudePanelPosition'],
     selectedLayoutPreset: r.selected_layout_preset as LayoutPreferences['selectedLayoutPreset'],
     theme: r.theme as LayoutPreferences['theme'],
-    fontScale: r.font_scale ?? 1
+    fontScale: r.font_scale ?? 1,
+    customThemes: parseThemes(r.custom_themes_json),
+    activeThemeId: r.active_theme_id ?? null
   }
 }
 
@@ -50,8 +64,9 @@ export function saveLayoutPrefs(db: DB, p: LayoutPreferences): void {
        id, reading_pane_position, reading_pane_visible, sidebar_position, sidebar_mode,
        message_list_density, message_list_style, preview_line_count, open_email_behaviour,
        mark_read_behaviour, mark_read_delay_seconds,
-       claude_panel_position, selected_layout_preset, theme, font_scale, updated_at
-     ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       claude_panel_position, selected_layout_preset, theme, font_scale,
+       custom_themes_json, active_theme_id, updated_at
+     ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
      ON CONFLICT(id) DO UPDATE SET
        reading_pane_position = excluded.reading_pane_position,
        reading_pane_visible  = excluded.reading_pane_visible,
@@ -67,6 +82,8 @@ export function saveLayoutPrefs(db: DB, p: LayoutPreferences): void {
        selected_layout_preset = excluded.selected_layout_preset,
        theme                 = excluded.theme,
        font_scale            = excluded.font_scale,
+       custom_themes_json    = excluded.custom_themes_json,
+       active_theme_id       = excluded.active_theme_id,
        updated_at            = datetime('now')`,
     [
       p.readingPanePosition,
@@ -82,7 +99,9 @@ export function saveLayoutPrefs(db: DB, p: LayoutPreferences): void {
       p.claudePanelPosition,
       p.selectedLayoutPreset,
       p.theme,
-      p.fontScale
+      p.fontScale,
+      JSON.stringify(p.customThemes),
+      p.activeThemeId
     ]
   )
 }

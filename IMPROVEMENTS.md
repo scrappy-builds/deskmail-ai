@@ -38,8 +38,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 
 - [ ] **Local database encryption / master password** — [big]. SQLCipher-style, so a stolen laptop can't read the cached message bodies. (Passwords are already OS-encrypted; this would extend that to message content.)
 - [ ] **Per-account colour accents throughout** — [easy]. Dots exist; extend to the reading pane.
-- [ ] **Accent-colour picker** — [easy]. Let the user pick the single accent colour (the green) without a full theming system — small, high-impact polish.
-- [ ] **Full theme editor with a colour picker (VERY LOW priority)** — [big]. An environment where you click a region (background, panels, etc.) and set its colour with a colour picker to recolour the whole app; icons stay as they are. Large job — parked here as a someday idea, explicitly low priority.
 
 ---
 

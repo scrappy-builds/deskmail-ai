@@ -7,6 +7,7 @@ import {
   type LayoutPreset,
   type Theme
 } from '@shared/layout'
+import { applyTheme } from '../theme'
 
 // Layout / UI state — kept deliberately separate from mail data state (mailStore).
 // Every change persists to settings.json via the IPC bridge so it restores on launch.
@@ -32,7 +33,7 @@ export const useLayout = create<LayoutState>((set, get) => ({
 
   hydrate: async () => {
     const prefs = await window.deskmail.getSettings()
-    document.documentElement.setAttribute('data-theme', prefs.theme)
+    applyTheme(prefs)
     window.deskmail.setZoom(prefs.fontScale)
     set({ prefs, hydrated: true })
   },
@@ -45,14 +46,19 @@ export const useLayout = create<LayoutState>((set, get) => ({
 
   setPref: (key, value) => {
     const prefs = applyPref(get().prefs, key, value)
-    if (key === 'theme') document.documentElement.setAttribute('data-theme', prefs.theme)
+    if (key === 'theme' || key === 'customThemes' || key === 'activeThemeId') applyTheme(prefs)
     if (key === 'fontScale') window.deskmail.setZoom(prefs.fontScale)
     persist(prefs)
     set({ prefs })
   },
 
+  // Flips light/dark and drops back to the built-in theme if a custom one is on.
   toggleTheme: () => {
-    const next: Theme = get().prefs.theme === 'dark' ? 'light' : 'dark'
-    get().setPref('theme', next)
+    const p = get().prefs
+    const theme: Theme = p.theme === 'dark' ? 'light' : 'dark'
+    const prefs = { ...p, theme, activeThemeId: null }
+    applyTheme(prefs)
+    persist(prefs)
+    set({ prefs })
   }
 }))

@@ -2,6 +2,8 @@
 // Kept framework-free in /shared so the renderer and the tests share one source
 // of truth. Values (widths, paddings) mirror design-files/DeskMail AI.dc.html.
 
+import type { CustomTheme } from './theme'
+
 export type Theme = 'light' | 'dark'
 export type ReadingPanePosition = 'right' | 'bottom' | 'left' | 'hidden'
 export type SidebarPosition = 'left' | 'right'
@@ -35,6 +37,8 @@ export interface LayoutPreferences {
   selectedLayoutPreset: LayoutPreset
   theme: Theme
   fontScale: number // UI zoom / text-size, 0.8..1.4 (accessibility)
+  customThemes: CustomTheme[] // user-made colour schemes (see shared/theme.ts)
+  activeThemeId: string | null // null = built-in `theme`; else a CustomTheme.id
 }
 
 export const DEFAULT_LAYOUT: LayoutPreferences = {
@@ -51,7 +55,9 @@ export const DEFAULT_LAYOUT: LayoutPreferences = {
   claudePanelPosition: 'right',
   selectedLayoutPreset: 'classic',
   theme: 'light',
-  fontScale: 1
+  fontScale: 1,
+  customThemes: [],
+  activeThemeId: null
 }
 
 // The six presets: each is a partial override of the current prefs. Fields not

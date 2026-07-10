@@ -41,6 +41,7 @@ import { syncAccount, syncAllAccounts } from './mail/sync'
 import { sendMail } from './mail/send'
 import { joinMeeting } from './meetings'
 import { maybeSeedDemo } from './mail/demoSeed'
+import { validateImportedTheme, type CustomTheme } from '@shared/theme'
 import type { AppSettings } from '@shared/types'
 import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig, ContactInput, EventInput, MailOp, RuleInput, SmartViewInput, SnoozeOption } from '@shared/db'
 
@@ -738,6 +739,36 @@ function registerIpc(): void {
     setAppSetting(db, 'auto-backup-days', String(days))
     checkAutoBackup(db, app.getPath('userData')) // run now if newly due
   })
+  // Custom theme export/import — a .deskmailtheme file is just the CustomTheme
+  // object as JSON. Imports are untrusted: validated + re-idd before use.
+  ipcMain.handle('theme:export', async (e, theme: CustomTheme) => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const safe = (theme.name || 'theme').replace(/[^\w -]+/g, '_').slice(0, 40)
+    const res = await dialog.showSaveDialog(win!, {
+      title: 'Export theme',
+      defaultPath: `${safe}.deskmailtheme`,
+      filters: [{ name: 'DeskMail theme', extensions: ['deskmailtheme', 'json'] }]
+    })
+    if (res.canceled || !res.filePath) return { path: null }
+    writeFileSync(res.filePath, JSON.stringify(theme, null, 2), 'utf-8')
+    return { path: res.filePath }
+  })
+  ipcMain.handle('theme:import', async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const res = await dialog.showOpenDialog(win!, {
+      title: 'Import theme',
+      properties: ['openFile'],
+      filters: [{ name: 'DeskMail theme', extensions: ['deskmailtheme', 'json'] }]
+    })
+    if (res.canceled || !res.filePaths[0]) return { theme: null }
+    try {
+      const theme = validateImportedTheme(JSON.parse(readFileSync(res.filePaths[0], 'utf-8')))
+      return theme ? { theme } : { theme: null, error: 'Not a valid DeskMail theme file.' }
+    } catch {
+      return { theme: null, error: 'Not a valid DeskMail theme file.' }
+    }
+  })
+
   ipcMain.handle('storage:pick-folder', async (e) => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     const res = await dialog.showOpenDialog(win!, { title: 'Choose a backup folder', properties: ['openDirectory', 'createDirectory'] })

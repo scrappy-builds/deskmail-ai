@@ -9,6 +9,7 @@ import './styles.css'
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Compose } from './compose/Compose'
+import { applyTheme } from './theme'
 import { Toast } from './Toast'
 import { ErrorBoundary } from './ErrorBoundary'
 import type { DraftSummary } from '@shared/db'
@@ -17,9 +18,7 @@ import type { DraftSummary } from '@shared/db'
 const draftId = Number(new URLSearchParams(location.search).get('draftId')) || null
 
 // Match the app's theme (persisted). Independent window, so read it directly.
-void window.deskmail.getSettings().then((s) => {
-  document.documentElement.setAttribute('data-theme', s.theme)
-})
+void window.deskmail.getSettings().then(applyTheme)
 
 // Load the draft (if any) before rendering, so Compose gets its initial state.
 function Root(): JSX.Element | null {

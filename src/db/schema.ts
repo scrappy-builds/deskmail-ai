@@ -301,5 +301,9 @@ export const MIGRATIONS: string[] = [
   `ALTER TABLE messages ADD COLUMN list_unsubscribe TEXT;`,
 
   // --- v17: follow-up flag with a due date (surfaced in Today when due) ----------
-  `ALTER TABLE messages ADD COLUMN followup_at TEXT;`
+  `ALTER TABLE messages ADD COLUMN followup_at TEXT;`,
+
+  // --- v18: custom colour themes (JSON array) + which one is active --------------
+  `ALTER TABLE layout_preferences ADD COLUMN custom_themes_json TEXT;
+   ALTER TABLE layout_preferences ADD COLUMN active_theme_id TEXT;`
 ]

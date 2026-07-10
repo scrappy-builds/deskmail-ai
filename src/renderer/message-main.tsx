@@ -9,15 +9,14 @@ import './styles.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MessageWindow } from './MessageWindow'
+import { applyTheme } from './theme'
 import { ErrorBoundary } from './ErrorBoundary'
 
 // The message id is passed on the URL by the main process.
 const id = Number(new URLSearchParams(location.search).get('id'))
 
 // Match the app's theme (persisted). Independent window, so read it directly.
-void window.deskmail.getSettings().then((s) => {
-  document.documentElement.setAttribute('data-theme', s.theme)
-})
+void window.deskmail.getSettings().then(applyTheme)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -2,6 +2,7 @@
 // truth for IPC payloads so the bridge stays strongly typed on both sides.
 
 import type { LayoutPreferences, Theme } from './layout'
+import type { CustomTheme } from './theme'
 import type {
   AccountInput,
   AccountSummary,
@@ -197,6 +198,11 @@ export interface DeskMailApi {
     autoBackupGet(): Promise<{ dir: string | null; days: number }>
     autoBackupSet(dir: string | null, days: number): Promise<void>
     pickFolder(): Promise<{ path: string | null }>
+  }
+  // Custom colour themes: export one to / import one from a .deskmailtheme file.
+  theme: {
+    export(theme: CustomTheme): Promise<{ path: string | null }>
+    import(): Promise<{ theme: CustomTheme | null; error?: string }>
   }
   // Set the UI text-size zoom factor across every window (accessibility).
   setZoom(factor: number): void

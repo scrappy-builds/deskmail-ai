@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings, DeskMailApi } from '@shared/types'
+import type { CustomTheme } from '@shared/theme'
 import type { AccountInput, ComposePayload, ConnectionConfig, ContactInput, EventInput, MailOp, NotifySettings, RuleInput, SmartViewInput, SnoozeOption } from '@shared/db'
 
 // The only surface the renderer can touch. No Node, no ipcRenderer directly —
@@ -128,6 +129,10 @@ const api: DeskMailApi = {
     autoBackupGet: () => ipcRenderer.invoke('storage:auto-backup-get'),
     autoBackupSet: (dir: string | null, days: number) => ipcRenderer.invoke('storage:auto-backup-set', dir, days),
     pickFolder: () => ipcRenderer.invoke('storage:pick-folder')
+  },
+  theme: {
+    export: (theme: CustomTheme) => ipcRenderer.invoke('theme:export', theme),
+    import: () => ipcRenderer.invoke('theme:import')
   },
   setZoom: (factor: number) => ipcRenderer.send('ui:set-zoom', factor),
   notify: {

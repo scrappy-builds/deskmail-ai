@@ -3,6 +3,7 @@ import { Icon } from '../Icon'
 import type { AccountInput, AccountSummary } from '@shared/db'
 import { AccountWizard } from './AccountWizard'
 import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, NotificationsPane, RulesPane, SecurityPane, SendingPane, SignaturesPane, TemplatesPane } from './panes'
+import { AppearancePane } from './ThemeEditor'
 
 const SECTIONS = [
   'Accounts',
@@ -152,6 +153,7 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
             {section === 'Contacts' && <ContactsPane />}
             {section === 'Sending' && <SendingPane />}
             {section === 'Claude connector' && <ClaudeConnectorPane />}
+            {section === 'Appearance' && <AppearancePane />}
             {section === 'Security' && <SecurityPane />}
             {section === 'Local storage' && <LocalStoragePane />}
             {section !== 'Accounts' &&
@@ -162,6 +164,7 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
               section !== 'Contacts' &&
               section !== 'Sending' &&
               section !== 'Claude connector' &&
+              section !== 'Appearance' &&
               section !== 'Security' &&
               section !== 'Local storage' && <Placeholder name={section} />}
           </div>

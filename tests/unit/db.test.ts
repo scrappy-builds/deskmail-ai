@@ -32,7 +32,7 @@ describe('database migrations', () => {
   it('creates every table and sets user_version', () => {
     const db = openDatabase(file)
     const version = (db.get('PRAGMA user_version') as { user_version: number }).user_version
-    expect(version).toBe(17)
+    expect(version).toBe(18)
 
     const rows = db.all("SELECT name FROM sqlite_master WHERE type='table'") as { name: string }[]
     const names = rows.map((r) => r.name)
@@ -44,7 +44,7 @@ describe('database migrations', () => {
     const db = openDatabase(file)
     runMigrations(db) // again
     const version = (db.get('PRAGMA user_version') as { user_version: number }).user_version
-    expect(version).toBe(17)
+    expect(version).toBe(18)
     db.close()
   })
 
@@ -86,6 +86,18 @@ describe('layout preferences store', () => {
     const db = openDatabase(file)
     seedLayoutIfEmpty(db, { ...DEFAULT_LAYOUT, theme: 'dark' })
     expect(loadLayoutPrefs(db).theme).toBe('dark')
+    db.close()
+  })
+
+  it('round-trips custom themes and the active theme id', () => {
+    const db = openDatabase(file)
+    seedLayoutIfEmpty(db, null)
+    const theme = { version: 1 as const, id: 'warm', name: 'Warm Evening', base: 'dark' as const, tokens: { accent: '#ff8800' } }
+    saveLayoutPrefs(db, { ...DEFAULT_LAYOUT, customThemes: [theme], activeThemeId: 'warm' })
+
+    const loaded = loadLayoutPrefs(db)
+    expect(loaded.customThemes).toEqual([theme])
+    expect(loaded.activeThemeId).toBe('warm')
     db.close()
   })
 })

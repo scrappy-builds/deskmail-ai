@@ -47,8 +47,9 @@ test('boots, is locked down, and persists the theme toggle', async () => {
       .poll(() => win.evaluate(() => document.documentElement.getAttribute('data-theme')))
       .toBe('light')
 
-    // Toggle to dark.
-    await win.getByRole('button', { name: 'Toggle theme' }).click()
+    // Switch to dark via the colour-scheme menu.
+    await win.getByRole('button', { name: 'Colour scheme' }).click()
+    await win.getByRole('button', { name: 'Dark', exact: true }).click()
     await expect
       .poll(() => win.evaluate(() => document.documentElement.getAttribute('data-theme')))
       .toBe('dark')

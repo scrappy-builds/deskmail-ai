@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Icon } from './Icon'
 import { MailActions } from './regions/MailActions'
 import { useLayout } from './store/layoutStore'
@@ -12,9 +13,61 @@ interface CommandBarProps {
   onCompose: () => void
 }
 
+// The old light/dark toggle, grown into a small scheme menu: Light · Dark ·
+// your custom themes. With no custom themes it still behaves as a two-way pick.
+function ThemeMenu(): JSX.Element {
+  const prefs = useLayout((s) => s.prefs)
+  const setPref = useLayout((s) => s.setPref)
+  const [open, setOpen] = useState(false)
+
+  const active = prefs.customThemes.find((t) => t.id === prefs.activeThemeId) ?? null
+  const base = active ? active.base : prefs.theme
+  const label = active ? active.name : base === 'dark' ? 'Dark' : 'Light'
+
+  const pick = (id: string | null, theme?: 'light' | 'dark'): void => {
+    if (theme) setPref('theme', theme)
+    setPref('activeThemeId', id)
+    setOpen(false)
+  }
+  const item = (selected: boolean, text: string, onClick: () => void): JSX.Element => (
+    <button
+      key={text}
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[12.5px] font-semibold hover:bg-hover"
+      style={selected ? { color: 'var(--accent)' } : { color: 'var(--text-2)' }}
+    >
+      <span className="w-3.5 flex-none">{selected && <Icon name="check" size={13} />}</span>
+      <span className="truncate">{text}</span>
+    </button>
+  )
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-[38px] items-center gap-1.5 rounded-md border border-border px-3 text-[13px] font-semibold text-text-2 hover:bg-raised"
+        title="Colour scheme"
+        aria-label="Colour scheme"
+      >
+        <Icon name={base === 'dark' ? 'sun' : 'moon'} size={16} />
+        <span className="max-w-[110px] truncate">{label}</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[70]" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-[42px] z-[71] w-[180px] rounded-md border border-border bg-panel p-1 shadow-raised">
+            {item(!active && prefs.theme === 'light', 'Light', () => pick(null, 'light'))}
+            {item(!active && prefs.theme === 'dark', 'Dark', () => pick(null, 'dark'))}
+            {prefs.customThemes.length > 0 && <div className="my-1 h-px bg-border" />}
+            {prefs.customThemes.map((t) => item(t.id === prefs.activeThemeId, t.name, () => pick(t.id)))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: CommandBarProps): JSX.Element {
-  const theme = useLayout((s) => s.prefs.theme)
-  const toggleTheme = useLayout((s) => s.toggleTheme)
   const searchQuery = useMail((s) => s.searchQuery)
   const runSearch = useMail((s) => s.runSearch)
   const syncing = useMail((s) => s.syncing)
@@ -95,15 +148,7 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
         <Icon name="sliders" size={18} />
       </button>
 
-      <button
-        onClick={toggleTheme}
-        className="flex h-[38px] items-center gap-1.5 rounded-md border border-border px-3 text-[13px] font-semibold text-text-2 hover:bg-raised"
-        title="Switch light / dark"
-        aria-label="Toggle theme"
-      >
-        <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
-        <span>{theme === 'dark' ? 'Dark' : 'Light'}</span>
-      </button>
+      <ThemeMenu />
     </div>
   )
 }
