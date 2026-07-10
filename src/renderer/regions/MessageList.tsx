@@ -135,6 +135,7 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
   const clearSelected = useMail((s) => s.clearSelected)
   const selectAll = useMail((s) => s.selectAll)
   const openInFullWindow = useLayout((s) => s.prefs.openEmailBehaviour === 'full-window')
+  const listStyle = useLayout((s) => s.prefs.messageListStyle)
   const searching = searchQuery.trim().length > 0
   const allSelected = messages.length > 0 && selectedIds.size === messages.length
   const someSelected = selectedIds.size > 0 && !allSelected
@@ -240,6 +241,47 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
                 : "When your mail syncs it'll show up here. Add an account in Settings if you haven't yet."}
             </p>
           </div>
+        ) : listStyle === 'table' ? (
+          <table className="w-full border-collapse text-[12.5px]">
+            <thead className="sticky top-0 z-[1] bg-panel">
+              <tr className="border-b border-border text-left text-[11px] uppercase tracking-[.4px] text-text-3">
+                <th className="w-7" />
+                {([['From', 'sender'], ['Subject', 'subject'], ['Date', 'date']] as [string, SortField][]).map(([label, field]) => (
+                  <th
+                    key={field}
+                    onClick={() => setSortAndSave({ field, dir: sort.field === field && sort.dir === 'desc' ? 'asc' : 'desc' })}
+                    className="cursor-pointer select-none px-2 py-1.5 font-bold hover:text-text-2"
+                  >
+                    {label}{sort.field === field ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((m) => (
+                <tr
+                  key={m.id}
+                  draggable
+                  onDragStart={(e) => startDrag(e, m.id)}
+                  onClick={() => handleSelect(m.id)}
+                  onDoubleClick={() => onOpen?.(m.id)}
+                  className="cursor-pointer border-b border-border hover:bg-hover"
+                  style={{ background: m.id === selectedId ? 'var(--accent-soft)' : undefined, opacity: m.isMuted ? 0.55 : 1 }}
+                >
+                  <td className="pl-3 pr-1">
+                    <input type="checkbox" checked={selectedIds.has(m.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelected(m.id)} className="h-3.5 w-3.5 accent-[var(--accent)]" />
+                  </td>
+                  <td className="max-w-0 truncate px-2 py-1.5" style={{ fontWeight: m.isRead ? 400 : 700 }}>{m.fromName || m.fromEmail || 'Unknown sender'}</td>
+                  <td className="max-w-0 truncate px-2 py-1.5" style={{ fontWeight: m.isRead ? 400 : 700 }}>
+                    {m.importance === 'high' && <span className="mr-1 font-extrabold text-danger">!</span>}
+                    {m.isStarred && <Icon name="star" size={12} className="mr-1 inline text-star" fill />}
+                    {m.subject || '(no subject)'}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-text-3">{fmtTime(m.receivedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : (
           (() => {
             // Interleave date separators (Today/Yesterday/…) when not threading.

@@ -175,7 +175,8 @@ export function ViewSettings({ onClose }: { onClose: () => void }): JSX.Element 
               value={prefs.messageListStyle}
               options={[
                 { label: 'Avatars', val: 'avatars', on: set('messageListStyle', 'avatars') },
-                { label: 'Plain', val: 'plain', on: set('messageListStyle', 'plain') }
+                { label: 'Plain', val: 'plain', on: set('messageListStyle', 'plain') },
+                { label: 'Table', val: 'table', on: set('messageListStyle', 'table') }
               ]}
             />
             <Segmented
