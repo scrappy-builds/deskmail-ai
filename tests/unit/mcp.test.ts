@@ -24,7 +24,8 @@ const EXPECTED_TOOLS = [
   'move_email', 'archive_email', 'delete_email', 'flag_email', 'mark_email_read',
   'export_for_notebooklm',
   'list_labels', 'label_email', 'inbox_overview', 'triage_priority', 'batch_apply',
-  'suggest_rules', 'get_unsubscribe_info', 'create_calendar_event'
+  'suggest_rules', 'get_unsubscribe_info', 'create_calendar_event',
+  'get_sent_context', 'snooze_email', 'set_followup', 'get_daily_digest', 'get_rule_suggestions'
 ].sort()
 
 describe('MCP tool surface', () => {
@@ -142,5 +143,60 @@ describe('MCP tool surface', () => {
   it('batch_apply applies reversible actions only', () => {
     const r = tool('batch_apply').handler({ actions: [{ message_id: 1, action: 'flag' }, { message_id: 1, action: 'send' }] }) as { applied: number; requested: number }
     expect(r).toEqual({ applied: 1, requested: 2 }) // 'send' is ignored
+  })
+
+  it('get_sent_context filters sent mail by recipient and text', () => {
+    db.run("INSERT INTO folders (account_id, name, role, remote_path) VALUES (1,'Sent','sent','Sent')")
+    db.run(
+      `INSERT INTO messages (account_id, folder_id, from_email, to_json, subject, snippet, sent_at)
+       VALUES (1, 2, 'jamie@f3d.uk', '["buyer@norway.example"]', 'Licence terms', 'the licence covers', '2026-07-05T10:00:00Z')`
+    )
+    const byRecipient = tool('get_sent_context').handler({ recipient: 'norway' }) as { message_id: number; to: string[] }[]
+    expect(byRecipient).toHaveLength(1)
+    expect(byRecipient[0].to).toEqual(['buyer@norway.example'])
+    expect(tool('get_sent_context').handler({ query: 'licence' }) as unknown[]).toHaveLength(1)
+    expect(tool('get_sent_context').handler({ query: 'zebra' }) as unknown[]).toHaveLength(0)
+    // Inbox mail never leaks in.
+    expect(tool('get_sent_context').handler({}) as unknown[]).toHaveLength(1)
+  })
+
+  it('snooze_email hides the message until due; invalid input errors cleanly', () => {
+    const r = tool('snooze_email').handler({ message_id: 1, until: 'tomorrow' }) as { ok: boolean; snoozed_until: string }
+    expect(r.ok).toBe(true)
+    expect(Date.parse(r.snoozed_until)).toBeGreaterThan(Date.now())
+    expect(db.get('SELECT 1 x FROM snoozes WHERE message_id = 1')).toBeTruthy()
+    expect((tool('snooze_email').handler({ message_id: 9999, until: 'tomorrow' }) as { ok: boolean }).ok).toBe(false)
+    expect((tool('snooze_email').handler({ message_id: 1, until: 'not-a-date' }) as { ok: boolean }).ok).toBe(false)
+  })
+
+  it('set_followup sets and clears the follow-up date', () => {
+    expect((tool('set_followup').handler({ message_id: 1, due: '2026-07-14' }) as { ok: boolean }).ok).toBe(true)
+    expect((db.get('SELECT followup_at FROM messages WHERE id = 1') as { followup_at: string }).followup_at).toBe('2026-07-14')
+    expect((tool('set_followup').handler({ message_id: 1, due: null }) as { ok: boolean }).ok).toBe(true)
+    expect((db.get('SELECT followup_at FROM messages WHERE id = 1') as { followup_at: string | null }).followup_at).toBeNull()
+    expect((tool('set_followup').handler({ message_id: 9999, due: null }) as { ok: boolean }).ok).toBe(false)
+  })
+
+  it('get_daily_digest returns every section, empty day included', () => {
+    const d = tool('get_daily_digest').handler({}) as Record<string, unknown>
+    expect(Object.keys(d).sort()).toEqual(['awaiting_reply', 'date', 'events', 'followups_due_today', 'snoozes_landing_today', 'tasks', 'unread'])
+    expect(Array.isArray(d.unread)).toBe(true)
+    expect((d.unread as unknown[]).length).toBeLessThanOrEqual(20)
+  })
+
+  it('get_rule_suggestions mines repeated actions and suppresses existing rules', () => {
+    // 5 junked messages from the same sender.
+    for (let i = 0; i < 5; i++) {
+      db.run("INSERT INTO messages (account_id, folder_id, from_email, subject) VALUES (1, 1, 'spammy@bulk.example', 'buy now')")
+      const mid = (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
+      db.run("INSERT INTO mail_actions (message_id, account_id, op) VALUES (?, 1, 'junk')", [mid])
+    }
+    const suggestions = tool('get_rule_suggestions').handler({}) as { value: string; action: string; evidence_count: number }[]
+    expect(suggestions).toHaveLength(1)
+    expect(suggestions[0]).toMatchObject({ value: 'spammy@bulk.example', action: 'junk', evidence_count: 5 })
+
+    // An existing rule for that sender suppresses the suggestion.
+    db.run("INSERT INTO rules (name, field, op, value, action) VALUES ('block', 'from', 'contains', 'spammy@bulk.example', 'junk')")
+    expect(tool('get_rule_suggestions').handler({}) as unknown[]).toHaveLength(0)
   })
 })

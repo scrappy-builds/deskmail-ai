@@ -2,12 +2,15 @@ import { z, type ZodRawShape } from 'zod'
 import type { DB } from '../db/database'
 import { listAccounts } from '../db/accounts'
 import { listFolders } from '../db/folders'
-import { getMessage, searchEmails } from '../db/messages'
+import { getMessage, searchEmails, setFollowup } from '../db/messages'
 import { saveDraft } from '../db/drafts'
 import { applyAction } from '../db/mailActions'
 import { listLabels, setMessageLabel } from '../db/labels'
 import { createEvent } from '../db/events'
-import type { MailOp } from '@shared/db'
+import { suggestRules } from '../db/rules'
+import { computeSnoozeTime, snoozeMessage } from '../db/snoozes'
+import { getDigestData } from '../db/today'
+import type { MailOp, SnoozeOption } from '@shared/db'
 import { exportForNotebookLM } from './export'
 
 // A tool definition kept independent of the MCP SDK so it's directly testable.
@@ -414,6 +417,99 @@ export function buildTools(db: DB, opts?: { exportDir?: string }): ToolDef[] {
         const mailto = raw.match(/<mailto:([^>]+)>/i)?.[1] ?? null
         return { available: Boolean(http || mailto), http_url: http, mailto, raw }
       }
+    },
+    {
+      name: 'get_sent_context',
+      description: 'What has the user already sent? Search sent mail by recipient and/or free text — answers "which of these still need a reply from me?" without guesswork. Read-only.',
+      inputSchema: { recipient: z.string().optional(), query: z.string().optional(), limit: z.number().optional() },
+      handler: (a) => {
+        const limit = Math.min(Math.max((a.limit as number) ?? 10, 1), 50)
+        const where: string[] = ["f.role = 'sent'"]
+        const params: (string | number)[] = []
+        if (a.recipient) {
+          where.push('LOWER(m.to_json) LIKE ?')
+          params.push(`%${String(a.recipient).toLowerCase()}%`)
+        }
+        for (const t of String(a.query ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean)) {
+          where.push('(LOWER(m.subject) LIKE ? OR LOWER(m.snippet) LIKE ? OR LOWER(m.body_text) LIKE ?)')
+          params.push(`%${t}%`, `%${t}%`, `%${t}%`)
+        }
+        const rows = db.all(
+          `SELECT m.id, m.subject, m.to_json, m.sent_at, m.snippet
+             FROM messages m JOIN folders f ON f.id = m.folder_id
+            WHERE ${where.join(' AND ')} ORDER BY m.sent_at DESC LIMIT ?`,
+          [...params, limit]
+        ) as unknown as { id: number; subject: string | null; to_json: string | null; sent_at: string | null; snippet: string | null }[]
+        return rows.map((r) => {
+          let to: string[] = []
+          try { to = JSON.parse(r.to_json ?? '[]') } catch { to = [] }
+          return { message_id: r.id, subject: r.subject, to, sent_at: r.sent_at, snippet: r.snippet }
+        })
+      }
+    },
+    {
+      name: 'snooze_email',
+      description: "Snooze a message until a time — it hides from the inbox and returns when due. Reversible (the user can unsnooze in DeskMail). until: an ISO date-time, or 'later' | 'tomorrow' | 'weekend' | 'nextweek'.",
+      inputSchema: { message_id: z.number(), until: z.string() },
+      handler: (a) => {
+        const id = a.message_id as number
+        if (!getMessage(db, id)) return { ok: false, error: 'No such message.' }
+        const until = String(a.until)
+        const quick = ['later', 'tomorrow', 'weekend', 'nextweek']
+        if (!quick.includes(until) && Number.isNaN(Date.parse(until))) {
+          return { ok: false, error: 'until must be an ISO date-time or a quick option.' }
+        }
+        const iso = quick.includes(until) ? computeSnoozeTime(until as SnoozeOption) : new Date(until).toISOString()
+        snoozeMessage(db, id, iso)
+        return { ok: true, snoozed_until: iso }
+      }
+    },
+    {
+      name: 'set_followup',
+      description: 'Set (or clear with null) a "follow up by" date on a message. Follow-ups surface in the Today view when due. Reversible.',
+      inputSchema: { message_id: z.number(), due: z.string().nullable() },
+      handler: (a) => {
+        const id = a.message_id as number
+        if (!getMessage(db, id)) return { ok: false, error: 'No such message.' }
+        const due = a.due as string | null
+        if (due != null && Number.isNaN(Date.parse(due))) return { ok: false, error: 'due must be an ISO date or null.' }
+        setFollowup(db, id, due)
+        return { ok: true, followup_at: due }
+      }
+    },
+    {
+      name: 'get_daily_digest',
+      description: "One call for \"what's my morning look like?\": today's events, unread highlights, tasks, follow-ups due, snoozes landing today and sent mail still waiting on a reply. Read-only — the digest writing is yours.",
+      inputSchema: {},
+      handler: () => {
+        const now = new Date()
+        const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        const d = getDigestData(db, iso)
+        return {
+          date: iso,
+          events: d.events.map((e) => ({ id: e.id, title: e.title, start: e.start, end: e.end, provider: e.provider })),
+          unread: d.unread.map((m) => ({ message_id: m.id, sender: m.fromName || m.fromEmail, subject: m.subject, snippet: m.snippet, importance: m.importance, focused: m.isFocused })),
+          tasks: d.tasks.map((t) => ({ id: t.id, title: t.title, due_at: t.dueAt, done: t.done })),
+          followups_due_today: d.followupsDueToday.map((f) => ({ message_id: f.id, subject: f.subject, sender: f.fromName || f.fromEmail })),
+          snoozes_landing_today: d.snoozesLandingToday.map((s) => ({ message_id: s.id, subject: s.subject, sender: s.fromName || s.fromEmail, due: s.snoozeUntil })),
+          awaiting_reply: d.awaitingReply.map((n) => ({ message_id: n.id, subject: n.subject, to: n.to, sent_at: n.sentAt }))
+        }
+      }
+    },
+    {
+      name: 'get_rule_suggestions',
+      description: 'Mine the user\'s own actions for rule-worthy patterns ("you\'ve junked 12 from this sender"). Returns ready-to-create rule params; creating a rule is a separate, explicit step the user confirms.',
+      inputSchema: { min_count: z.number().optional() },
+      handler: (a) =>
+        suggestRules(db, Math.max((a.min_count as number) ?? 5, 2)).map((s) => ({
+          field: s.field,
+          op: s.op,
+          value: s.value,
+          action: s.action,
+          target_folder_id: s.targetFolderId,
+          evidence_count: s.count,
+          last_at: s.lastAt
+        }))
     },
     {
       name: 'create_calendar_event',

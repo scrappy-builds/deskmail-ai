@@ -54,6 +54,56 @@ export function deleteRule(db: DB, id: number): void {
   db.run('DELETE FROM rules WHERE id = ?', [id])
 }
 
+// --- Rule suggestions mined from the user's own actions -------------------------
+// "You've junked the last 12 emails from this sender — want a rule?" The
+// evidence is the mail_actions log; each suggestion is shaped as ready-to-create
+// rule params so accepting it is one createRule call.
+export interface RuleSuggestion {
+  field: 'from'
+  op: 'contains'
+  value: string // the sender address
+  action: 'junk' | 'archive' | 'move'
+  targetFolderId: number | null // for move: the folder most often moved to
+  count: number
+  lastAt: string | null
+}
+
+export function suggestRules(db: DB, minCount = 5): RuleSuggestion[] {
+  const rows = db.all(
+    `SELECT LOWER(m.from_email) sender, a.op, a.target_path, COUNT(*) c, MAX(a.created_at) last_at
+       FROM mail_actions a JOIN messages m ON m.id = a.message_id
+      WHERE a.op IN ('junk','archive','move') AND m.from_email IS NOT NULL AND m.from_email != ''
+      GROUP BY sender, a.op, a.target_path
+      HAVING c >= ?
+      ORDER BY c DESC`,
+    [minCount]
+  ) as unknown as { sender: string; op: 'junk' | 'archive' | 'move'; target_path: string | null; c: number; last_at: string | null }[]
+
+  // Dominant op per sender only — mixed behaviour shouldn't produce two rules.
+  const bySender = new Map<string, (typeof rows)[number]>()
+  for (const r of rows) {
+    const cur = bySender.get(r.sender)
+    if (!cur || r.c > cur.c) bySender.set(r.sender, r)
+  }
+
+  // Suppress senders an existing from-rule already covers.
+  const existing = listRules(db).filter((r) => r.field === 'from').map((r) => r.value.trim().toLowerCase()).filter(Boolean)
+
+  const out: RuleSuggestion[] = []
+  for (const r of bySender.values()) {
+    if (existing.some((v) => r.sender.includes(v))) continue
+    let targetFolderId: number | null = null
+    if (r.op === 'move') {
+      if (!r.target_path) continue // a move with no recorded destination can't become a rule
+      const f = db.get('SELECT id FROM folders WHERE remote_path = ? LIMIT 1', [r.target_path]) as { id: number } | undefined
+      if (!f) continue
+      targetFolderId = f.id
+    }
+    out.push({ field: 'from', op: 'contains', value: r.sender, action: r.op, targetFolderId, count: r.c, lastAt: r.last_at })
+  }
+  return out.sort((a, b) => b.count - a.count)
+}
+
 // Pure match test — the useful field vs the rule's value. Case-insensitive.
 export function ruleMatches(rule: Rule, msg: { from: string; subject: string; to: string; body: string }): boolean {
   const needle = rule.value.trim().toLowerCase()

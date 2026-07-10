@@ -64,6 +64,37 @@ export function dismissNudge(db: DB, messageId: number): void {
   db.run('INSERT INTO nudge_dismissals (message_id) VALUES (?) ON CONFLICT(message_id) DO NOTHING', [messageId])
 }
 
+// Everything "what's my morning look like?" needs, in one shape. The writing of
+// the digest stays with Claude — this only hands over well-shaped data.
+export function getDigestData(db: DB, todayIso: string): {
+  events: TodayAgenda['events']
+  unread: MessageListItem[]
+  tasks: TodayAgenda['tasks']
+  awaitingReply: AwaitingReply[]
+  followupsDueToday: { id: number; subject: string | null; fromName: string | null; fromEmail: string | null; followupAt: string }[]
+  snoozesLandingToday: { id: number; subject: string | null; fromName: string | null; fromEmail: string | null; snoozeUntil: string }[]
+} {
+  const agenda = getTodayAgenda(db, todayIso)
+  const followups = db.all(
+    `SELECT id, subject, from_name, from_email, followup_at FROM messages
+      WHERE followup_at IS NOT NULL AND date(followup_at) <= ? ORDER BY followup_at LIMIT 20`,
+    [todayIso]
+  ) as unknown as { id: number; subject: string | null; from_name: string | null; from_email: string | null; followup_at: string }[]
+  const snoozes = db.all(
+    `SELECT m.id, m.subject, m.from_name, m.from_email, s.snooze_until FROM snoozes s
+       JOIN messages m ON m.id = s.message_id WHERE date(s.snooze_until) = ? ORDER BY s.snooze_until LIMIT 20`,
+    [todayIso]
+  ) as unknown as { id: number; subject: string | null; from_name: string | null; from_email: string | null; snooze_until: string }[]
+  return {
+    events: agenda.events,
+    unread: agenda.messages.slice(0, 20),
+    tasks: agenda.tasks,
+    awaitingReply: agenda.awaitingReply,
+    followupsDueToday: followups.map((f) => ({ id: f.id, subject: f.subject, fromName: f.from_name, fromEmail: f.from_email, followupAt: f.followup_at })),
+    snoozesLandingToday: snoozes.map((s) => ({ id: s.id, subject: s.subject, fromName: s.from_name, fromEmail: s.from_email, snoozeUntil: s.snooze_until }))
+  }
+}
+
 interface MsgRow {
   id: number
   account_id: number
