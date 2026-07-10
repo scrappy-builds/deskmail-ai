@@ -35,6 +35,7 @@ import { computeSnoozeTime, snoozeMessage, unsnooze } from '../db/snoozes'
 import { createTemplate, deleteTemplate, listTemplates, seedTemplatesIfEmpty, updateTemplate } from '../db/templates'
 import { createContact, deleteContact, listContacts, listContactGroups, listContactsDetail, searchContacts, updateContact } from '../db/contacts'
 import { getTodayAgenda } from '../db/today'
+import { createTask, deleteTask, listTasks, setTaskDone } from '../db/tasks'
 import { isTrustedSender, listTrustedSenders, trustSender, untrustSender } from '../db/trustedSenders'
 import { buildTools } from '../mcp/tools'
 import { getCredential, storeCredential } from './credentials'
@@ -802,6 +803,12 @@ function registerIpc(): void {
     if (patch.unread !== undefined) setAppSetting(db, 'today-unread', patch.unread ? 'on' : 'off')
     if (patch.starred !== undefined) setAppSetting(db, 'today-starred', patch.starred ? 'on' : 'off')
   })
+  // --- Lightweight tasks (Today is their surface) ------------------------------
+  ipcMain.handle('tasks:list', () => listTasks(db))
+  ipcMain.handle('tasks:create', (_e, title: string, dueAt?: string | null, messageId?: number | null) => ({ id: createTask(db, title, dueAt ?? null, messageId ?? null) }))
+  ipcMain.handle('tasks:set-done', (_e, id: number, done: boolean) => setTaskDone(db, id, done))
+  ipcMain.handle('tasks:delete', (_e, id: number) => deleteTask(db, id))
+
   ipcMain.handle('mail:junk-enabled', () => getAppSetting(db, 'junk-filter') !== 'off')
   ipcMain.handle('mail:set-junk-enabled', (_e, on: boolean) => setAppSetting(db, 'junk-filter', on ? 'on' : 'off'))
   // Trusted senders (always load remote images). User-visible in Settings.

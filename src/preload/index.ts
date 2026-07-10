@@ -83,6 +83,12 @@ const api: DeskMailApi = {
     cancelScheduled: (id: number) => ipcRenderer.invoke('compose:cancel-scheduled', id),
     retryScheduled: (id: number) => ipcRenderer.invoke('compose:retry-scheduled', id)
   },
+  tasks: {
+    list: () => ipcRenderer.invoke('tasks:list'),
+    create: (title: string, dueAt?: string | null, messageId?: number | null) => ipcRenderer.invoke('tasks:create', title, dueAt, messageId),
+    setDone: (id: number, done: boolean) => ipcRenderer.invoke('tasks:set-done', id, done),
+    remove: (id: number) => ipcRenderer.invoke('tasks:delete', id)
+  },
   templates: {
     list: () => ipcRenderer.invoke('templates:list'),
     create: (name: string, subject: string, body: string) => ipcRenderer.invoke('templates:create', name, subject, body),

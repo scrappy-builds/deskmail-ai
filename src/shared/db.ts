@@ -306,9 +306,20 @@ export interface ContactDetail extends ContactInput {
   id: number
 }
 
+// A lightweight task (Today is its only surface).
+export interface TaskItem {
+  id: number
+  title: string
+  dueAt: string | null // YYYY-MM-DD
+  done: boolean
+  messageId: number | null // "made from this email" link
+  createdAt: string
+}
+
 export interface TodayAgenda {
   events: EventSummary[]
   messages: MessageListItem[]
+  tasks: TaskItem[]
 }
 
 // Mail actions (applied locally + pushed to IMAP). 'trash' = move to Trash

@@ -326,5 +326,16 @@ export const MIGRATIONS: string[] = [
   `ALTER TABLE events ADD COLUMN ics_uid TEXT;`,
 
   // --- v23: Reply-To captured at ingest (phishing signal: replies diverted) ------
-  `ALTER TABLE messages ADD COLUMN reply_to TEXT;`
+  `ALTER TABLE messages ADD COLUMN reply_to TEXT;`,
+
+  // --- v24: lightweight tasks (surfaced in Today; optionally linked to a message)
+  `CREATE TABLE tasks (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     title TEXT NOT NULL,
+     due_at TEXT,
+     done INTEGER NOT NULL DEFAULT 0,
+     done_at TEXT,
+     message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );`
 ]

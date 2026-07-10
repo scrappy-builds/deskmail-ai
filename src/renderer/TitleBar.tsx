@@ -161,6 +161,7 @@ export function TitleBar({
       { label: 'Delete', disabled: !hasSel, onClick: () => act('trash') },
       { label: 'Block sender → Junk', disabled: !sel?.fromEmail, onClick: () => { if (sel?.fromEmail && selId != null) void window.deskmail.rules.create({ name: `Block ${sel.fromEmail} → Junk`, enabled: true, field: 'from', op: 'contains', value: sel.fromEmail, action: 'junk', targetFolderId: null, targetLabelId: null }).then(() => window.deskmail.mail.action(selId, 'junk')).then(() => void mail.refresh()) } },
       { label: 'Mark folder read', disabled: activeFolder == null, onClick: () => { if (activeFolder != null) void window.deskmail.mail.markFolderRead(activeFolder).then(() => void mail.refresh()) } },
+      { label: 'Add to tasks', disabled: !hasSel, onClick: () => { if (sel && selId != null) void window.deskmail.tasks.create(sel.subject || '(no subject)', null, selId) } },
       { header: 'Snooze' },
       ...SNOOZE_OPTS.map((s): Item => ({ label: s.label, indent: true, disabled: !hasSel, onClick: () => { if (selId != null) void window.deskmail.mail.snooze(selId, s.opt).then(() => void mail.refresh()) } })),
       ...(labelItems.length ? [{ header: 'Categorise' } as Item, ...labelItems] : []),

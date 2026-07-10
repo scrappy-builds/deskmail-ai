@@ -32,6 +32,7 @@ import type {
   SignatureData,
   SignatureItem,
   SnoozeOption,
+  TaskItem,
   Template,
   TestResult,
   TodayAgenda
@@ -190,6 +191,13 @@ export interface DeskMailApi {
     remove(id: number): Promise<void>
     forMessage(messageId: number): Promise<LabelInfo[]>
     toggle(messageId: number, labelId: number, on: boolean): Promise<void>
+  }
+  // Lightweight tasks (title + due date + done), surfaced in Today.
+  tasks: {
+    list(): Promise<TaskItem[]>
+    create(title: string, dueAt?: string | null, messageId?: number | null): Promise<{ id: number }>
+    setDone(id: number, done: boolean): Promise<void>
+    remove(id: number): Promise<void>
   }
   // Claude connector (local MCP server) info for the Settings pane (Stage 9).
   mcp: {

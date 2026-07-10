@@ -1,5 +1,6 @@
 import type { MessageListItem, TodayAgenda } from '@shared/db'
 import { listEvents } from './events'
+import { listTasks } from './tasks'
 import type { DB } from './database'
 
 interface MsgRow {
@@ -56,5 +57,5 @@ export function getTodayAgenda(db: DB, todayIso: string, opts: TodayOpts = {}): 
     isMuted: !!r.is_muted,
     importance: (r.importance as MessageListItem['importance']) ?? null
   }))
-  return { events, messages }
+  return { events, messages, tasks: listTasks(db) }
 }

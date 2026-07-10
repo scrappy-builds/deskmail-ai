@@ -6,9 +6,15 @@ import { fmtTime, initials } from '../mail/format'
 
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
 
+function todayIso(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function Today(): JSX.Element {
-  const [agenda, setAgenda] = useState<TodayAgenda>({ events: [], messages: [] })
+  const [agenda, setAgenda] = useState<TodayAgenda>({ events: [], messages: [], tasks: [] })
   const [cfg, setCfg] = useState<{ unread: boolean; starred: boolean }>({ unread: true, starred: false })
+  const [newTask, setNewTask] = useState('')
 
   const refresh = (): void => void window.deskmail.mail.today().then(setAgenda)
   useEffect(() => {
@@ -23,8 +29,21 @@ export function Today(): JSX.Element {
     void window.deskmail.mail.todayConfigSet({ [k]: next[k] }).then(refresh)
   }
 
+  const addTask = async (): Promise<void> => {
+    const title = newTask.trim()
+    if (!title) return
+    setNewTask('')
+    await window.deskmail.tasks.create(title)
+    refresh()
+  }
+  const tickTask = async (id: number, done: boolean): Promise<void> => {
+    await window.deskmail.tasks.setDone(id, done)
+    refresh()
+  }
+
   const events = [...agenda.events].sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''))
   const dateLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+  const today = todayIso()
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto bg-bg">
@@ -55,6 +74,62 @@ export function Today(): JSX.Element {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Tasks — Today is their only surface (no separate tasks screen) */}
+        <div className="mt-7">
+          <div className="mb-2.5 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Tasks</div>
+          <div className="mb-2 flex items-center gap-2">
+            <input
+              value={newTask}
+              onChange={(e) => setNewTask(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void addTask()
+              }}
+              placeholder="Add a task and press Enter"
+              aria-label="New task"
+              className="min-w-0 flex-1 rounded-md border border-border bg-panel px-3 py-2 text-[13px] outline-none focus:border-accent"
+            />
+          </div>
+          {agenda.tasks.length === 0 ? (
+            <p className="text-[13px] text-text-3">No tasks. Add one above, or turn an email into one from the Message menu.</p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {agenda.tasks.map((t) => {
+                const overdue = !t.done && !!t.dueAt && t.dueAt < today
+                return (
+                  <div key={t.id} className="flex items-center gap-3 rounded-lg border border-border bg-panel px-4 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={t.done}
+                      onChange={(e) => void tickTask(t.id, e.target.checked)}
+                      aria-label={`Done: ${t.title}`}
+                      className="h-4 w-4 flex-none accent-accent"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-semibold" style={{ opacity: t.done ? 0.5 : 1, textDecoration: t.done ? 'line-through' : 'none' }}>
+                        {t.title}
+                      </div>
+                      {t.dueAt && (
+                        <div className="text-[11.5px]" style={{ color: overdue ? 'var(--danger)' : 'var(--text-3)' }}>
+                          {overdue ? 'Overdue — ' : 'Due '}
+                          {new Date(`${t.dueAt}T00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        </div>
+                      )}
+                    </div>
+                    {t.messageId != null && (
+                      <button onClick={() => window.deskmail.openMessage(t.messageId!)} title="Open the email this came from" className="flex-none text-text-3 hover:text-accent">
+                        <Icon name="openWindow" size={14} />
+                      </button>
+                    )}
+                    <button onClick={() => void window.deskmail.tasks.remove(t.id).then(refresh)} title="Delete task" className="flex-none text-text-3 hover:text-danger">
+                      <Icon name="close" size={14} />
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
