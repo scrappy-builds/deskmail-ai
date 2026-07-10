@@ -5,12 +5,10 @@ import { Icon } from '../Icon'
 import { InlineImage } from '../editor/InlineImage'
 import type { AccountSummary, ComposeAttachment, ComposePayload, Contact, DraftSummary, SignatureItem, Template } from '@shared/db'
 import { mentionsAttachment } from './attachmentReminder'
+import { RecipientInput } from './RecipientInput'
 import { useToast } from '../store/toastStore'
 
 
-function splitAddrs(s: string): string[] {
-  return s.split(',').map((x) => x.trim()).filter(Boolean)
-}
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
@@ -30,9 +28,9 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
   // Own window: the mail store isn't initialised here, so fetch accounts directly.
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
   const [accountId, setAccountId] = useState<number | null>(draft?.accountId ?? null)
-  const [to, setTo] = useState(draft?.to.join(', ') ?? '')
-  const [cc, setCc] = useState(draft?.cc.join(', ') ?? '')
-  const [bcc, setBcc] = useState(draft?.bcc.join(', ') ?? '')
+  const [to, setTo] = useState<string[]>(draft?.to ?? [])
+  const [cc, setCc] = useState<string[]>(draft?.cc ?? [])
+  const [bcc, setBcc] = useState<string[]>(draft?.bcc ?? [])
   const [showCc, setShowCc] = useState(!!(draft?.cc.length || draft?.bcc.length))
   const [subject, setSubject] = useState(draft?.subject ?? '')
   const [attachments, setAttachments] = useState<ComposeAttachment[]>(draft?.attachments ?? [])
@@ -104,9 +102,9 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
     (): ComposePayload => ({
       draftId: draft?.id ?? null, // so Save/Send updates the existing draft
       accountId: accountId ?? 0,
-      to: splitAddrs(to),
-      cc: splitAddrs(cc),
-      bcc: splitAddrs(bcc),
+      to,
+      cc,
+      bcc,
       subject,
       bodyHtml: editor?.getHTML() ?? '',
       attachments,
@@ -226,14 +224,7 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
 
           <div className={field}>
             <span className="w-[52px] text-[12.5px] text-text-3">To</span>
-            <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="Recipients (comma separated)" className={inputCls} aria-label="To" list="contact-emails" />
-            <datalist id="contact-emails">
-              {contacts.filter((c) => c.email).map((c) => (
-                <option key={c.id} value={c.email ?? ''}>
-                  {c.name ?? c.email}
-                </option>
-              ))}
-            </datalist>
+            <RecipientInput value={to} onChange={setTo} contacts={contacts} ariaLabel="To" placeholder="Recipients" />
             <button onClick={() => setShowCc((v) => !v)} className="text-[12px] font-semibold text-text-3 hover:text-accent">
               Cc Bcc
             </button>
@@ -242,11 +233,11 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
             <>
               <div className={field}>
                 <span className="w-[52px] text-[12.5px] text-text-3">Cc</span>
-                <input value={cc} onChange={(e) => setCc(e.target.value)} className={inputCls} aria-label="Cc" />
+                <RecipientInput value={cc} onChange={setCc} contacts={contacts} ariaLabel="Cc" />
               </div>
               <div className={field}>
                 <span className="w-[52px] text-[12.5px] text-text-3">Bcc</span>
-                <input value={bcc} onChange={(e) => setBcc(e.target.value)} className={inputCls} aria-label="Bcc" />
+                <RecipientInput value={bcc} onChange={setBcc} contacts={contacts} ariaLabel="Bcc" />
               </div>
             </>
           )}
