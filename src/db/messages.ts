@@ -52,7 +52,8 @@ export function upsertMessage(db: DB, m: MessageInsert, hasAttachments = false, 
     is_starred: m.isStarred ? 1 : 0,
     has_attachments: hasAttachments ? 1 : 0,
     invite_json: inviteJson,
-    importance: m.importance ?? null
+    importance: m.importance ?? null,
+    list_unsubscribe: m.listUnsubscribe ?? null
   }
 
   if (id != null) {

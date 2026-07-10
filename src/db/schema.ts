@@ -295,5 +295,8 @@ export const MIGRATIONS: string[] = [
    ALTER TABLE layout_preferences ADD COLUMN mark_read_delay_seconds INTEGER NOT NULL DEFAULT 2;`,
 
   // --- v15: message importance/priority (High/Normal/Low from the Importance hdr) -
-  `ALTER TABLE messages ADD COLUMN importance TEXT;`
+  `ALTER TABLE messages ADD COLUMN importance TEXT;`,
+
+  // --- v16: List-Unsubscribe header (RFC 2369) for one-click unsubscribe ---------
+  `ALTER TABLE messages ADD COLUMN list_unsubscribe TEXT;`
 ]

@@ -336,4 +336,5 @@ export interface MessageInsert {
   isRead: boolean
   isStarred: boolean
   importance?: 'high' | 'low' | 'normal' | null
+  listUnsubscribe?: string | null // raw List-Unsubscribe header, if present
 }

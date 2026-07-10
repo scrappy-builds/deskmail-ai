@@ -22,7 +22,9 @@ const EXPECTED_TOOLS = [
   'list_accounts', 'list_folders', 'search_emails', 'read_email', 'create_draft',
   'find_related_emails', 'find_unanswered_emails', 'extract_dates_and_deadlines', 'summarise_thread_data',
   'move_email', 'archive_email', 'delete_email', 'flag_email', 'mark_email_read',
-  'export_for_notebooklm'
+  'export_for_notebooklm',
+  'list_labels', 'label_email', 'inbox_overview', 'triage_priority', 'batch_apply',
+  'suggest_rules', 'get_unsubscribe_info', 'create_calendar_event'
 ].sort()
 
 describe('MCP tool surface', () => {
@@ -123,5 +125,22 @@ describe('MCP tool surface', () => {
     const r = tool('summarise_thread_data').handler({ message_id: 1 }) as { thread_summary: string; key_points: string[]; open_questions: string[]; suggested_next_actions: string[] }
     expect(Object.keys(r).sort()).toEqual(['key_points', 'open_questions', 'suggested_next_actions', 'thread_summary'])
     expect(r.open_questions.join(' ')).toMatch(/\?/)
+  })
+
+  it('inbox_overview totals unread across folders/accounts', () => {
+    const r = tool('inbox_overview').handler({}) as { total_unread: number; accounts: { unread: number }[] }
+    expect(r.total_unread).toBeGreaterThanOrEqual(1) // message 1 is unread
+    expect(r.accounts.length).toBeGreaterThan(0)
+  })
+
+  it('triage_priority ranks unanswered mail by score', () => {
+    const r = tool('triage_priority').handler({}) as { message_id: number; priority_score: number }[]
+    expect(Array.isArray(r)).toBe(true)
+    expect(r[0]).toHaveProperty('priority_score')
+  })
+
+  it('batch_apply applies reversible actions only', () => {
+    const r = tool('batch_apply').handler({ actions: [{ message_id: 1, action: 'flag' }, { message_id: 1, action: 'send' }] }) as { applied: number; requested: number }
+    expect(r).toEqual({ applied: 1, requested: 2 }) // 'send' is ignored
   })
 })

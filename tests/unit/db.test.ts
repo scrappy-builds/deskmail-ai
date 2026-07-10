@@ -32,7 +32,7 @@ describe('database migrations', () => {
   it('creates every table and sets user_version', () => {
     const db = openDatabase(file)
     const version = (db.get('PRAGMA user_version') as { user_version: number }).user_version
-    expect(version).toBe(15)
+    expect(version).toBe(16)
 
     const rows = db.all("SELECT name FROM sqlite_master WHERE type='table'") as { name: string }[]
     const names = rows.map((r) => r.name)
@@ -44,7 +44,7 @@ describe('database migrations', () => {
     const db = openDatabase(file)
     runMigrations(db) // again
     const version = (db.get('PRAGMA user_version') as { user_version: number }).user_version
-    expect(version).toBe(15)
+    expect(version).toBe(16)
     db.close()
   })
 

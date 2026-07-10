@@ -60,17 +60,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 
 Sending always stays gated — Claude only ever drafts unless I explicitly say send.
 
-- [x] **Summarise a thread** — via the connector, using the thread data the MCP tools already expose.
-- [x] **Draft a reply** — connector-side draft creation (already supported by `create_draft`); the tone options would be prompt-side in Claude Desktop, not in-app chips.
-- [x] **Auto-categorise / triage** — Claude proposes folder/label/priority through the connector; I review the results in the app.
-- [x] **"Turn into task/event"** — Claude extracts a to-do or calendar event from an email (`extract_dates_and_deadlines` already returns the raw data).
-- [x] **NotebookLM: pick the target notebook** — hand Claude both the export path and the notebook name in one step.
-- [x] **Inbox at-a-glance tool** — [easy]. "How many unread do I have?" — counts per folder/account in one call, so Claude can answer without stitching searches together.
-- [x] **Priority triage / "what needs a reply, ranked"** — [med]. A tool that returns unanswered/important mail ordered by a priority heuristic (sender, direct-to-me, questions asked, age), so Claude can list "respond to these first" and offer to draft each.
-- [x] **Batch auto-organise (propose → review → apply)** — [med]. Claude proposes folder/label moves for a batch; I approve; one tool applies them all. Turns the single `move_email` into a reviewed bulk sweep.
-- [x] **Propose rules from patterns** — [med]. Claude spots recurring senders/subjects and suggests filter rules; I one-click accept them into the rules engine.
-- [x] **Unsubscribe from obvious noise (e.g. LinkedIn notifications)** — [med]. Parse the standard `List-Unsubscribe` / `List-Unsubscribe-Post` headers (RFC 2369 / 8058) and either fire the one-click HTTP unsubscribe or send the mailto unsubscribe — no Chrome extension needed. *Caveat:* the one-click path contacts the sender's own unsubscribe URL (that's the unsubscribe action itself, not a third-party service); always show me what it will do and let me confirm. Claude could learn which senders I routinely unsubscribe from.
-- [x] **Background "email concierge" recipes** — [easy, mostly prompt-side]. The flows I want while the app sits in the background and I drive it from Claude Desktop: "summarise my unread", "which need me today", "draft replies to the top 3", "clear the newsletters". These mostly compose the tools above — the work is making sure the pieces exist and chain cleanly.
 
 ---
 
