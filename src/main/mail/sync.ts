@@ -1,7 +1,6 @@
-import { ImapFlow } from 'imapflow'
 import type { AccountRow } from '@shared/db'
 import type { DB } from '../../db/database'
-import { getCredential } from '../credentials'
+import { withConnection } from './connectionPool'
 import { ensureStandardFolders, refreshFolderCounts, upsertFolder } from '../../db/folders'
 import { getAppSetting } from '../../db/settings'
 import { ingestRaw } from './ingest'
@@ -34,67 +33,49 @@ export async function syncAccount(db: DB, accountId: number): Promise<SyncResult
     return { ok: false, error: 'Only IMAP sync is supported so far.' }
   }
 
-  const password = getCredential(db, accountId)
-  if (!password) return { ok: false, error: 'No stored password for this account.' }
-
-  const client = new ImapFlow({
-    host: acc.incoming_host,
-    port: acc.incoming_port,
-    secure: acc.incoming_security === 'ssl',
-    auth: { user: acc.username, pass: password },
-    logger: false
-  })
-
   try {
-    await client.connect()
-
-    // Folder list.
     let inboxId: number | null = null
-    for (const box of await client.list()) {
-      const id = upsertFolder(db, accountId, box.name, folderRole(box.path, box.specialUse), box.path)
-      if (box.path.toLowerCase() === 'inbox') inboxId = id
-    }
-
-    // Recent messages from the inbox.
-    if (inboxId != null) {
-      const lock = await client.getMailboxLock('INBOX')
-      try {
-        const total = client.mailbox && typeof client.mailbox !== 'boolean' ? client.mailbox.exists : 0
-        const junkEnabled = getAppSetting(db, 'junk-filter') !== 'off'
-        if (total > 0) {
-          const start = Math.max(1, total - (RECENT - 1))
-          for await (const msg of client.fetch(`${start}:*`, { uid: true, flags: true, source: true })) {
-            if (!msg.source) continue
-            const id = await ingestRaw(
-              db,
-              {
-                accountId,
-                folderId: inboxId,
-                remoteUid: msg.uid,
-                isRead: msg.flags?.has('\\Seen') ?? false,
-                isStarred: msg.flags?.has('\\Flagged') ?? false
-              },
-              msg.source
-            )
-            applyJunkIfSpam(db, id, junkEnabled) // auto-move obvious spam to Junk
-            applyRulesToMessage(db, id) // then run the user's local rules
-          }
-        }
-        refreshFolderCounts(db, inboxId)
-      } finally {
-        lock.release()
+    await withConnection(db, accountId, async (client) => {
+      // Folder list.
+      for (const box of await client.list()) {
+        const id = upsertFolder(db, accountId, box.name, folderRole(box.path, box.specialUse), box.path)
+        if (box.path.toLowerCase() === 'inbox') inboxId = id
       }
-    }
 
-    await client.logout()
+      // Recent messages from the inbox.
+      if (inboxId != null) {
+        const lock = await client.getMailboxLock('INBOX')
+        try {
+          const total = client.mailbox && typeof client.mailbox !== 'boolean' ? client.mailbox.exists : 0
+          const junkEnabled = getAppSetting(db, 'junk-filter') !== 'off'
+          if (total > 0) {
+            const start = Math.max(1, total - (RECENT - 1))
+            for await (const msg of client.fetch(`${start}:*`, { uid: true, flags: true, source: true })) {
+              if (!msg.source) continue
+              const id = await ingestRaw(
+                db,
+                {
+                  accountId,
+                  folderId: inboxId,
+                  remoteUid: msg.uid,
+                  isRead: msg.flags?.has('\\Seen') ?? false,
+                  isStarred: msg.flags?.has('\\Flagged') ?? false
+                },
+                msg.source
+              )
+              applyJunkIfSpam(db, id, junkEnabled) // auto-move obvious spam to Junk
+              applyRulesToMessage(db, id) // then run the user's local rules
+            }
+          }
+          refreshFolderCounts(db, inboxId)
+        } finally {
+          lock.release()
+        }
+      }
+    })
     recordSyncState(db, accountId, inboxId, 'ok', null)
     return { ok: true }
   } catch (err) {
-    try {
-      await client.close()
-    } catch {
-      /* already down */
-    }
     const error = (err as Error).message ?? 'Sync failed.'
     recordSyncState(db, accountId, null, 'error', error)
     return { ok: false, error }

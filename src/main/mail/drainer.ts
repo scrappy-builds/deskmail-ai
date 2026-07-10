@@ -1,10 +1,8 @@
 import { readFileSync, unlinkSync } from 'node:fs'
 import type { ImapFlow } from 'imapflow'
-import type { AccountRow } from '@shared/db'
 import type { DB } from '../../db/database'
 import { markActionDone, markActionError, pendingActions, type QueuedAction } from '../../db/mailActions'
-import { getCredential } from '../credentials'
-import { buildImapClient } from './imapClient'
+import { withConnection } from './connectionPool'
 
 // Push one queued action to the server.
 async function applyRemote(client: ImapFlow, a: QueuedAction): Promise<void> {
@@ -79,30 +77,26 @@ export async function drainMailActions(db: DB): Promise<number> {
   }
 
   for (const [accountId, actions] of byAccount) {
-    const acc = db.get('SELECT * FROM accounts WHERE id = ?', [accountId]) as unknown as AccountRow | undefined
-    const password = getCredential(db, accountId)
-    if (!acc || acc.incoming_type !== 'imap' || !password) continue // can't reach server → leave pending
-
-    const client = buildImapClient(acc, password)
+    // Track per-action completion so the pool's reconnect-and-retry of the whole
+    // batch never re-applies an op that already resolved.
+    const settled = new Set<number>()
     try {
-      await client.connect()
-      for (const a of actions) {
-        try {
-          await applyRemote(client, a)
-          markActionDone(db, a.id)
-        } catch (err) {
-          markActionError(db, a.id, (err as Error).message ?? 'IMAP op failed')
+      await withConnection(db, accountId, async (client) => {
+        for (const a of actions) {
+          if (settled.has(a.id)) continue
+          try {
+            await applyRemote(client, a)
+            markActionDone(db, a.id)
+          } catch (err) {
+            if (!client.usable) throw err // socket died — leave pending, pool may retry
+            markActionError(db, a.id, (err as Error).message ?? 'IMAP op failed')
+          }
+          settled.add(a.id)
+          resolved++
         }
-        resolved++
-      }
-      await client.logout()
+      })
     } catch {
-      try {
-        await client.close()
-      } catch {
-        /* already down */
-      }
-      // Connection failed — leave this account's actions pending for a later cycle.
+      // Connection failed — leave this account's remaining actions pending.
     }
   }
   return resolved

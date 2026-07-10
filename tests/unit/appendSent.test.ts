@@ -2,14 +2,13 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ImapFlow } from 'imapflow'
 import { openDatabase, type DB } from '../../src/db/database'
 import { listMessages } from '../../src/db/messages'
-import { pendingActions } from '../../src/db/mailActions'
+import { pendingActions, queueAppend } from '../../src/db/mailActions'
 import { buildMail, buildRaw } from '../../src/main/mail/send'
 import { appendToSent } from '../../src/main/mail/appendSent'
 import { drainMailActions } from '../../src/main/mail/drainer'
-import { queueAppend } from '../../src/db/mailActions'
+import { closePool } from '../../src/main/mail/connectionPool'
 
 // Unit tests run outside Electron — substitute a pass-through safeStorage so the
 // credential store round-trips plaintext.
@@ -21,14 +20,17 @@ vi.mock('electron', () => ({
   }
 }))
 
-// The drainer builds its own client — swap it for the shared fake.
+// Everything reaches IMAP through the pool, which builds clients here — swap in
+// the current fake.
 let fakeClient: FakeClient
 vi.mock('../../src/main/mail/imapClient', () => ({
   buildImapClient: () => fakeClient
 }))
 
 interface FakeClient {
+  usable: boolean
   connect: ReturnType<typeof vi.fn>
+  on: ReturnType<typeof vi.fn>
   mailboxCreate: ReturnType<typeof vi.fn>
   append: ReturnType<typeof vi.fn>
   logout: ReturnType<typeof vi.fn>
@@ -37,16 +39,20 @@ interface FakeClient {
 }
 
 function makeFakeClient(opts: { failConnect?: boolean } = {}): FakeClient {
-  return {
+  const c: FakeClient = {
+    usable: false,
     connect: vi.fn(async () => {
       if (opts.failConnect) throw new Error('server unreachable')
+      c.usable = true
     }),
+    on: vi.fn(),
     mailboxCreate: vi.fn(async () => {}),
     append: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
     close: vi.fn(async () => {}),
     getMailboxLock: vi.fn(async () => ({ release: () => {} }))
   }
+  return c
 }
 
 function seedAccount(db: DB): void {
@@ -55,7 +61,7 @@ function seedAccount(db: DB): void {
        incoming_security, outgoing_host, outgoing_port, outgoing_security, username)
      VALUES ('Jamie','jamie@example.com','imap','imap.x',993,'ssl','smtp.x',465,'ssl','jamie@example.com')`
   )
-  db.run("INSERT INTO credentials (account_id, secret_enc) VALUES (1, ?)", [Buffer.from('pw', 'utf-8')])
+  db.run('INSERT INTO credentials (account_id, secret_enc) VALUES (1, ?)', [Buffer.from('pw', 'utf-8')])
 }
 
 const PAYLOAD = {
@@ -67,22 +73,27 @@ const PAYLOAD = {
   bodyHtml: '<p>Drawing attached below the fold.</p>'
 }
 
+async function rawFor(payload = PAYLOAD, signature: string | null = null): Promise<Buffer> {
+  return buildRaw(buildMail({ payload, fromName: 'Jamie', fromEmail: 'jamie@example.com', signature }))
+}
+
 describe('save sent mail', () => {
   let dir: string
   let db: DB
   beforeEach(() => {
+    closePool() // fresh pool per test — fakeClient changes between tests
     dir = mkdtempSync(join(tmpdir(), 'deskmail-sent-'))
     db = openDatabase(join(dir, 'deskmail.db'))
     seedAccount(db)
   })
   afterEach(() => {
+    closePool()
     db.close()
     rmSync(dir, { recursive: true, force: true })
   })
 
   it('builds a raw RFC822 copy that round-trips the compose payload', async () => {
-    const mail = buildMail({ payload: PAYLOAD, fromName: 'Jamie', fromEmail: 'jamie@example.com', signature: 'Jamie\nFunctional 3D UK' })
-    const raw = (await buildRaw(mail)).toString('utf-8')
+    const raw = (await rawFor(PAYLOAD, 'Jamie\nFunctional 3D UK')).toString('utf-8')
     expect(raw).toContain('To: maya@northwind.studio')
     expect(raw).toContain('Subject: Bracket drawing')
     expect(raw).toContain('Drawing attached below the fold')
@@ -91,12 +102,11 @@ describe('save sent mail', () => {
   })
 
   it('appends to the Sent mailbox and stores a read local copy', async () => {
-    const client = makeFakeClient()
-    const mail = buildMail({ payload: PAYLOAD, fromName: 'Jamie', fromEmail: 'jamie@example.com', signature: null })
-    await appendToSent(db, 1, await buildRaw(mail), join(dir, 'spool'), () => client as unknown as ImapFlow)
+    fakeClient = makeFakeClient()
+    await appendToSent(db, 1, await rawFor(), join(dir, 'spool'))
 
-    expect(client.append).toHaveBeenCalledTimes(1)
-    expect(client.append.mock.calls[0][0]).toBe('Sent')
+    expect(fakeClient.append).toHaveBeenCalledTimes(1)
+    expect(fakeClient.append.mock.calls[0][0]).toBe('Sent')
     const sentFolder = (db.get("SELECT id FROM folders WHERE role = 'sent'") as { id: number }).id
     const list = listMessages(db, sentFolder)
     expect(list).toHaveLength(1)
@@ -106,10 +116,9 @@ describe('save sent mail', () => {
   })
 
   it('append failure spools a retry and never throws — the send already succeeded', async () => {
-    const client = makeFakeClient({ failConnect: true })
+    fakeClient = makeFakeClient({ failConnect: true })
     const spool = join(dir, 'spool')
-    const mail = buildMail({ payload: PAYLOAD, fromName: 'Jamie', fromEmail: 'jamie@example.com', signature: null })
-    await expect(appendToSent(db, 1, await buildRaw(mail), spool, () => client as unknown as ImapFlow)).resolves.toBeUndefined()
+    await expect(appendToSent(db, 1, await rawFor(), spool)).resolves.toBeUndefined()
 
     // Local copy still stored; retry queued with the spooled file.
     const sentFolder = (db.get("SELECT id FROM folders WHERE role = 'sent'") as { id: number }).id
@@ -122,13 +131,13 @@ describe('save sent mail', () => {
   })
 
   it('the drainer replays a queued append and cleans up the spool file', async () => {
-    fakeClient = makeFakeClient()
+    fakeClient = makeFakeClient({ failConnect: true })
     const spool = join(dir, 'spool')
-    const failing = makeFakeClient({ failConnect: true })
-    const mail = buildMail({ payload: PAYLOAD, fromName: 'Jamie', fromEmail: 'jamie@example.com', signature: null })
-    await appendToSent(db, 1, await buildRaw(mail), spool, () => failing as unknown as ImapFlow)
+    await appendToSent(db, 1, await rawFor(), spool)
     const spoolPath = pendingActions(db)[0].source_path!
 
+    closePool() // the failed connection attempt is gone; server "recovers"
+    fakeClient = makeFakeClient()
     const resolved = await drainMailActions(db)
     expect(resolved).toBe(1)
     expect(fakeClient.append).toHaveBeenCalledTimes(1)

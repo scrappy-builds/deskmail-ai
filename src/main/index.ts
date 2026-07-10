@@ -40,6 +40,7 @@ import { testIncoming, testOutgoing } from './mail/connectionTest'
 import { syncAccount, syncAllAccounts } from './mail/sync'
 import { sendMail } from './mail/send'
 import { appendToSent } from './mail/appendSent'
+import { closePool } from './mail/connectionPool'
 import { joinMeeting } from './meetings'
 import { maybeSeedDemo } from './mail/demoSeed'
 import { validateImportedTheme, type CustomTheme } from '@shared/theme'
@@ -979,4 +980,5 @@ app.on('window-all-closed', () => {
 })
 app.on('before-quit', () => {
   isQuitting = true
+  closePool() // polite IMAP logout for the pooled connections
 })
