@@ -16,5 +16,6 @@ function withoutQuotes(html: string): string {
 // is excluded before matching.
 export function mentionsAttachment(html: string): boolean {
   const text = withoutQuotes(html).replace(/<[^>]+>/g, ' ')
-  return /\b(attach(ed|ment|ments|ing)?|enclosed|see the file|i've included|pfa)\b/i.test(text)
+  // The trailing lookahead stops "attaché" matching — JS \b treats é as a boundary.
+  return /\b(attach(ed|ment|ments|ing)?|enclosed|see the file|i've included|pfa)\b(?![À-ɏ])/i.test(text)
 }
