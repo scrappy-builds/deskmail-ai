@@ -379,6 +379,36 @@ export function folderMessageIds(db: DB, folderId: number): number[] {
   return (db.all('SELECT id FROM messages WHERE folder_id = ?', [folderId]) as unknown as { id: number }[]).map((r) => r.id)
 }
 
+// Wipe every message in a folder (and its FTS rows; attachments cascade). Used
+// when a folder's UIDVALIDITY changed and its cached UIDs are stale.
+export function deleteFolderMessages(db: DB, folderId: number): number {
+  const ids = db.all('SELECT id FROM messages WHERE folder_id = ?', [folderId]) as unknown as { id: number }[]
+  for (const { id } of ids) db.run('DELETE FROM messages_fts WHERE rowid = ?', [id])
+  db.run('DELETE FROM messages WHERE folder_id = ?', [folderId])
+  return ids.length
+}
+
+// When a folder's real server copies have synced, drop any locally-appended
+// copies (remote_uid NULL) that share a Message-ID with a synced one — so a
+// sent message doesn't show up twice once the Sent folder syncs for real.
+// Keeps the server copy (it carries the remote_uid needed for IMAP actions).
+export function dedupeAppendedSent(db: DB, folderId: number): number {
+  const victims = db.all(
+    `SELECT id FROM messages
+       WHERE folder_id = ? AND remote_uid IS NULL AND message_id_header IS NOT NULL
+         AND message_id_header IN (
+           SELECT message_id_header FROM messages
+            WHERE folder_id = ? AND remote_uid IS NOT NULL AND message_id_header IS NOT NULL
+         )`,
+    [folderId, folderId]
+  ) as unknown as { id: number }[]
+  for (const { id } of victims) {
+    db.run('DELETE FROM messages_fts WHERE rowid = ?', [id])
+    db.run('DELETE FROM messages WHERE id = ?', [id])
+  }
+  return victims.length
+}
+
 // --- All-attachments browser ----------------------------------------------------
 // Every attachment across the mailbox, newest message first, filterable by
 // filename or sender, paged (100/page) so a big store stays snappy.
