@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '../Icon'
 import { InlineImage } from '../editor/InlineImage'
 import type { AccountSummary, ComposeAttachment, ComposePayload, Contact, DraftSummary, SignatureItem, Template } from '@shared/db'
-import { mentionsAttachment } from '../mail/reply'
+import { mentionsAttachment } from './attachmentReminder'
 import { useToast } from '../store/toastStore'
 
 
@@ -44,6 +44,7 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
   const [laterAt, setLaterAt] = useState<string | null>(null)
   const [importance, setImportance] = useState<'high' | 'normal' | 'low'>('normal')
   const [busy, setBusy] = useState(false)
+  const [attachReminder, setAttachReminder] = useState(false)
 
   // Paste/drop images inline; drop other files to attach them.
   const handleFiles = (files: File[]): void => {
@@ -143,12 +144,15 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
 
   // Sending is always user-initiated. Immediate send goes via an undo window;
   // "Send later" schedules for the chosen time. Neither leaves without the click.
-  const send = async (): Promise<void> => {
+  const send = async (skipReminder = false): Promise<void> => {
     if (!canSend) return
     // Attachment reminder: the message hints at a file but none is attached.
-    if (attachments.length === 0 && mentionsAttachment(`${subject}\n${editor?.getText() ?? ''}`)) {
-      if (!window.confirm("It looks like you mentioned an attachment but haven't added one. Send anyway?")) return
+    // Quoted reply text is excluded, so the other person's words don't trigger it.
+    if (!skipReminder && attachments.length === 0 && mentionsAttachment(`${subject}\n${editor?.getHTML() ?? ''}`)) {
+      setAttachReminder(true)
+      return
     }
+    setAttachReminder(false)
     setBusy(true)
     if (laterAt) {
       await window.deskmail.compose.scheduleSend(payload, new Date(laterAt).toISOString())
@@ -335,6 +339,20 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
           )}
         </div>
 
+        {attachReminder && (
+          <div className="flex flex-none flex-wrap items-center gap-2.5 border-t border-border bg-[var(--accent-soft)] px-4 py-2.5">
+            <Icon name="clip" size={15} className="flex-none text-accent" />
+            <span className="min-w-0 flex-1 text-[12.5px] font-semibold text-text">
+              You mention an attachment, but nothing's attached yet.
+            </span>
+            <button onClick={() => { setAttachReminder(false); void attach() }} className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-bold text-accent-fg hover:bg-accent-2">
+              Add attachment
+            </button>
+            <button onClick={() => void send(true)} className="rounded-md border border-border px-3 py-1.5 text-[12px] font-semibold text-text-2 hover:bg-raised">
+              Send anyway
+            </button>
+          </div>
+        )}
         <div className="flex flex-none items-center gap-2.5 border-t border-border px-4 py-3">
           <button onClick={() => void send()} disabled={!canSend || (laterAt !== null && !laterAt)} className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-[13px] font-bold text-accent-fg hover:bg-accent-2 disabled:opacity-40">
             <Icon name="send" size={15} /> {laterAt !== null ? 'Schedule' : 'Send'}

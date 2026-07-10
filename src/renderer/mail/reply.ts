@@ -67,8 +67,3 @@ export function buildReplyDraft(m: MessageDetail, kind: ReplyKind, selfEmail?: s
     inReplyToMessageId: m.id
   }
 }
-
-// True if the body text hints at an attachment the user may have forgotten.
-export function mentionsAttachment(text: string): boolean {
-  return /\b(attach(ed|ment|ments|ing)?|enclosed|see the file|pfa)\b/i.test(text)
-}

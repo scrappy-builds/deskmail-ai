@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildReplyDraft, mentionsAttachment } from '../../src/renderer/mail/reply'
+import { buildReplyDraft } from '../../src/renderer/mail/reply'
+import { mentionsAttachment } from '../../src/renderer/compose/attachmentReminder'
 import type { MessageDetail } from '../../src/shared/db'
 
 const msg: MessageDetail = {
@@ -36,6 +37,19 @@ describe('reply/forward draft builder', () => {
   it('mentionsAttachment flags forgotten attachments', () => {
     expect(mentionsAttachment('See the attached invoice')).toBe(true)
     expect(mentionsAttachment('PFA the file')).toBe(true)
+    expect(mentionsAttachment("<p>I've included the drawing</p>")).toBe(true)
     expect(mentionsAttachment('Thanks for the update')).toBe(false)
+    // Similar words must not trigger (word boundaries).
+    expect(mentionsAttachment('The attack surface is small')).toBe(false)
+    expect(mentionsAttachment('Our attaché will call')).toBe(false)
+  })
+
+  it('mentionsAttachment ignores quoted reply text — only my words count', () => {
+    const quotedOnly = '<p>Thanks!</p><blockquote><p>Please see the attached invoice</p></blockquote>'
+    expect(mentionsAttachment(quotedOnly)).toBe(false)
+    const nested = '<p>Sure</p><blockquote><p>fine</p><blockquote><p>attached here</p></blockquote></blockquote>'
+    expect(mentionsAttachment(nested)).toBe(false)
+    const mine = '<p>Now attached properly.</p><blockquote><p>you forgot the file</p></blockquote>'
+    expect(mentionsAttachment(mine)).toBe(true)
   })
 })
