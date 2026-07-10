@@ -1,6 +1,6 @@
 import { Icon } from '../Icon'
 import type { MessageListItem } from '@shared/db'
-import { fmtTime, initials } from '../mail/format'
+import { fmtTime, initials, messageDateGroup } from '../mail/format'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
 
@@ -168,21 +168,39 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
             </p>
           </div>
         ) : (
-          messages.map((m) => (
-            <Row
-              key={m.id}
-              m={m}
-              selected={m.id === selectedId}
-              checked={selectedIds.has(m.id)}
-              onToggleCheck={() => toggleSelected(m.id)}
-              onSelect={() => handleSelect(m.id)}
-              onOpen={() => onOpen?.(m.id)}
-              rowPaddingY={rowPaddingY}
-              clamp={Math.max(1, previewLineCount)}
-              showSnippet={showSnippet}
-              showAvatars={showAvatars}
-            />
-          ))
+          (() => {
+            // Interleave "Today / Yesterday / This week / …" separators as the
+            // date bucket changes down the list (pinned mail groups under "Pinned").
+            let lastGroup = ''
+            const out: JSX.Element[] = []
+            for (const m of messages) {
+              const group = m.isPinned ? 'Pinned' : messageDateGroup(m.receivedAt)
+              if (group !== lastGroup) {
+                lastGroup = group
+                out.push(
+                  <div key={`grp-${group}-${m.id}`} className="sticky top-0 z-[1] border-b border-border bg-panel px-3.5 py-1 text-[11px] font-bold uppercase tracking-[.5px] text-text-3">
+                    {group}
+                  </div>
+                )
+              }
+              out.push(
+                <Row
+                  key={m.id}
+                  m={m}
+                  selected={m.id === selectedId}
+                  checked={selectedIds.has(m.id)}
+                  onToggleCheck={() => toggleSelected(m.id)}
+                  onSelect={() => handleSelect(m.id)}
+                  onOpen={() => onOpen?.(m.id)}
+                  rowPaddingY={rowPaddingY}
+                  clamp={Math.max(1, previewLineCount)}
+                  showSnippet={showSnippet}
+                  showAvatars={showAvatars}
+                />
+              )
+            }
+            return out
+          })()
         )}
       </div>
     </>
