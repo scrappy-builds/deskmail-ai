@@ -54,7 +54,9 @@ const api: DeskMailApi = {
     todayConfigGet: () => ipcRenderer.invoke('today:get-config'),
     todayConfigSet: (patch: { unread?: boolean; starred?: boolean }) => ipcRenderer.invoke('today:set-config', patch),
     junkEnabled: () => ipcRenderer.invoke('mail:junk-enabled'),
-    setJunkEnabled: (on: boolean) => ipcRenderer.invoke('mail:set-junk-enabled', on)
+    setJunkEnabled: (on: boolean) => ipcRenderer.invoke('mail:set-junk-enabled', on),
+    idleEnabled: () => ipcRenderer.invoke('mail:idle-enabled'),
+    setIdleEnabled: (on: boolean) => ipcRenderer.invoke('mail:set-idle-enabled', on)
   },
   compose: {
     getSignature: (accountId: number) => ipcRenderer.invoke('compose:get-signature', accountId),

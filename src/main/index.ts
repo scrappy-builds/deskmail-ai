@@ -41,6 +41,7 @@ import { syncAccount, syncAllAccounts } from './mail/sync'
 import { sendMail } from './mail/send'
 import { appendToSent } from './mail/appendSent'
 import { closePool } from './mail/connectionPool'
+import { isIdleHealthy, startIdle, stopAllIdle } from './mail/idle'
 import { joinMeeting } from './meetings'
 import { maybeSeedDemo } from './mail/demoSeed'
 import { validateImportedTheme, type CustomTheme } from '@shared/theme'
@@ -216,9 +217,12 @@ function checkEventReminders(): void {
 }
 
 // Sync, then notify about mail that arrived in the inbox during this pass.
-async function syncAndNotify(): Promise<void> {
+// With an accountId this is a targeted sync (IDLE push); without one it's the
+// periodic poll, which skips accounts whose IDLE connection is already healthy.
+async function syncAndNotify(accountId?: number): Promise<void> {
   const before = (db.get('SELECT COALESCE(MAX(id), 0) m FROM messages') as { m: number }).m
-  await syncAllAccounts(db)
+  if (accountId != null) await syncAccount(db, accountId)
+  else await syncAllAccounts(db, (id) => idleEnabled() && isIdleHealthy(id))
   broadcastMailChanged()
   const rows = db.all(
     "SELECT id FROM messages WHERE id > ? AND is_read = 0 AND is_muted = 0 AND folder_id IN (SELECT id FROM folders WHERE role = 'inbox') ORDER BY id",
@@ -238,6 +242,20 @@ function safeSize(path: string): number {
 function appSetting(key: string): string | null {
   const row = db.get('SELECT value FROM app_settings WHERE key = ?', [key]) as { value: string | null } | undefined
   return row?.value ?? null
+}
+
+// --- IMAP IDLE (instant new mail) — on unless turned off in Settings ----------
+const idleEnabled = (): boolean => appSetting('imap-idle') !== 'off'
+
+// Start (or stop) the per-account IDLE connections to match the setting.
+// Safe to call repeatedly: startIdle is a no-op for an account already idling.
+function applyIdleConfig(): void {
+  if (!idleEnabled()) {
+    stopAllIdle()
+    return
+  }
+  const rows = db.all("SELECT id FROM accounts WHERE incoming_type = 'imap'") as unknown as { id: number }[]
+  for (const r of rows) startIdle(db, r.id, () => void syncAndNotify(r.id))
 }
 
 // Window/taskbar icon (dev). In the packaged app the exe icon comes from
@@ -380,7 +398,10 @@ function registerIpc(): void {
     ensureDefaultSignature(db, id, input.displayName)
     ensureStandardFolders(db, id) // show the full folder tree immediately, pre-sync
     // Kick off a background sync for the new account; don't block the response.
-    void syncAccount(db, id).finally(broadcastMailChanged)
+    void syncAccount(db, id).finally(() => {
+      broadcastMailChanged()
+      applyIdleConfig() // start push notifications for the new account
+    })
     return { id }
   })
   // Full details for editing — password decrypted from the credential store so
@@ -676,6 +697,11 @@ function registerIpc(): void {
   })
   ipcMain.handle('mail:junk-enabled', () => getAppSetting(db, 'junk-filter') !== 'off')
   ipcMain.handle('mail:set-junk-enabled', (_e, on: boolean) => setAppSetting(db, 'junk-filter', on ? 'on' : 'off'))
+  ipcMain.handle('mail:idle-enabled', () => idleEnabled())
+  ipcMain.handle('mail:set-idle-enabled', (_e, on: boolean) => {
+    setAppSetting(db, 'imap-idle', on ? 'on' : 'off')
+    applyIdleConfig()
+  })
 
   // --- Attachments + NotebookLM export ----------------------------------------
   const attachDir = (messageId: number) => join(app.getPath('userData'), 'attachments', String(messageId))
@@ -952,8 +978,12 @@ app.whenReady().then(async () => {
 
   createTray()
 
-  // Background sync on launch (non-blocking); refresh the UI when it lands.
-  void syncAllAccounts(db).then(broadcastMailChanged)
+  // Background sync on launch (non-blocking); refresh the UI when it lands,
+  // then hold IDLE connections so new mail arrives instantly (poll = fallback).
+  void syncAllAccounts(db).then(() => {
+    broadcastMailChanged()
+    applyIdleConfig()
+  })
   startScheduledSender()
   // Periodic sync that surfaces new inbox mail as desktop notifications.
   setInterval(() => void syncAndNotify(), 2 * 60 * 1000)
@@ -980,5 +1010,6 @@ app.on('window-all-closed', () => {
 })
 app.on('before-quit', () => {
   isQuitting = true
+  stopAllIdle()
   closePool() // polite IMAP logout for the pooled connections
 })

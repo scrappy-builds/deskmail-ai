@@ -90,7 +90,12 @@ function recordSyncState(db: DB, accountId: number, folderId: number | null, sta
   )
 }
 
-export async function syncAllAccounts(db: DB): Promise<void> {
+// skip lets the caller leave out accounts that don't need polling right now
+// (e.g. ones with a healthy IMAP IDLE connection pushing new mail already).
+export async function syncAllAccounts(db: DB, skip?: (accountId: number) => boolean): Promise<void> {
   const rows = db.all("SELECT id FROM accounts WHERE incoming_type = 'imap'") as unknown as { id: number }[]
-  for (const r of rows) await syncAccount(db, r.id)
+  for (const r of rows) {
+    if (skip?.(r.id)) continue
+    await syncAccount(db, r.id)
+  }
 }

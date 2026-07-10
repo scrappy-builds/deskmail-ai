@@ -109,6 +109,9 @@ export interface DeskMailApi {
     // Auto junk filter on/off.
     junkEnabled(): Promise<boolean>
     setJunkEnabled(on: boolean): Promise<void>
+    // Instant new mail via IMAP IDLE (push) on/off.
+    idleEnabled(): Promise<boolean>
+    setIdleEnabled(on: boolean): Promise<void>
   }
   // Compose: drafts, signatures, attachments and manual send (Stage 6/8).
   compose: {
