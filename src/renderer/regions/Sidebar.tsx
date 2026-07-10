@@ -7,6 +7,20 @@ import { useToast } from '../store/toastStore'
 // Display order for the familiar mailboxes; custom folders (role null) sort after.
 const ROLE_ORDER: Record<string, number> = { inbox: 0, sent: 2, junk: 3, trash: 4, archive: 5 }
 
+// Collapsed folder ids persist locally so the tree stays how you left it.
+function loadCollapsed(): Set<number> {
+  try {
+    const raw = localStorage.getItem('deskmail.collapsedFolders')
+    if (raw) return new Set(JSON.parse(raw) as number[])
+  } catch {
+    /* ignore */
+  }
+  return new Set()
+}
+function saveCollapsed(s: Set<number>): void {
+  try { localStorage.setItem('deskmail.collapsedFolders', JSON.stringify([...s])) } catch { /* ignore */ }
+}
+
 // Map a folder role/name to an icon.
 function folderIcon(role: string | null, name: string): IconName {
   const r = (role ?? name).toLowerCase()
@@ -54,6 +68,9 @@ function CustomFolderRow({
   showLabels,
   depth,
   dropIndicator,
+  hasChildren,
+  collapsed,
+  onToggleCollapse,
   onDragStart,
   onDragOver,
   onDrop,
@@ -65,6 +82,9 @@ function CustomFolderRow({
   showLabels: boolean
   depth: number
   dropIndicator: DropPos | null
+  hasChildren: boolean
+  collapsed: boolean
+  onToggleCollapse: () => void
   onDragStart: () => void
   onDragOver: (pos: DropPos) => void
   onDrop: () => void
@@ -163,13 +183,21 @@ function CustomFolderRow({
           outline: dropIndicator === 'inside' ? '1.5px dashed var(--accent)' : 'none'
         }}
       >
+        {showLabels && hasChildren && (
+          <span onClick={(e) => { e.stopPropagation(); onToggleCollapse() }} title={collapsed ? 'Expand' : 'Collapse'} className="-ml-1.5 flex-none cursor-pointer rounded p-0.5 text-text-3 hover:text-text">
+            <Icon name="chevronDown" size={12} className={collapsed ? '-rotate-90' : ''} />
+          </span>
+        )}
         <Icon name={folderIcon(f.role, f.name)} size={18} className="flex-none" />
         {showLabels && (
           <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
             <span className="truncate text-[13.5px]" style={{ fontWeight: active ? 700 : 500 }}>
               {f.name}
             </span>
-            {f.unreadCount > 0 && <span className="text-[11.5px] font-semibold text-accent">{f.unreadCount}</span>}
+            <span className="flex flex-none items-center gap-1.5 text-[11.5px]">
+              {f.unreadCount > 0 && <span className="font-semibold text-accent">{f.unreadCount}</span>}
+              {f.totalCount > 0 && <span className="text-text-3">{f.totalCount}</span>}
+            </span>
           </div>
         )}
       </button>
@@ -205,7 +233,7 @@ function CustomFolderRow({
 // Renders custom (roleless) folders as a nested tree with drag-to-reorder/nest.
 // rootParentId chooses which parent's children to render (null = top level; a
 // standard-folder id renders that folder's local subfolders, e.g. the Inbox).
-function FolderTree({ folders, activeFolderId, showLabels, rootParentId = null, baseDepth = 0 }: { folders: FolderSummary[]; activeFolderId: number | null; showLabels: boolean; rootParentId?: number | null; baseDepth?: number }): JSX.Element {
+function FolderTree({ folders, activeFolderId, showLabels, collapsed, onToggleCollapse, rootParentId = null, baseDepth = 0 }: { folders: FolderSummary[]; activeFolderId: number | null; showLabels: boolean; collapsed: Set<number>; onToggleCollapse: (id: number) => void; rootParentId?: number | null; baseDepth?: number }): JSX.Element {
   const showToast = useToast((s) => s.show)
   const dragId = useRef<number | null>(null)
   const [drop, setDrop] = useState<{ id: number; pos: DropPos } | null>(null)
@@ -255,6 +283,8 @@ function FolderTree({ folders, activeFolderId, showLabels, rootParentId = null, 
 
   const render = (pid: number | null, depth: number): JSX.Element[] =>
     childrenOf(pid).flatMap((f) => {
+      const kids = childrenOf(f.id)
+      const isCollapsed = collapsed.has(f.id)
       const rows: JSX.Element[] = [
         <CustomFolderRow
           key={f.id}
@@ -263,6 +293,9 @@ function FolderTree({ folders, activeFolderId, showLabels, rootParentId = null, 
           showLabels={showLabels}
           depth={depth}
           dropIndicator={drop?.id === f.id ? drop.pos : null}
+          hasChildren={kids.length > 0}
+          collapsed={isCollapsed}
+          onToggleCollapse={() => onToggleCollapse(f.id)}
           onDragStart={() => { dragId.current = f.id }}
           onDragOver={(pos) => setDrop({ id: f.id, pos })}
           onDrop={() => void commitDrop(f)}
@@ -288,7 +321,7 @@ function FolderTree({ folders, activeFolderId, showLabels, rootParentId = null, 
           />
         )
       }
-      rows.push(...render(f.id, depth + 1))
+      if (!isCollapsed) rows.push(...render(f.id, depth + 1))
       return rows
     })
 
@@ -320,6 +353,15 @@ export function Sidebar({
   const [addingInboxChild, setAddingInboxChild] = useState(false)
   const [inboxChildName, setInboxChildName] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
+  const [collapsed, setCollapsed] = useState<Set<number>>(loadCollapsed)
+  const toggleCollapse = (id: number): void => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      saveCollapsed(next)
+      return next
+    })
+  }
 
   useEffect(() => {
     const refresh = (): void => {
@@ -450,6 +492,7 @@ export function Sidebar({
           const active = f.id === activeFolderId
           const isInbox = f.role === 'inbox'
           const canEmpty = f.role === 'junk' || f.role === 'trash'
+          const inboxHasKids = isInbox && folders.some((x) => !x.role && (x.parentId ?? null) === f.id)
           return (
             <div key={f.id} className="group relative">
               <button
@@ -463,13 +506,21 @@ export function Sidebar({
                   color: active ? 'var(--accent)' : 'var(--text-2)'
                 }}
               >
+                {showLabels && isInbox && inboxHasKids && (
+                  <span onClick={(e) => { e.stopPropagation(); toggleCollapse(f.id) }} title={collapsed.has(f.id) ? 'Expand' : 'Collapse'} className="-ml-1.5 flex-none cursor-pointer rounded p-0.5 text-text-3 hover:text-text">
+                    <Icon name="chevronDown" size={12} className={collapsed.has(f.id) ? '-rotate-90' : ''} />
+                  </span>
+                )}
                 <Icon name={folderIcon(f.role, f.name)} size={18} className="flex-none" />
                 {showLabels && (
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                     <span className="truncate text-[13.5px]" style={{ fontWeight: active ? 700 : 500 }}>
                       {f.name}
                     </span>
-                    {f.unreadCount > 0 && <span className="text-[11.5px] font-semibold text-accent">{f.unreadCount}</span>}
+                    <span className="flex flex-none items-center gap-1.5 text-[11.5px]">
+                      {f.unreadCount > 0 && <span className="font-semibold text-accent">{f.unreadCount}</span>}
+                      {f.totalCount > 0 && <span className="text-text-3">{f.totalCount}</span>}
+                    </span>
                   </div>
                 )}
               </button>
@@ -514,15 +565,15 @@ export function Sidebar({
                   className="mb-px w-full rounded-md border border-accent bg-bg px-[9px] py-1.5 text-[13.5px] outline-none"
                 />
               )}
-              {isInbox && showLabels && (
-                <FolderTree folders={folders.filter((x) => !x.role)} activeFolderId={activeFolderId} showLabels={showLabels} rootParentId={f.id} baseDepth={1} />
+              {isInbox && showLabels && !collapsed.has(f.id) && (
+                <FolderTree folders={folders.filter((x) => !x.role)} activeFolderId={activeFolderId} showLabels={showLabels} collapsed={collapsed} onToggleCollapse={toggleCollapse} rootParentId={f.id} baseDepth={1} />
               )}
             </div>
           )
         })}
 
       {/* Custom folders: nested tree with drag-to-reorder/nest + right-click menu. */}
-      <FolderTree folders={folders.filter((f) => !f.role)} activeFolderId={activeFolderId} showLabels={showLabels} />
+      <FolderTree folders={folders.filter((f) => !f.role)} activeFolderId={activeFolderId} showLabels={showLabels} collapsed={collapsed} onToggleCollapse={toggleCollapse} />
 
       {showLabels && adding && (
         <input

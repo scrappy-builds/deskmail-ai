@@ -51,7 +51,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 - [x] **Pop-out: Show original / full headers + "View source"** — [easy]. Raw headers and the raw message, like Thunderbird's "View Source".
 - [x] **Pop-out: Save message as `.eml` / `.html`** — [easy]. Save the open email to disk (complements the existing Print-to-PDF).
 - [x] **Multi-column list view (optional)** — [big]. A classic table view (sortable From / Subject / Date / Size columns) as an alternative to the current card rows.
-- [x] **Folder unread/total counts + collapsible tree** — [easy]. Show totals and let folder groups collapse (pairs with the Inbox-subfolders work on `TODO.md`).
 - [x] **Follow-up flag with a reminder date** — [med]. Flag an email "follow up by <date>" and surface it in Today when due (snooze exists; this is a dated flag).
 - [x] **Importance / priority marker (High / Normal / Low)** — [easy]. Set and show a priority marker on messages (reads the `Importance` header on sync; settable on send).
 - [x] **Inline images + attach from the compose window** — [med]. Confirm/extend drag-in attachments and inline image paste.
