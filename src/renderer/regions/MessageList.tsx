@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Icon } from '../Icon'
 import type { MessageListItem } from '@shared/db'
 import { fmtTime, initials, messageDateGroup } from '../mail/format'
 import { sortMessages, SORT_LABELS, type SortField } from '../mail/sortMessages'
 import { groupThreads } from '../mail/threads'
 import { MSG_DND_TYPE } from '../mail/dnd'
+import { visibleRange } from './useWindowedList'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
 
@@ -153,6 +154,42 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
   const sorted = sortMessages(messages, sort.field, sort.dir)
   const showDateGroups = sort.field === 'date' && !threading
 
+  // --- Windowing: only the visible rows exist in the DOM ---------------------
+  const HEADER_H = 25
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportH, setViewportH] = useState(600)
+  const [rowH, setRowH] = useState<number | null>(null)
+  // Density/preview changes alter the real row height — re-measure.
+  useEffect(() => setRowH(null), [rowPaddingY, showSnippet, previewLineCount, showAvatars])
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setViewportH(el.clientHeight)
+    const ro = new ResizeObserver(() => setViewportH(el.clientHeight))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  // Measure one real row once per config; the estimate below covers first paint.
+  useLayoutEffect(() => {
+    if (rowH != null) return
+    const el = scrollRef.current?.querySelector('[data-testid^="msg-row-"]') as HTMLElement | null
+    if (el && el.offsetHeight > 0) setRowH(el.offsetHeight)
+  })
+  const rowHeight = rowH ?? rowPaddingY * 2 + 42 + (showSnippet ? Math.max(1, previewLineCount) * 18 : 0)
+  // Keep the selected row visible when selection changes (keyboard/next-prev).
+  // Rendered → nudge into view; windowed out → jump its estimated offset in.
+  useEffect(() => {
+    if (selectedId == null) return
+    const el = scrollRef.current?.querySelector(`[data-testid="msg-row-${selectedId}"]`) as HTMLElement | null
+    if (el) el.scrollIntoView({ block: 'nearest' })
+    else {
+      const idx = sorted.findIndex((m) => m.id === selectedId)
+      if (idx >= 0) scrollRef.current?.scrollTo({ top: Math.max(0, idx * rowHeight - viewportH / 2) })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId])
+
   const activeLabel = labels.find((l) => l.id === activeLabelId)
   const activeSmart = smartViews.find((v) => v.id === activeSmartViewId)
   const title = searching
@@ -229,7 +266,7 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
         </label>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div ref={scrollRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {messages.length === 0 ? (
           <div className="px-6 py-16 text-center">
             <div className="text-[14px] font-bold text-text-2">
@@ -284,27 +321,14 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
           </table>
         ) : (
           (() => {
-            // Interleave date separators (Today/Yesterday/…) when not threading.
-            // When threading is on, group by conversation and let each expand.
+            // Flatten to entries first (date headers become rows in the same
+            // array with their own height), then render only the visible slice
+            // between two spacer divs — a 20k-message folder scrolls like 50.
+            type Entry =
+              | { kind: 'header'; key: string; label: string }
+              | { kind: 'row'; key: string; m: MessageListItem; extra: { threadCount?: number; threadExpanded?: boolean; onToggleThread?: () => void; indent?: boolean } }
             let lastGroup = ''
-            const out: JSX.Element[] = []
-            const rowFor = (m: MessageListItem, extra: { threadCount?: number; threadExpanded?: boolean; onToggleThread?: () => void; indent?: boolean } = {}): JSX.Element => (
-              <Row
-                key={extra.indent ? `child-${m.id}` : m.id}
-                m={m}
-                selected={m.id === selectedId}
-                checked={selectedIds.has(m.id)}
-                onToggleCheck={() => toggleSelected(m.id)}
-                onSelect={() => handleSelect(m.id)}
-                onOpen={() => onOpen?.(m.id)}
-                onDragStart={(e) => startDrag(e, m.id)}
-                rowPaddingY={rowPaddingY}
-                clamp={Math.max(1, previewLineCount)}
-                showSnippet={showSnippet}
-                showAvatars={showAvatars}
-                {...extra}
-              />
-            )
+            const entries: Entry[] = []
             const threads = threading ? groupThreads(sorted) : sorted.map((m) => ({ key: `s${m.id}`, items: [m] }))
             for (const t of threads) {
               const rep = t.items[0]
@@ -312,18 +336,47 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
                 const group = rep.isPinned ? 'Pinned' : messageDateGroup(rep.receivedAt)
                 if (group !== lastGroup) {
                   lastGroup = group
-                  out.push(
-                    <div key={`grp-${group}-${rep.id}`} className="sticky top-0 z-[1] border-b border-border bg-panel px-3.5 py-1 text-[11px] font-bold uppercase tracking-[.5px] text-text-3">
-                      {group}
-                    </div>
-                  )
+                  entries.push({ kind: 'header', key: `grp-${group}-${rep.id}`, label: group })
                 }
               }
               const expanded = expandedThreads.has(t.key)
-              out.push(rowFor(rep, { threadCount: t.items.length, threadExpanded: expanded, onToggleThread: () => toggleThread(t.key) }))
-              if (threading && expanded) for (const m of t.items.slice(1)) out.push(rowFor(m, { indent: true }))
+              entries.push({ kind: 'row', key: `m-${rep.id}`, m: rep, extra: { threadCount: t.items.length, threadExpanded: expanded, onToggleThread: () => toggleThread(t.key) } })
+              if (threading && expanded) for (const m of t.items.slice(1)) entries.push({ kind: 'row', key: `child-${m.id}`, m, extra: { indent: true } })
             }
-            return out
+
+            const heights = entries.map((e) => (e.kind === 'header' ? HEADER_H : rowHeight))
+            const range = visibleRange(heights, scrollTop, viewportH)
+            const slice = entries.slice(range.start, range.end)
+
+            return (
+              <>
+                {range.topPad > 0 && <div style={{ height: range.topPad }} aria-hidden />}
+                {slice.map((e) =>
+                  e.kind === 'header' ? (
+                    <div key={e.key} className="sticky top-0 z-[1] border-b border-border bg-panel px-3.5 py-1 text-[11px] font-bold uppercase tracking-[.5px] text-text-3" style={{ height: HEADER_H }}>
+                      {e.label}
+                    </div>
+                  ) : (
+                    <Row
+                      key={e.key}
+                      m={e.m}
+                      selected={e.m.id === selectedId}
+                      checked={selectedIds.has(e.m.id)}
+                      onToggleCheck={() => toggleSelected(e.m.id)}
+                      onSelect={() => handleSelect(e.m.id)}
+                      onOpen={() => onOpen?.(e.m.id)}
+                      onDragStart={(ev) => startDrag(ev, e.m.id)}
+                      rowPaddingY={rowPaddingY}
+                      clamp={Math.max(1, previewLineCount)}
+                      showSnippet={showSnippet}
+                      showAvatars={showAvatars}
+                      {...e.extra}
+                    />
+                  )
+                )}
+                {range.bottomPad > 0 && <div style={{ height: range.bottomPad }} aria-hidden />}
+              </>
+            )
           })()
         )}
       </div>
