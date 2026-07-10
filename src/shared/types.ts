@@ -67,8 +67,11 @@ export interface DeskMailApi {
     search(query: string): Promise<MessageListItem[]>
     getMessage(id: number): Promise<MessageDetail | null>
     markRead(id: number, read: boolean): Promise<void>
-    // Move/flag/read/trash/junk/archive — applied locally + pushed to IMAP.
+    // Move/flag/read/trash/junk/archive/delete-forever — applied locally + pushed to IMAP.
     action(messageId: number, op: MailOp, targetFolderId?: number): Promise<void>
+    // Mark every message in a folder read; permanently empty a folder (Trash/Junk).
+    markFolderRead(folderId: number): Promise<{ count: number }>
+    emptyFolder(folderId: number): Promise<{ count: number }>
     sync(accountId?: number): Promise<void>
     // Folder management: create/rename/delete custom folders (standard roles are protected).
     createFolder(accountId: number, name: string, parentId?: number | null): Promise<{ id: number }>

@@ -184,6 +184,9 @@ function CustomFolderRow({
       )}
       {menu && (
         <div className="absolute right-1 top-8 z-20 w-[160px] rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
+          <button onClick={() => { setMenu(null); void window.deskmail.mail.markFolderRead(f.id).then(({ count }) => showToast({ text: count > 0 ? `Marked ${count} as read` : 'Nothing unread here' })) }} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+            Mark all read
+          </button>
           <button onClick={() => { setMenu(null); onNewSubfolder() }} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
             New subfolder
           </button>
@@ -311,11 +314,12 @@ export function Sidebar({
   const [newName, setNewName] = useState('')
   const [addingLabel, setAddingLabel] = useState(false)
   const [newLabel, setNewLabel] = useState('')
-  // Inbox right-click menu + inline "new subfolder" (Inbox can hold subfolders).
-  const [inboxMenu, setInboxMenu] = useState<{ x: number; y: number } | null>(null)
+  // Standard-folder right-click menu (which folder's menu is open) + the Inbox's
+  // inline "new subfolder" state (only the Inbox can hold subfolders).
+  const [menuFolderId, setMenuFolderId] = useState<number | null>(null)
   const [addingInboxChild, setAddingInboxChild] = useState(false)
   const [inboxChildName, setInboxChildName] = useState('')
-  const inboxMenuRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const refresh = (): void => {
@@ -326,15 +330,29 @@ export function Sidebar({
     return window.deskmail.mail.onChanged(refresh)
   }, [])
 
-  // Close the Inbox menu on an outside click.
+  // Close the standard-folder menu on an outside click.
   useEffect(() => {
-    if (!inboxMenu) return
+    if (menuFolderId == null) return
     const onDown = (e: MouseEvent): void => {
-      if (inboxMenuRef.current && !inboxMenuRef.current.contains(e.target as Node)) setInboxMenu(null)
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuFolderId(null)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [inboxMenu])
+  }, [menuFolderId])
+
+  // Mark every message in a folder read; empty (permanently) a Junk/Trash folder.
+  const markAllRead = async (folderId: number): Promise<void> => {
+    setMenuFolderId(null)
+    const { count } = await window.deskmail.mail.markFolderRead(folderId)
+    showToast({ text: count > 0 ? `Marked ${count} as read` : 'Nothing unread here' })
+  }
+  const emptyFolderNow = async (f: FolderSummary): Promise<void> => {
+    setMenuFolderId(null)
+    // ponytail: window.confirm is the lazy-correct guard for a destructive, unrecoverable action.
+    if (!window.confirm(`Permanently delete everything in ${f.name}? This can't be undone.`)) return
+    const { count } = await window.deskmail.mail.emptyFolder(f.id)
+    showToast({ text: count > 0 ? `Permanently deleted ${count} message${count > 1 ? 's' : ''}` : `${f.name} is already empty` })
+  }
 
   if (accounts.length === 0) {
     return (
@@ -431,11 +449,12 @@ export function Sidebar({
         .map((f) => {
           const active = f.id === activeFolderId
           const isInbox = f.role === 'inbox'
+          const canEmpty = f.role === 'junk' || f.role === 'trash'
           return (
             <div key={f.id} className="group relative">
               <button
                 onClick={() => void setFolder(f.id)}
-                onContextMenu={isInbox ? (e) => { e.preventDefault(); setInboxMenu({ x: e.clientX, y: e.clientY }) } : undefined}
+                onContextMenu={showLabels ? (e) => { e.preventDefault(); setMenuFolderId(f.id) } : undefined}
                 title={f.name}
                 className="mb-px flex w-full items-center gap-3 rounded-md px-[9px] py-2 hover:bg-hover"
                 style={{
@@ -454,20 +473,30 @@ export function Sidebar({
                   </div>
                 )}
               </button>
-              {isInbox && showLabels && (
+              {showLabels && (
                 <button
-                  onClick={(e) => setInboxMenu({ x: e.clientX, y: e.clientY })}
+                  onClick={() => setMenuFolderId(f.id)}
                   title="Folder options"
                   className="absolute right-1 top-1.5 hidden rounded p-1 text-text-3 hover:bg-raised group-hover:block"
                 >
                   <Icon name="sliders" size={14} />
                 </button>
               )}
-              {isInbox && inboxMenu && (
-                <div ref={inboxMenuRef} className="absolute right-1 top-8 z-20 w-[160px] rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
-                  <button onClick={() => { setInboxMenu(null); setAddingInboxChild(true); setInboxChildName('') }} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
-                    New subfolder
+              {menuFolderId === f.id && (
+                <div ref={menuRef} className="absolute right-1 top-8 z-20 w-[180px] rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
+                  <button onClick={() => void markAllRead(f.id)} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+                    Mark all read
                   </button>
+                  {isInbox && (
+                    <button onClick={() => { setMenuFolderId(null); setAddingInboxChild(true); setInboxChildName('') }} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+                      New subfolder
+                    </button>
+                  )}
+                  {canEmpty && (
+                    <button onClick={() => void emptyFolderNow(f)} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-danger hover:bg-raised">
+                      {f.role === 'trash' ? 'Empty deleted items' : 'Empty Junk'}
+                    </button>
+                  )}
                 </div>
               )}
               {isInbox && addingInboxChild && showLabels && (

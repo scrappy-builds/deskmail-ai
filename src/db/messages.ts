@@ -301,6 +301,23 @@ export function markRead(db: DB, id: number, read = true): void {
   db.run("UPDATE messages SET is_read = ?, updated_at = datetime('now') WHERE id = ?", [read ? 1 : 0, id])
 }
 
+// Mark every unread message in a folder as read (local only). Returns how many changed.
+export function markFolderRead(db: DB, folderId: number): number {
+  const n = (db.get('SELECT COUNT(*) c FROM messages WHERE folder_id = ? AND is_read = 0', [folderId]) as { c: number }).c
+  db.run("UPDATE messages SET is_read = 1, updated_at = datetime('now') WHERE folder_id = ? AND is_read = 0", [folderId])
+  return n
+}
+
+// Remove a message row from the local cache (used by permanent delete).
+export function deleteMessage(db: DB, id: number): void {
+  db.run('DELETE FROM messages WHERE id = ?', [id])
+}
+
+// Ids of every message currently in a folder (used by "empty folder").
+export function folderMessageIds(db: DB, folderId: number): number[] {
+  return (db.all('SELECT id FROM messages WHERE folder_id = ?', [folderId]) as unknown as { id: number }[]).map((r) => r.id)
+}
+
 export function setStarred(db: DB, id: number, on: boolean): void {
   db.run("UPDATE messages SET is_starred = ?, updated_at = datetime('now') WHERE id = ?", [on ? 1 : 0, id])
 }

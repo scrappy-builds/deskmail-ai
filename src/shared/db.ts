@@ -274,8 +274,9 @@ export interface TodayAgenda {
 }
 
 // Mail actions (applied locally + pushed to IMAP). 'trash' = move to Trash
-// (reversible); there is no permanent-delete action.
-export type MailOp = 'move' | 'flag' | 'unflag' | 'read' | 'unread' | 'trash' | 'junk' | 'archive'
+// (reversible). 'delete-forever' = permanent delete: removes the local row and
+// expunges the server copy (used only from Trash/Junk, behind a confirm).
+export type MailOp = 'move' | 'flag' | 'unflag' | 'read' | 'unread' | 'trash' | 'junk' | 'archive' | 'delete-forever'
 
 export interface ComposeAttachment {
   path: string

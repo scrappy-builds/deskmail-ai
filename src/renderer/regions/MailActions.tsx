@@ -105,8 +105,21 @@ export function MailActions(): JSX.Element {
   // Reply/forward act on the message open in the reading pane — only sensible
   // for a single message, so they're off when several are ticked.
   const replyEnabled = selected != null && selectedIds.size <= 1
-  const inJunk = folders.find((f) => f.id === activeFolderId)?.role === 'junk'
+  const activeRole = folders.find((f) => f.id === activeFolderId)?.role
+  const inJunk = activeRole === 'junk'
   const inboxId = folders.find((f) => f.role === 'inbox')?.id
+  // In Trash or Junk, Delete means permanent delete (there's nowhere left to move to).
+  const hardDelete = activeRole === 'trash' || activeRole === 'junk'
+
+  const deleteSelected = (): void => {
+    if (!has) return
+    if (hardDelete) {
+      if (!window.confirm(`Permanently delete ${ids.length} message${ids.length > 1 ? 's' : ''}? This can't be undone.`)) return
+      void applyEach((id) => window.deskmail.mail.action(id, 'delete-forever'), 'Permanently deleted')
+    } else {
+      void runOp('delete', 'Moved to Bin')
+    }
+  }
 
   // Run every selected message through the bulk planner/runner, then refresh,
   // clear any tick selection, and confirm with a toast.
@@ -155,7 +168,7 @@ export function MailActions(): JSX.Element {
       <Btn icon="replyAll" label="Reply all" disabled={!replyEnabled} onClick={() => startReply('replyAll')} />
       <Btn icon="forward" label="Forward" disabled={!replyEnabled} onClick={() => startReply('forward')} />
       <Divider />
-      <Btn icon="trash" label="Delete" danger disabled={!has} onClick={() => void runOp('delete', 'Moved to Bin')} />
+      <Btn icon="trash" label={hardDelete ? 'Delete forever' : 'Delete'} danger disabled={!has} onClick={deleteSelected} />
       <Btn icon="archive" label="Archive" disabled={!has} onClick={() => void runOp('archive', 'Archived')} />
       <Dropdown icon="draft" label="Move to" disabled={!has}
         render={(close) => (

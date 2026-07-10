@@ -7,17 +7,17 @@ import { backupTo, restoreFrom } from './backup'
 import { openDatabase, type DB } from '../db/database'
 import { getAppSetting, loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty, setAppSetting } from '../db/settings'
 import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/accounts'
-import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, renameFolder, reorderFolders } from '../db/folders'
+import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
 import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
-import { getMessage, listMessages, listMessagesByLabel, markRead, searchMessages, setMuted, setPinned } from '../db/messages'
+import { getMessage, listMessages, listMessagesByLabel, markFolderRead, markRead, searchMessages, setMuted, setPinned } from '../db/messages'
 import { createLabel, deleteLabel, labelsForMessage, listLabels, renameLabel, setMessageLabel } from '../db/labels'
 import { createRule, deleteRule, listRules, updateRule } from '../db/rules'
 import { createSmartView, deleteSmartView, listSmartViews, runSmartView } from '../db/smartViews'
 import { printMessageToPdf } from './mail/printPdf'
 import { checkAutoBackup } from './autoBackup'
 import { getNotifySettings, notificationsSuppressed, type NotifySettings } from './notify'
-import { applyAction } from '../db/mailActions'
+import { applyAction, emptyFolder } from '../db/mailActions'
 import { trainBayesFromMessage } from '../db/bayes'
 import { drainMailActions } from './mail/drainer'
 import { fetchAndSaveAttachments } from './mail/attachments'
@@ -414,6 +414,18 @@ function registerIpc(): void {
     if (accountId) await syncAccount(db, accountId)
     else await syncAllAccounts(db)
     broadcastMailChanged()
+  })
+  ipcMain.handle('mail:mark-folder-read', (_e, folderId: number) => {
+    const n = markFolderRead(db, folderId)
+    refreshFolderCounts(db, folderId)
+    broadcastMailChanged()
+    return { count: n }
+  })
+  ipcMain.handle('mail:empty-folder', (_e, folderId: number) => {
+    const n = emptyFolder(db, folderId)
+    broadcastMailChanged()
+    void drainMailActions(db) // push the expunges to IMAP in the background
+    return { count: n }
   })
 
   // --- Folder management (create / rename / delete custom folders) -------------

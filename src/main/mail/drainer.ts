@@ -24,6 +24,10 @@ async function applyRemote(client: ImapFlow, a: QueuedAction): Promise<void> {
       case 'unread':
         await client.messageFlagsRemove(uid, ['\\Seen'], { uid: true })
         break
+      case 'delete-forever':
+        // Flag \Deleted and expunge on the server (permanent).
+        await client.messageDelete(uid, { uid: true })
+        break
       default: // move | trash | junk | archive
         if (a.target_path) {
           try {

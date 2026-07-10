@@ -4,7 +4,7 @@ import {
   getFolder,
   refreshFolderCounts
 } from './folders'
-import { getMessageMeta, markRead, setMessageFolder, setStarred } from './messages'
+import { deleteMessage, folderMessageIds, getMessageMeta, markRead, setMessageFolder, setStarred } from './messages'
 import type { MailOp } from '@shared/db'
 import type { DB } from './database'
 
@@ -34,6 +34,19 @@ export function applyAction(db: DB, messageId: number, op: MailOp, explicitTarge
   if (!meta) return false
 
   const source = meta.folderId != null ? getFolder(db, meta.folderId) : null
+
+  // Permanent delete: queue a server expunge (drainer uses source_path + uid, so
+  // it still works after the local row is gone), then drop the local copy.
+  if (op === 'delete-forever') {
+    db.run(
+      `INSERT INTO mail_actions (message_id, account_id, op, remote_uid, source_path, target_path)
+       VALUES (?, ?, ?, ?, ?, NULL)`,
+      [messageId, meta.accountId, op, meta.remoteUid, source?.remote_path ?? null]
+    )
+    deleteMessage(db, messageId)
+    if (source) refreshFolderCounts(db, source.id)
+    return true
+  }
 
   // Resolve a target folder for the move-like ops.
   let targetPath: string | null = null
@@ -76,6 +89,14 @@ export function applyAction(db: DB, messageId: number, op: MailOp, explicitTarge
   if (source) refreshFolderCounts(db, source.id)
   if (targetFolderId != null) refreshFolderCounts(db, targetFolderId)
   return true
+}
+
+// Permanently delete every message in a folder (Empty Trash / Empty Junk).
+// Returns how many were removed.
+export function emptyFolder(db: DB, folderId: number): number {
+  const ids = folderMessageIds(db, folderId)
+  for (const id of ids) applyAction(db, id, 'delete-forever')
+  return ids.length
 }
 
 export function pendingActions(db: DB): QueuedAction[] {
