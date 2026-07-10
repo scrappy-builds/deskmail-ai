@@ -39,7 +39,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 - [x] **Message / Actions menu** — [easy]. Reply, Reply all, Forward, Move to, Categorise, Flag / Unflag, Pin, Snooze, Block sender, Mark all read — the same actions as the ribbon, reachable from the menu bar.
 - [x] **Pop-out message window: own menu bar + fuller toolbar** — [med]. File (Save As / Print / Close), Message (reply/forward/move/categorise/flag/pin/snooze), View (zoom, show full headers). Parity with the reading-pane actions. (Today the pop-out only has reply/forward/archive/delete/star/print/mark-read.)
 - [x] **Pop-out message window: Next / Previous navigation** — [med]. Arrows (and keyboard) to step through the folder without going back to the list.
-- [x] **Sort / Arrange-by** — [med]. Sort the list by date, sender, subject, size, unread, flagged; ascending/descending. Currently fixed to pinned-then-date.
 - [x] **Drag an email onto a sidebar folder to move it** — [med]. Direct drag-to-file, in addition to the Move menu.
 
 ---

@@ -1,8 +1,21 @@
+import { useState } from 'react'
 import { Icon } from '../Icon'
 import type { MessageListItem } from '@shared/db'
 import { fmtTime, initials, messageDateGroup } from '../mail/format'
+import { sortMessages, SORT_LABELS, type SortDir, type SortField } from '../mail/sortMessages'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
+
+// Persist the sort choice locally (no backend needed).
+function loadSort(): { field: SortField; dir: SortDir } {
+  try {
+    const raw = localStorage.getItem('deskmail.sort')
+    if (raw) return JSON.parse(raw)
+  } catch {
+    /* ignore */
+  }
+  return { field: 'date', dir: 'desc' }
+}
 
 interface MessageListProps {
   rowPaddingY: number
@@ -110,6 +123,15 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
   const allSelected = messages.length > 0 && selectedIds.size === messages.length
   const someSelected = selectedIds.size > 0 && !allSelected
 
+  const [sort, setSort] = useState(loadSort)
+  const [sortOpen, setSortOpen] = useState(false)
+  const setSortAndSave = (next: { field: SortField; dir: SortDir }): void => {
+    setSort(next)
+    try { localStorage.setItem('deskmail.sort', JSON.stringify(next)) } catch { /* ignore */ }
+  }
+  const sorted = sortMessages(messages, sort.field, sort.dir)
+  const showDateGroups = sort.field === 'date'
+
   const activeLabel = labels.find((l) => l.id === activeLabelId)
   const activeSmart = smartViews.find((v) => v.id === activeSmartViewId)
   const title = searching
@@ -131,9 +153,30 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
         <span className="text-[15px] font-bold">{title}</span>
         <span className="text-[12px] font-semibold text-text-3">{messages.length}</span>
         <div className="flex-1" />
-        <button className="flex cursor-pointer rounded-md p-1.5 text-text-2 hover:bg-raised" title="Filter">
-          <Icon name="filter" size={18} />
-        </button>
+        <div className="relative">
+          <button onClick={() => setSortOpen((v) => !v)} className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-[12px] font-semibold text-text-2 hover:bg-raised" title="Sort messages">
+            <Icon name="filter" size={16} />
+            <span>{SORT_LABELS[sort.field]}</span>
+            <Icon name={sort.dir === 'asc' ? 'chevronDown' : 'chevronDown'} size={12} className={sort.dir === 'asc' ? 'rotate-180 opacity-60' : 'opacity-60'} />
+          </button>
+          {sortOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setSortOpen(false)} />
+              <div className="absolute right-0 top-full z-20 mt-1 w-[180px] rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
+                <div className="px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Sort by</div>
+                {(Object.keys(SORT_LABELS) as SortField[]).map((f) => (
+                  <button key={f} onClick={() => { setSortAndSave({ field: f, dir: sort.dir }); setSortOpen(false) }} className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+                    {SORT_LABELS[f]} {sort.field === f && <Icon name="check" size={14} className="text-accent" />}
+                  </button>
+                ))}
+                <div className="my-1 border-t border-border" />
+                <button onClick={() => setSortAndSave({ field: sort.field, dir: sort.dir === 'asc' ? 'desc' : 'asc' })} className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+                  {sort.dir === 'asc' ? 'Ascending' : 'Descending'} <Icon name="chevronDown" size={13} className={sort.dir === 'asc' ? 'rotate-180' : ''} />
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Select-all tickbox at the head of the checkbox column — aligns under each
@@ -173,9 +216,9 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
             // date bucket changes down the list (pinned mail groups under "Pinned").
             let lastGroup = ''
             const out: JSX.Element[] = []
-            for (const m of messages) {
+            for (const m of sorted) {
               const group = m.isPinned ? 'Pinned' : messageDateGroup(m.receivedAt)
-              if (group !== lastGroup) {
+              if (showDateGroups && group !== lastGroup) {
                 lastGroup = group
                 out.push(
                   <div key={`grp-${group}-${m.id}`} className="sticky top-0 z-[1] border-b border-border bg-panel px-3.5 py-1 text-[11px] font-bold uppercase tracking-[.5px] text-text-3">
