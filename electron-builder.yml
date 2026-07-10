@@ -21,6 +21,12 @@ files:
 extraMetadata:
   main: out/main/index.js
 
+# deskmail:// carries toast quick-action activations back to the running app.
+protocols:
+  - name: DeskMail AI
+    schemes:
+      - deskmail
+
 win:
   icon: build/icon.png
   target:

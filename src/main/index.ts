@@ -44,6 +44,7 @@ import { sendMail } from './mail/send'
 import { appendToSent } from './mail/appendSent'
 import { closePool } from './mail/connectionPool'
 import { isIdleHealthy, startIdle, stopAllIdle } from './mail/idle'
+import { buildToastXml, parseActionUrl } from './toastActions'
 import { joinMeeting } from './meetings'
 import { maybeSeedDemo } from './mail/demoSeed'
 import { validateImportedTheme, type CustomTheme } from '@shared/theme'
@@ -203,16 +204,51 @@ function createTray(): void {
 
 // Show a desktop notification per new inbox message (unless suppressed by the
 // notifications toggle, Focus, or the DND schedule). Capped so a big sync can't
-// spray dozens of toasts. Clicking one opens that message in its own window.
+// spray dozens of toasts. On Windows the toast carries Archive / Delete / Mark
+// read buttons (protocol activation); elsewhere — and if the toast XML path
+// ever misbehaves — it falls back to a plain notification whose click opens
+// the message window.
 function notifyNewMail(ids: number[]): void {
   if (!Notification.isSupported() || notificationsSuppressed(db)) return
   for (const id of ids.slice(0, 5)) {
     const m = getMessage(db, id)
     if (!m) continue
-    const n = new Notification({ title: m.fromName || m.fromEmail || 'New mail', body: m.subject || '(no subject)' })
-    n.on('click', () => openMessageWindow(id))
-    n.show()
+    const title = m.fromName || m.fromEmail || 'New mail'
+    const body = m.subject || '(no subject)'
+    try {
+      if (process.platform !== 'win32') throw new Error('toastXml is Windows-only')
+      new Notification({ toastXml: buildToastXml(title, body, id) }).show()
+    } catch {
+      const n = new Notification({ title, body })
+      n.on('click', () => openMessageWindow(id))
+      n.show()
+    }
   }
+}
+
+// Route a deskmail:// activation (toast button / toast click / command line).
+// The URL comes from outside the process — parseActionUrl validates it hard.
+function handleProtocolUrl(url: string): boolean {
+  const parsed = parseActionUrl(url)
+  if (!parsed) return false
+  const { op, messageId } = parsed
+  if (op === 'open') {
+    openMessageWindow(messageId)
+    showMainWindow()
+  } else if (op === 'read') {
+    markRead(db, messageId, true)
+    broadcastMailChanged()
+  } else {
+    applyAction(db, messageId, op) // archive | trash — queued to IMAP as usual
+    broadcastMailChanged()
+    void drainMailActions(db)
+  }
+  return true
+}
+
+function handleProtocolArgs(argv: string[]): boolean {
+  const arg = argv.find((a) => a.startsWith('deskmail://'))
+  return arg ? handleProtocolUrl(arg) : false
 }
 
 // Fire a one-off reminder for any event starting within ~10 minutes. Keyed per
@@ -1111,11 +1147,24 @@ function applyLaunchAtStartup(): void {
   setStartup(stored !== 'off')
 }
 
+// Single instance: toast buttons and protocol links launch a second process on
+// Windows — hand the URL to the running app instead of starting another.
+const gotInstanceLock = app.requestSingleInstanceLock()
+if (!gotInstanceLock) {
+  app.quit()
+}
+app.on('second-instance', (_e, argv) => {
+  // A protocol action handles itself quietly; anything else focuses the window.
+  if (!handleProtocolArgs(argv)) showMainWindow()
+})
+
 app.whenReady().then(async () => {
   // Windows attributes desktop notifications (and their icon) to this AppUserModelID;
   // it must match the installer's appId so the toast reads "DeskMail AI" with our
   // logo, not the default "electron.app.DeskMail AI".
   app.setAppUserModelId('uk.co.functional3d.deskmail')
+  // Toast quick actions come back to us as deskmail:// activations.
+  app.setAsDefaultProtocolClient('deskmail')
   // British English spellcheck for compose (falls back gracefully if unavailable).
   try {
     session.defaultSession.setSpellCheckerLanguages(['en-GB'])
@@ -1131,6 +1180,8 @@ app.whenReady().then(async () => {
   // A Windows sign-in launch passes --hidden (see setStartup) so we come up in
   // the tray, syncing quietly, instead of opening the window.
   createMainWindow(process.argv.includes('--hidden'))
+  // First launch may itself carry a toast/protocol argument.
+  handleProtocolArgs(process.argv)
 
   if (corruptDbBackupPath) {
     void dialog.showMessageBox({
