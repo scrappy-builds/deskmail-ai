@@ -251,6 +251,13 @@ export function MailActions(): JSX.Element {
               ))
             )}
             <div className="my-1 border-t border-border" />
+            <div className="my-1 border-t border-border" />
+            <div className="px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Follow up</div>
+            {SNOOZE_OPTS.map((s) => (
+              <MenuItem key={`fu-${s.opt}`} icon="star" label={s.label} onClick={() => { close(); void applyEach((id) => window.deskmail.mail.setFollowup(id, s.opt), `Follow-up set for ${s.label.toLowerCase()}`) }} />
+            ))}
+            <MenuItem icon="close" label="Clear follow-up" onClick={() => { close(); void applyEach((id) => window.deskmail.mail.setFollowup(id, 'clear'), 'Follow-up cleared') }} />
+            <div className="my-1 border-t border-border" />
             <MenuItem icon="print" label="Print to PDF" disabled={!single} onClick={() => { close(); void window.deskmail.mail.printPdf(ids[0]).then((r) => { if (r.path) showToast({ text: 'Saved as PDF' }) }) }} />
             <MenuItem icon="openWindow" label="Open in window" disabled={!single} onClick={() => { close(); window.deskmail.openMessage(ids[0]) }} />
             <MenuItem icon="draft" label="Export to NotebookLM" disabled={!single || !selected} onClick={() => { close(); if (selected) void window.deskmail.notebooklm.export(selected.id, selected.attachments.length > 0).then((r) => showToast({ text: r.note ? `Exported to NotebookLM folder (${r.note})` : `Exported ${r.files.length} file(s) for NotebookLM` })) }} />

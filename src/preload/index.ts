@@ -45,6 +45,7 @@ const api: DeskMailApi = {
       return () => ipcRenderer.removeListener('mail:changed', listener)
     },
     snooze: (messageId: number, option: SnoozeOption) => ipcRenderer.invoke('mail:snooze', messageId, option),
+    setFollowup: (messageId: number, option: SnoozeOption | 'clear') => ipcRenderer.invoke('mail:set-followup', messageId, option),
     snoozeUntil: (messageId: number, iso: string) => ipcRenderer.invoke('mail:snooze-until', messageId, iso),
     unsnooze: (messageId: number) => ipcRenderer.invoke('mail:unsnooze', messageId),
     today: () => ipcRenderer.invoke('mail:today'),

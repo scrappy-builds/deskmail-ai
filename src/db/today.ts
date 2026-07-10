@@ -35,7 +35,7 @@ export function getTodayAgenda(db: DB, todayIso: string, opts: TodayOpts = {}): 
   const attention = conds.length ? `(${conds.join(' OR ')})` : '0'
   const rows = db.all(
     `SELECT * FROM messages
-       WHERE ${attention} AND is_muted = 0
+       WHERE (${attention} OR (followup_at IS NOT NULL AND followup_at <= datetime('now'))) AND is_muted = 0
          AND id NOT IN (SELECT message_id FROM snoozes WHERE datetime(snooze_until) > datetime('now'))
      ORDER BY received_at DESC, id DESC
      LIMIT 50`

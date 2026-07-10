@@ -95,6 +95,8 @@ export interface DeskMailApi {
     onChanged(cb: () => void): () => void
     // Snooze a message until a quick option's time, or a specific time; or clear it.
     snooze(messageId: number, option: SnoozeOption): Promise<void>
+    // Follow-up flag: set a "follow up by" date (quick option) or clear it.
+    setFollowup(messageId: number, option: SnoozeOption | 'clear'): Promise<void>
     snoozeUntil(messageId: number, iso: string): Promise<void>
     unsnooze(messageId: number): Promise<void>
     // Unified Today agenda: today's events + mail that needs attention.

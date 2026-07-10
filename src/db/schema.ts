@@ -298,5 +298,8 @@ export const MIGRATIONS: string[] = [
   `ALTER TABLE messages ADD COLUMN importance TEXT;`,
 
   // --- v16: List-Unsubscribe header (RFC 2369) for one-click unsubscribe ---------
-  `ALTER TABLE messages ADD COLUMN list_unsubscribe TEXT;`
+  `ALTER TABLE messages ADD COLUMN list_unsubscribe TEXT;`,
+
+  // --- v17: follow-up flag with a due date (surfaced in Today when due) ----------
+  `ALTER TABLE messages ADD COLUMN followup_at TEXT;`
 ]

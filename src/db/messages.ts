@@ -132,6 +132,7 @@ interface MessageRow {
   is_pinned: number
   is_muted: number
   importance: string | null
+  followup_at: string | null
 }
 
 function toListItem(r: MessageRow): MessageListItem {
@@ -149,7 +150,8 @@ function toListItem(r: MessageRow): MessageListItem {
     hasAttachments: !!r.has_attachments,
     isPinned: !!r.is_pinned,
     isMuted: !!r.is_muted,
-    importance: (r.importance as MessageListItem['importance']) ?? null
+    importance: (r.importance as MessageListItem['importance']) ?? null,
+    followupAt: r.followup_at ?? null
   }
 }
 
@@ -320,6 +322,11 @@ export function deleteMessage(db: DB, id: number): void {
 // Ids of every message currently in a folder (used by "empty folder").
 export function folderMessageIds(db: DB, folderId: number): number[] {
   return (db.all('SELECT id FROM messages WHERE folder_id = ?', [folderId]) as unknown as { id: number }[]).map((r) => r.id)
+}
+
+// Set (or clear, with null) a "follow up by" date on a message. Surfaced in Today.
+export function setFollowup(db: DB, id: number, iso: string | null): void {
+  db.run("UPDATE messages SET followup_at = ?, updated_at = datetime('now') WHERE id = ?", [iso, id])
 }
 
 export function setStarred(db: DB, id: number, on: boolean): void {

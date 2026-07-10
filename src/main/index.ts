@@ -10,7 +10,7 @@ import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/ac
 import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
 import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
-import { getMessage, listMessages, listMessagesByLabel, markFolderRead, markRead, messageNeighbours, searchMessages, setMuted, setPinned } from '../db/messages'
+import { getMessage, listMessages, listMessagesByLabel, markFolderRead, markRead, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned } from '../db/messages'
 import { buildEml, saveMessageFile } from './mail/messageExport'
 import { exportMbox, importMailFile } from './mail/mbox'
 import { buildVcf, parseVcf } from './contacts/vcard'
@@ -423,6 +423,10 @@ function registerIpc(): void {
     refreshFolderCounts(db, folderId)
     broadcastMailChanged()
     return { count: n }
+  })
+  ipcMain.handle('mail:set-followup', (_e, messageId: number, option: SnoozeOption | 'clear') => {
+    setFollowup(db, messageId, option === 'clear' ? null : computeSnoozeTime(option))
+    broadcastMailChanged()
   })
   ipcMain.handle('mail:empty-folder', (_e, folderId: number) => {
     const n = emptyFolder(db, folderId)

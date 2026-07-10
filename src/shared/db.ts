@@ -150,6 +150,7 @@ export interface MessageListItem {
   isPinned: boolean
   isMuted: boolean
   importance: 'high' | 'low' | 'normal' | null // from the Importance / X-Priority header
+  followupAt?: string | null // "follow up by" date, if set
 }
 
 export interface MessageDetail extends MessageListItem {
