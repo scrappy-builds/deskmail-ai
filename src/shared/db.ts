@@ -135,6 +135,20 @@ export interface AttachmentInfo {
   size: number | null
 }
 
+// One row in the all-attachments browser (attachment + its message's context).
+export interface AttachmentBrowserItem {
+  attachmentId: number
+  messageId: number
+  filename: string | null
+  mimeType: string | null
+  size: number | null
+  downloaded: boolean
+  fromName: string | null
+  fromEmail: string | null
+  subject: string | null
+  receivedAt: string | null
+}
+
 export interface MessageListItem {
   id: number
   accountId: number

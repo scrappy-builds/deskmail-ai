@@ -130,7 +130,8 @@ const api: DeskMailApi = {
     list: () => ipcRenderer.invoke('trust:list')
   },
   attachments: {
-    open: (messageId: number, attachmentId: number) => ipcRenderer.invoke('attachments:open', messageId, attachmentId)
+    open: (messageId: number, attachmentId: number) => ipcRenderer.invoke('attachments:open', messageId, attachmentId),
+    browse: (query?: string, offset?: number) => ipcRenderer.invoke('attachments:browse', query, offset)
   },
   notebooklm: {
     export: (messageId: number, includeAttachments: boolean) => ipcRenderer.invoke('notebooklm:export', messageId, includeAttachments)

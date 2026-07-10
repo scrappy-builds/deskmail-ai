@@ -24,7 +24,7 @@ import { applyAction, emptyFolder } from '../db/mailActions'
 import { trainBayesFromMessage } from '../db/bayes'
 import { drainMailActions } from './mail/drainer'
 import { fetchAndSaveAttachments, sweepAttachmentCache } from './mail/attachments'
-import { listAttachmentRows } from '../db/messages'
+import { listAllAttachments, listAttachmentRows } from '../db/messages'
 import { exportForNotebookLM } from '../mcp/export'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
 import { createSignature, deleteSignature, ensureDefaultSignature, getSignatureData, listSignatures, setDefaultSignature, setSignatureAppend, updateSignature, updateSignatureById } from '../db/signatures'
@@ -832,6 +832,9 @@ function registerIpc(): void {
     const err = await shell.openPath(row.local_path) // opens with the OS default app (explicit user action)
     return err ? { ok: false, error: err } : { ok: true }
   })
+  // One searchable view of every attachment in the store.
+  ipcMain.handle('attachments:browse', (_e, query?: string, offset?: number) => listAllAttachments(db, { query, offset }))
+
   ipcMain.handle('notebooklm:export', async (_e, messageId: number, includeAttachments: boolean) => {
     if (includeAttachments) await fetchAndSaveAttachments(db, messageId, attachDir(messageId))
     return exportForNotebookLM(db, messageId, app.getPath('userData'), includeAttachments)

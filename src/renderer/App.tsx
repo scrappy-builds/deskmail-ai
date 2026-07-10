@@ -8,6 +8,7 @@ import { Settings } from './settings/Settings'
 import { DraftsModal } from './compose/DraftsModal'
 import { OutboxModal } from './compose/OutboxModal'
 import { SmartViewBuilder } from './SmartViewBuilder'
+import { AttachmentsBrowser } from './mail/AttachmentsBrowser'
 import { Calendar } from './calendar/Calendar'
 import { Today } from './today/Today'
 import { Toast } from './Toast'
@@ -39,6 +40,7 @@ export function App(): JSX.Element {
   const [draftsOpen, setDraftsOpen] = useState(false)
   const [outboxOpen, setOutboxOpen] = useState(false)
   const [smartBuilderOpen, setSmartBuilderOpen] = useState(false)
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const openNewEvent = useCalendar((s) => s.openNew)
   const folders = useMail((s) => s.folders)
 
@@ -62,6 +64,7 @@ export function App(): JSX.Element {
         onCompose={openCompose}
         onOpenViewSettings={() => setViewSettingsOpen(true)}
         onMode={(m) => setMode(m)}
+        onOpenAttachments={() => setAttachmentsOpen(true)}
       />
       <CommandBar
         mode={mode}
@@ -94,6 +97,7 @@ export function App(): JSX.Element {
       )}
       {outboxOpen && <OutboxModal onClose={() => setOutboxOpen(false)} />}
       {smartBuilderOpen && <SmartViewBuilder onClose={() => setSmartBuilderOpen(false)} />}
+      {attachmentsOpen && <AttachmentsBrowser onClose={() => setAttachmentsOpen(false)} />}
       <Toast />
     </div>
   )

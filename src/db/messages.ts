@@ -1,4 +1,4 @@
-import type { AttachmentInfo, InviteData, MessageDetail, MessageInsert, MessageListItem } from '@shared/db'
+import type { AttachmentBrowserItem, AttachmentInfo, InviteData, MessageDetail, MessageInsert, MessageListItem } from '@shared/db'
 import type { DB } from './database'
 import { parseSearchQuery } from './searchQuery'
 
@@ -374,6 +374,53 @@ export function deleteMessage(db: DB, id: number): void {
 // Ids of every message currently in a folder (used by "empty folder").
 export function folderMessageIds(db: DB, folderId: number): number[] {
   return (db.all('SELECT id FROM messages WHERE folder_id = ?', [folderId]) as unknown as { id: number }[]).map((r) => r.id)
+}
+
+// --- All-attachments browser ----------------------------------------------------
+// Every attachment across the mailbox, newest message first, filterable by
+// filename or sender, paged (100/page) so a big store stays snappy.
+export function listAllAttachments(db: DB, opts: { query?: string; limit?: number; offset?: number } = {}): AttachmentBrowserItem[] {
+  const limit = Math.min(Math.max(opts.limit ?? 100, 1), 500)
+  const offset = Math.max(opts.offset ?? 0, 0)
+  const where: string[] = ['a.filename IS NOT NULL']
+  const params: (string | number)[] = []
+  const q = opts.query?.trim().toLowerCase()
+  if (q) {
+    where.push('(LOWER(a.filename) LIKE ? OR LOWER(m.from_name) LIKE ? OR LOWER(m.from_email) LIKE ?)')
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`)
+  }
+  const rows = db.all(
+    `SELECT a.id attachment_id, a.message_id, a.filename, a.mime_type, a.size, a.local_path,
+            m.from_name, m.from_email, m.subject, m.received_at
+       FROM attachments a JOIN messages m ON m.id = a.message_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY m.received_at DESC, a.id DESC
+      LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  ) as unknown as {
+    attachment_id: number
+    message_id: number
+    filename: string | null
+    mime_type: string | null
+    size: number | null
+    local_path: string | null
+    from_name: string | null
+    from_email: string | null
+    subject: string | null
+    received_at: string | null
+  }[]
+  return rows.map((r) => ({
+    attachmentId: r.attachment_id,
+    messageId: r.message_id,
+    filename: r.filename,
+    mimeType: r.mime_type,
+    size: r.size,
+    downloaded: !!r.local_path,
+    fromName: r.from_name,
+    fromEmail: r.from_email,
+    subject: r.subject,
+    receivedAt: r.received_at
+  }))
 }
 
 // --- Duplicate cleanup (one-off tool in Settings → Local storage) -------------

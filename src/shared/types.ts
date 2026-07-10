@@ -6,6 +6,7 @@ import type { CustomTheme } from './theme'
 import type {
   AccountInput,
   AccountSummary,
+  AttachmentBrowserItem,
   ComposeAttachment,
   ComposePayload,
   ConnectionConfig,
@@ -203,6 +204,8 @@ export interface DeskMailApi {
   }
   // Attachments + NotebookLM export.
   attachments: {
+    // Searchable list of every attachment across the mailbox (paged, 100/page).
+    browse(query?: string, offset?: number): Promise<AttachmentBrowserItem[]>
     // Download (if needed) and open an attachment with the OS default app.
     open(messageId: number, attachmentId: number): Promise<{ ok: boolean; error?: string }>
   }

@@ -58,12 +58,14 @@ export function TitleBar({
   onOpenSettings,
   onCompose,
   onOpenViewSettings,
-  onMode
+  onMode,
+  onOpenAttachments
 }: {
   onOpenSettings: () => void
   onCompose: () => void
   onOpenViewSettings: () => void
   onMode: (m: 'mail' | 'calendar') => void
+  onOpenAttachments: () => void
 }): JSX.Element {
   const { open, toggle, close, rootRef } = useMenus()
   const { prefs, usePreset, setPref, toggleTheme } = useLayout()
@@ -97,6 +99,8 @@ export function TitleBar({
     File: [
       { label: 'New email', kbd: 'Ctrl N', onClick: onCompose },
       { label: 'New event', onClick: () => onMode('calendar') },
+      'sep',
+      { label: 'All attachments…', onClick: onOpenAttachments },
       'sep',
       { label: 'Import mail…', disabled: activeFolder == null, onClick: () => { if (activeFolder != null) void window.deskmail.mail.importMail(activeFolder) } },
       { label: 'Export folder to .mbox…', disabled: activeFolder == null, onClick: () => { if (activeFolder != null) void window.deskmail.mail.exportMbox(activeFolder) } },
