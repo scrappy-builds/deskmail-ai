@@ -202,6 +202,8 @@ export interface DeskMailApi {
   setZoom(factor: number): void
   // Set (null clears) the Windows taskbar unread overlay badge — a PNG data URL.
   setBadge(dataUrl: string | null): void
+  // Open an http(s) URL in the user's default browser (links inside email bodies).
+  openExternal(url: string): void
   // Notifications / tray / Focus-DND settings.
   notify: {
     get(): Promise<NotifySettings>

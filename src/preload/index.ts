@@ -148,7 +148,9 @@ const api: DeskMailApi = {
     close: () => ipcRenderer.send('window:close')
   },
   // Set (or clear with null) the Windows taskbar unread overlay badge (a PNG data URL).
-  setBadge: (dataUrl: string | null) => ipcRenderer.send('ui:set-badge', dataUrl)
+  setBadge: (dataUrl: string | null) => ipcRenderer.send('ui:set-badge', dataUrl),
+  // Open an http(s) link (e.g. from an email body) in the default browser.
+  openExternal: (url: string) => ipcRenderer.send('ui:open-external', url)
 }
 
 contextBridge.exposeInMainWorld('deskmail', api)

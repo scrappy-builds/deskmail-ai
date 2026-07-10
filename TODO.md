@@ -6,4 +6,4 @@ this list**, so what's left is always the live backlog.
 
 ---
 
-_Nothing outstanding — the list is clear._
+_Backlog empty — nothing outstanding._

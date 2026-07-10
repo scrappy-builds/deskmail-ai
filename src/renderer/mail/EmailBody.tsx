@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { sanitiseEmail } from './sanitise'
+import { externalHref } from './linkHandling'
 
 // Wrap sanitised email HTML in a minimal document. Rendered on a white card so
 // email HTML (which almost always assumes a light background) stays legible in
@@ -40,6 +41,7 @@ export function EmailBody({
 }): JSX.Element {
   const remembered = messageId != null && imagesLoaded.has(messageId)
   const [allowImages, setAllowImages] = useState(initialAllow(allowByDefault, remembered))
+  const [hoverUrl, setHoverUrl] = useState<string | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const result = useMemo(() => (html ? sanitiseEmail(html, allowImages) : null), [html, allowImages])
@@ -52,11 +54,24 @@ export function EmailBody({
   // sandbox has no allow-scripts, so nothing in the email can run.
   const onLoad = (): void => {
     const doc = iframeRef.current?.contentDocument
-    if (doc) iframeRef.current!.style.height = `${doc.documentElement.scrollHeight + 8}px`
+    if (!doc) return
+    iframeRef.current!.style.height = `${doc.documentElement.scrollHeight + 8}px`
+    // Anchor clicks would otherwise dead-end inside the sandboxed frame (blank
+    // screen). Intercept them and open http(s) links in the default browser.
+    doc.addEventListener('click', (e) => {
+      const url = externalHref(e.target)
+      if (url) {
+        e.preventDefault()
+        window.deskmail.openExternal(url)
+      }
+    })
+    // Show where a link points on hover (the frameless window has no status bar).
+    doc.addEventListener('mouseover', (e) => setHoverUrl(externalHref(e.target)))
+    doc.addEventListener('mouseleave', () => setHoverUrl(null))
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       {result?.blockedRemote && !allowImages && (
         <div
           className="mx-6 mt-4 flex items-center gap-3 rounded-md border px-3.5 py-2.5 text-[12.5px]"
@@ -85,6 +100,14 @@ export function EmailBody({
         className="mt-3 w-full border-0 bg-white"
         style={{ minHeight: 120 }}
       />
+      {hoverUrl && (
+        <div
+          className="pointer-events-none absolute bottom-0 left-0 z-10 max-w-[80%] truncate rounded-tr-md border px-2.5 py-1 text-[11px]"
+          style={{ borderColor: 'var(--border-2)', background: 'var(--bg-2)', color: 'var(--text-2)' }}
+        >
+          {hoverUrl}
+        </div>
+      )}
     </div>
   )
 }

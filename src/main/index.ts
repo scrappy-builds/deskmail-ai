@@ -482,7 +482,7 @@ function registerIpc(): void {
     for (const k of Object.keys(patch) as (keyof NotifySettings)[]) {
       if (patch[k] !== undefined) setAppSetting(db, map[k].key, map[k].enc(patch[k]))
     }
-    if (patch.launchAtStartup !== undefined) app.setLoginItemSettings({ openAtLogin: patch.launchAtStartup })
+    if (patch.launchAtStartup !== undefined) setStartup(patch.launchAtStartup)
     rebuildTrayMenu() // Focus state may have changed
     return getNotifySettings(db)
   })
@@ -754,6 +754,11 @@ function registerIpc(): void {
     if (!mainWindow || mainWindow.isDestroyed()) return
     mainWindow.setOverlayIcon(dataUrl ? nativeImage.createFromDataURL(dataUrl) : null, dataUrl ? 'Unread mail' : '')
   })
+  // Links clicked inside an email body (rendered in a sandboxed iframe) route here
+  // so they open in the browser rather than dead-ending in the frame. http(s) only.
+  ipcMain.on('ui:open-external', (_e, url: string) => {
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) void shell.openExternal(url)
+  })
 
   ipcMain.handle('storage:restore', async (e, backupDir?: string) => {
     let dir = backupDir
@@ -815,7 +820,7 @@ function registerIpc(): void {
   ipcMain.on('window:close', (e) => BrowserWindow.fromWebContents(e.sender)?.close())
 }
 
-function createMainWindow(): BrowserWindow {
+function createMainWindow(hidden = false): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -830,8 +835,10 @@ function createMainWindow(): BrowserWindow {
   })
 
   // Open maximised (full screen, title bar + taskbar still visible). The width/
-  // height above become the restored-down size.
+  // height above become the restored-down size. When started hidden (launched at
+  // Windows sign-in), stay in the tray until the user opens it.
   win.once('ready-to-show', () => {
+    if (hidden) return
     win.maximize()
     win.show()
   })
@@ -859,13 +866,20 @@ function createMainWindow(): BrowserWindow {
   return win
 }
 
+// Register (or clear) the OS login item. The --hidden arg makes a startup launch
+// come up in the background (tray) rather than popping the window open — see the
+// argv check in createMainWindow.
+function setStartup(on: boolean): void {
+  app.setLoginItemSettings({ openAtLogin: on, args: ['--hidden'] })
+}
+
 // Apply the "start with Windows" preference to the OS login item. Defaults ON:
 // on first run (no stored value) DeskMail registers itself to launch at startup
 // and records that default, so the Settings toggle shows it as on.
 function applyLaunchAtStartup(): void {
   const stored = getAppSetting(db, 'launch-at-startup')
   if (stored == null) setAppSetting(db, 'launch-at-startup', 'on')
-  app.setLoginItemSettings({ openAtLogin: stored !== 'off' })
+  setStartup(stored !== 'off')
 }
 
 app.whenReady().then(async () => {
@@ -885,7 +899,9 @@ app.whenReady().then(async () => {
   applyLaunchAtStartup()
   uiZoom = loadLayoutPrefs(db).fontScale // apply the saved text size to all windows
   registerIpc()
-  createMainWindow()
+  // A Windows sign-in launch passes --hidden (see setStartup) so we come up in
+  // the tray, syncing quietly, instead of opening the window.
+  createMainWindow(process.argv.includes('--hidden'))
 
   // Scheduled local backup: check on launch, then hourly.
   checkAutoBackup(db, app.getPath('userData'))

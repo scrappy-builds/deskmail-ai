@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '../Icon'
+import { InlineImage } from '../editor/InlineImage'
+import { PLATFORMS, buildSocialRow, splitSocial, parseSocialRow } from './socialIcons'
 import type { AccountSummary, ContactDetail, ContactInput, FolderSummary, LabelInfo, NotifySettings, Rule, RuleAction, RuleField, RuleInput, RuleOp, ScheduledSend, SignatureItem, Template } from '@shared/db'
 import { useToast } from '../store/toastStore'
 
@@ -169,26 +171,194 @@ export function RulesPane(): JSX.Element {
   )
 }
 
-// --- Signatures (multiple per account, rich HTML) -----------------------------
+// --- Signatures (multiple per account, plain text or rich HTML) ---------------
+// A body is HTML if it contains any tag — same heuristic the send path uses to
+// decide whether to escape it. A plain default like "Thanks,\nJamie" is text.
+function isHtmlBody(body: string): boolean {
+  return /<[a-z][\s\S]*>/i.test(body)
+}
+function htmlToPlain(html: string): string {
+  return new DOMParser().parseFromString(html, 'text/html').body.textContent ?? ''
+}
+function plainToHtml(text: string): string {
+  return text.split(/\n{2,}/).map((p) => `<p>${p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`).join('')
+}
+
 function RichSignatureEditor({ initial, onSave, onCancel }: { initial: { name: string; body: string }; onSave: (name: string, body: string) => void; onCancel: () => void }): JSX.Element {
   const [name, setName] = useState(initial.name)
-  const editor = useEditor({ extensions: [StarterKit], content: initial.body })
+  const [mode, setMode] = useState<'plain' | 'html'>(isHtmlBody(initial.body) ? 'html' : 'plain')
+
+  // Pull any existing social block out so the rich editor never sees it (TipTap
+  // would drop the <div>/data attributes); we rebuild it on save.
+  const split = splitSocial(initial.body)
+  const [plain, setPlain] = useState(mode === 'plain' ? initial.body : htmlToPlain(split.main))
+
+  // Social selections, prefilled from an existing block. `order` drives the row
+  // order (reorderable); `urls` holds the link for each ticked platform. A
+  // platform is included when it's ticked (present in urls) with a non-blank URL.
+  const initialLinks = parseSocialRow(split.social)
+  const [order, setOrder] = useState<string[]>(() => {
+    const picked = initialLinks.map((l) => l.id)
+    return [...picked, ...PLATFORMS.map((p) => p.id).filter((id) => !picked.includes(id))]
+  })
+  const [urls, setUrls] = useState<Record<string, string>>(() => {
+    const o: Record<string, string> = {}
+    for (const l of initialLinks) o[l.id] = l.url
+    return o
+  })
+  const moveSocial = (id: string, dir: -1 | 1): void => setOrder((o) => {
+    const i = o.indexOf(id)
+    const j = i + dir
+    if (j < 0 || j >= o.length) return o
+    const n = [...o]
+    ;[n[i], n[j]] = [n[j], n[i]]
+    return n
+  })
+
+  const [showSource, setShowSource] = useState(false)
+  const [source, setSource] = useState('')
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const insertImageFiles = (files: File[]): void => {
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) continue
+      const r = new FileReader()
+      r.onload = () => editor?.chain().focus().insertContent({ type: 'image', attrs: { src: r.result } }).run()
+      r.readAsDataURL(f)
+    }
+  }
+
+  const editor = useEditor({
+    extensions: [StarterKit.configure({ link: { openOnClick: false } }), InlineImage],
+    content: split.main,
+    editorProps: {
+      attributes: { spellcheck: 'true' },
+      handlePaste: (_v, event) => {
+        const files = Array.from(event.clipboardData?.files ?? [])
+        if (files.length === 0) return false
+        insertImageFiles(files)
+        return true
+      },
+      handleDrop: (_v, event) => {
+        const files = Array.from((event as DragEvent).dataTransfer?.files ?? [])
+        if (files.length === 0) return false
+        event.preventDefault()
+        insertImageFiles(files)
+        return true
+      }
+    }
+  })
+
+  const switchMode = (next: 'plain' | 'html'): void => {
+    if (next === mode) return
+    if (next === 'plain') setPlain(htmlToPlain(showSource ? source : editor?.getHTML() ?? ''))
+    else editor?.commands.setContent(plainToHtml(plain))
+    setShowSource(false)
+    setMode(next)
+  }
+
+  const toggleSource = (): void => {
+    if (!showSource) setSource(editor?.getHTML() ?? '')
+    else editor?.commands.setContent(source)
+    setShowSource((v) => !v)
+  }
+
+  const applyLink = (): void => {
+    const url = linkUrl.trim()
+    if (url) editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+    else editor?.chain().focus().unsetLink().run()
+    setLinkOpen(false)
+    setLinkUrl('')
+  }
+
+  const save = (): void => {
+    const nm = name.trim() || 'Untitled'
+    if (mode === 'plain') return onSave(nm, plain)
+    const mainHtml = showSource ? source : editor?.getHTML() ?? ''
+    const links = order.filter((id) => (urls[id] ?? '').trim()).map((id) => ({ id, url: urls[id] }))
+    onSave(nm, mainHtml + buildSocialRow(links))
+  }
+
   const btn = (label: string, active: boolean, on: () => void): JSX.Element => (
     <button onClick={on} className="rounded px-2 py-1 text-[12px] font-bold" style={active ? { background: 'var(--accent)', color: 'var(--accent-fg)' } : { color: 'var(--text-2)' }}>
       {label}
     </button>
   )
+  const modeTab = (val: 'plain' | 'html', label: string): JSX.Element => (
+    <button onClick={() => switchMode(val)} className="rounded px-3 py-1 text-[12px] font-semibold" style={mode === val ? { background: 'var(--accent)', color: 'var(--accent-fg)' } : { color: 'var(--text-2)' }}>
+      {label}
+    </button>
+  )
+
   return (
     <div className="flex flex-col gap-2.5 rounded-lg border border-border p-3.5">
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Signature name (e.g. Work, Personal)" className={inputCls} />
-      <div className="flex items-center gap-1 rounded-md border border-border bg-inset p-1">
-        {btn('B', editor?.isActive('bold') ?? false, () => editor?.chain().focus().toggleBold().run())}
-        {btn('I', editor?.isActive('italic') ?? false, () => editor?.chain().focus().toggleItalic().run())}
-        {btn('• List', editor?.isActive('bulletList') ?? false, () => editor?.chain().focus().toggleBulletList().run())}
+
+      <div className="flex items-center gap-1 self-start rounded-md border border-border bg-inset p-1">
+        {modeTab('plain', 'Plain text')}
+        {modeTab('html', 'HTML')}
       </div>
-      <EditorContent editor={editor} className="min-h-[110px] rounded-md border border-border bg-bg px-3 py-2 text-[13.5px] leading-relaxed" />
+
+      {mode === 'plain' ? (
+        <textarea value={plain} onChange={(e) => setPlain(e.target.value)} placeholder="Type your signature…" className={`${inputCls} min-h-[110px] resize-y font-mono`} />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-inset p-1">
+            {btn('B', editor?.isActive('bold') ?? false, () => editor?.chain().focus().toggleBold().run())}
+            {btn('I', editor?.isActive('italic') ?? false, () => editor?.chain().focus().toggleItalic().run())}
+            {btn('U', editor?.isActive('underline') ?? false, () => editor?.chain().focus().toggleUnderline().run())}
+            {btn('H', editor?.isActive('heading', { level: 2 }) ?? false, () => editor?.chain().focus().toggleHeading({ level: 2 }).run())}
+            {btn('• List', editor?.isActive('bulletList') ?? false, () => editor?.chain().focus().toggleBulletList().run())}
+            {btn('1. List', editor?.isActive('orderedList') ?? false, () => editor?.chain().focus().toggleOrderedList().run())}
+            {btn('Link', editor?.isActive('link') ?? false, () => { setLinkUrl(editor?.getAttributes('link').href ?? ''); setLinkOpen((v) => !v) })}
+            {btn('Image', false, () => fileRef.current?.click())}
+            {btn('</> HTML', showSource, toggleSource)}
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { insertImageFiles(Array.from(e.target.files ?? [])); e.target.value = '' }} />
+          </div>
+
+          {linkOpen && (
+            <div className="flex items-center gap-2">
+              <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && applyLink()} placeholder="https://…" className={inputCls} autoFocus />
+              <button onClick={applyLink} className="rounded-md bg-accent px-3 py-2 text-[12px] font-semibold text-accent-fg">Apply</button>
+            </div>
+          )}
+
+          {showSource ? (
+            <textarea value={source} onChange={(e) => setSource(e.target.value)} placeholder="<p>Raw HTML…</p>" className={`${inputCls} min-h-[130px] resize-y font-mono text-[12px]`} />
+          ) : (
+            <EditorContent editor={editor} className="min-h-[110px] rounded-md border border-border bg-bg px-3 py-2 text-[13.5px] leading-relaxed" />
+          )}
+
+          <div className="rounded-md border border-border bg-bg p-3">
+            <div className="mb-1 text-[12px] font-semibold text-text-2">Social icons (embedded, so they show even when images are blocked)</div>
+            <div className="mb-2 text-[11.5px] text-text-3">Tick the platforms you want and paste each link. Use the arrows to set the order they appear in — they sit in a horizontal row at the foot of the signature.</div>
+            <div className="flex flex-col gap-1.5">
+              {order.map((id, i) => {
+                const p = PLATFORMS.find((x) => x.id === id)!
+                const on = id in urls
+                return (
+                  <div key={id} className="flex items-center gap-2.5">
+                    <div className="flex flex-none flex-col">
+                      <button onClick={() => moveSocial(id, -1)} disabled={i === 0} className="px-1 text-[10px] leading-none text-text-3 hover:text-text disabled:opacity-30" title="Move up">▲</button>
+                      <button onClick={() => moveSocial(id, 1)} disabled={i === order.length - 1} className="px-1 text-[10px] leading-none text-text-3 hover:text-text disabled:opacity-30" title="Move down">▼</button>
+                    </div>
+                    <label className="flex w-32 flex-none items-center gap-2 text-[12.5px]">
+                      <input type="checkbox" checked={on} onChange={(e) => setUrls((s) => { const n = { ...s }; if (e.target.checked) n[id] = n[id] ?? ''; else delete n[id]; return n })} className="h-4 w-4 accent-accent" />
+                      {p.label}
+                    </label>
+                    {on && <input value={urls[id]} onChange={(e) => setUrls((s) => ({ ...s, [id]: e.target.value }))} placeholder={p.placeholder} className={`${inputCls} flex-1`} />}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
       <div className="flex gap-2.5">
-        <button onClick={() => onSave(name.trim() || 'Untitled', editor?.getHTML() ?? '')} className="rounded-md bg-accent px-4 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2">Save</button>
+        <button onClick={save} className="rounded-md bg-accent px-4 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2">Save</button>
         <button onClick={onCancel} className="rounded-md px-3 py-2 text-[13px] font-semibold text-text-2 hover:bg-raised">Cancel</button>
       </div>
     </div>

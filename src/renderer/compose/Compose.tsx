@@ -1,19 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
-import { Node } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '../Icon'
-
-// Minimal inline image node (avoids adding @tiptap/extension-image just for this).
-const InlineImage = Node.create({
-  name: 'image',
-  group: 'inline',
-  inline: true,
-  draggable: true,
-  addAttributes: () => ({ src: { default: null }, alt: { default: null } }),
-  parseHTML: () => [{ tag: 'img[src]' }],
-  renderHTML: ({ HTMLAttributes }) => ['img', { ...HTMLAttributes, style: 'max-width:100%' }]
-})
+import { InlineImage } from '../editor/InlineImage'
 import type { AccountSummary, ComposeAttachment, ComposePayload, Contact, DraftSummary, SignatureItem, Template } from '@shared/db'
 import { mentionsAttachment } from '../mail/reply'
 import { useToast } from '../store/toastStore'
