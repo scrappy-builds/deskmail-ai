@@ -7,12 +7,14 @@ import { ensureStandardFolders, findFolderByRole } from '../../src/db/folders'
 import {
   backfillWindow,
   depthCutoffIso,
+  diffFlags,
   getFolderCursor,
   newMailRange,
   setCursorHigh,
   setCursorLow,
   uidValidityChanged,
-  wipeFolderCursor
+  wipeFolderCursor,
+  type ServerFlag
 } from '../../src/db/folderSync'
 
 // --- Pure planning ------------------------------------------------------------
@@ -62,6 +64,33 @@ describe('depthCutoffIso', () => {
   it('subtracts the given days from now', () => {
     const now = new Date('2026-07-10T00:00:00.000Z')
     expect(depthCutoffIso(10, now)).toBe('2026-06-30T00:00:00.000Z')
+  })
+})
+
+describe('diffFlags', () => {
+  const server = new Map<number, ServerFlag>([
+    [1, { isRead: true, isStarred: false }],
+    [2, { isRead: false, isStarred: true }]
+    // uid 3 absent → deleted server-side
+  ])
+  it('reports read/starred changes and server-side deletions', () => {
+    const d = diffFlags(
+      [
+        { uid: 1, isRead: false, isStarred: false }, // became read on the server
+        { uid: 2, isRead: false, isStarred: false }, // became starred on the server
+        { uid: 3, isRead: false, isStarred: false } // gone from the server
+      ],
+      server
+    )
+    expect(d.readChanges).toEqual([{ uid: 1, isRead: true }])
+    expect(d.starChanges).toEqual([{ uid: 2, isStarred: true }])
+    expect(d.deletedUids).toEqual([3])
+  })
+  it('reports nothing when everything already matches', () => {
+    const d = diffFlags([{ uid: 1, isRead: true, isStarred: false }], server)
+    expect(d.readChanges).toHaveLength(0)
+    expect(d.starChanges).toHaveLength(0)
+    expect(d.deletedUids).toHaveLength(0)
   })
 })
 

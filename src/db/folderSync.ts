@@ -80,3 +80,32 @@ export function depthCutoffIso(depthDays: number, now: Date = new Date()): strin
   if (!Number.isFinite(depthDays) || depthDays <= 0) return null
   return new Date(now.getTime() - depthDays * 86400000).toISOString()
 }
+
+// --- Flag reconciliation ------------------------------------------------------
+
+export interface LocalFlag { uid: number; isRead: boolean; isStarred: boolean }
+export interface ServerFlag { isRead: boolean; isStarred: boolean }
+export interface FlagReconcile {
+  readChanges: { uid: number; isRead: boolean }[]
+  starChanges: { uid: number; isStarred: boolean }[]
+  deletedUids: number[] // held locally but no longer on the server (within the window)
+}
+
+// Diff our cached read/starred flags against the server's for a UID window.
+// A local UID missing from the server map = deleted/moved server-side. Pure, so
+// the two-way-state logic is unit-tested without a network.
+export function diffFlags(locals: LocalFlag[], server: Map<number, ServerFlag>): FlagReconcile {
+  const readChanges: { uid: number; isRead: boolean }[] = []
+  const starChanges: { uid: number; isStarred: boolean }[] = []
+  const deletedUids: number[] = []
+  for (const l of locals) {
+    const s = server.get(l.uid)
+    if (!s) {
+      deletedUids.push(l.uid)
+      continue
+    }
+    if (s.isRead !== l.isRead) readChanges.push({ uid: l.uid, isRead: s.isRead })
+    if (s.isStarred !== l.isStarred) starChanges.push({ uid: l.uid, isStarred: s.isStarred })
+  }
+  return { readChanges, starChanges, deletedUids }
+}

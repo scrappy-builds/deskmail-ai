@@ -2,7 +2,7 @@ import type { ImapFlow, FetchMessageObject } from 'imapflow'
 import type { AccountRow } from '@shared/db'
 import type { DB } from '../../db/database'
 import { withConnection } from './connectionPool'
-import { ensureStandardFolders, getFolder, refreshFolderCounts, upsertFolder } from '../../db/folders'
+import { ensureStandardFolders, findFolderByRole, getFolder, refreshFolderCounts, upsertFolder } from '../../db/folders'
 import { dedupeAppendedSent, deleteFolderMessages } from '../../db/messages'
 import { getAppSetting } from '../../db/settings'
 import { ingestRaw } from './ingest'
@@ -12,17 +12,21 @@ import { applyRulesToMessage } from '../../db/rules'
 import {
   backfillWindow,
   depthCutoffIso,
+  diffFlags,
   getFolderCursor,
   setCursorHigh,
   setCursorLow,
   uidValidityChanged,
-  wipeFolderCursor
+  wipeFolderCursor,
+  type ServerFlag
 } from '../../db/folderSync'
 
 // Newest page seeded on a folder's first sync (keeps first sync quick); older
 // mail arrives via back-fill. Back-fill pulls this many per page.
 const SEED_PAGE = 50
 const BACKFILL_PAGE = 200
+// Newest N UIDs per folder to reconcile flags over (read/starred + deletions).
+const RECONCILE_WINDOW = 500
 
 // Guess a folder's role from IMAP special-use flags or its name.
 function folderRole(path: string, specialUse?: string): string | null {
@@ -82,6 +86,40 @@ async function ingestOne(
   return id
 }
 
+// Reconcile flags over the newest window: pull read/starred changes made
+// elsewhere back into the cache, and treat any local UID the server no longer
+// lists as deleted → move it to the local Trash. Cheap (flags only, no bodies)
+// and keeps two-way state honest without QRESYNC. The caller holds the lock.
+async function reconcileFlags(db: DB, accountId: number, client: ImapFlow, folderId: number, role: string | null): Promise<void> {
+  const cursor = getFolderCursor(db, folderId)
+  if (!cursor || cursor.lastSeenUid <= 0) return
+  const lo = Math.max(1, cursor.lastSeenUid - (RECONCILE_WINDOW - 1))
+  const locals = db.all(
+    'SELECT id, remote_uid uid, is_read, is_starred FROM messages WHERE folder_id = ? AND remote_uid IS NOT NULL AND remote_uid >= ?',
+    [folderId, lo]
+  ) as unknown as { id: number; uid: number; is_read: number; is_starred: number }[]
+  if (locals.length === 0) return
+
+  const server = new Map<number, ServerFlag>()
+  for await (const msg of client.fetch(`${lo}:*`, { uid: true, flags: true }, { uid: true })) {
+    server.set(msg.uid, { isRead: msg.flags?.has('\\Seen') ?? false, isStarred: msg.flags?.has('\\Flagged') ?? false })
+  }
+
+  const diff = diffFlags(locals.map((l) => ({ uid: l.uid, isRead: !!l.is_read, isStarred: !!l.is_starred })), server)
+  const idByUid = new Map(locals.map((l) => [l.uid, l.id]))
+  for (const c of diff.readChanges) db.run('UPDATE messages SET is_read = ? WHERE id = ?', [c.isRead ? 1 : 0, idByUid.get(c.uid) as number])
+  for (const c of diff.starChanges) db.run('UPDATE messages SET is_starred = ? WHERE id = ?', [c.isStarred ? 1 : 0, idByUid.get(c.uid) as number])
+
+  // Server-side deletions → local Trash (but never re-trash the Trash itself).
+  if (role !== 'trash' && diff.deletedUids.length > 0) {
+    const trash = findFolderByRole(db, accountId, 'trash')
+    if (trash) {
+      for (const uid of diff.deletedUids) db.run('UPDATE messages SET folder_id = ? WHERE id = ?', [trash.id, idByUid.get(uid) as number])
+      refreshFolderCounts(db, trash.id)
+    }
+  }
+}
+
 // Sync one folder: seed its newest page on first contact, otherwise pull only
 // mail newer than the cursor. Handles a UIDVALIDITY reset by wiping the stale
 // cache. Back-fill of older mail is separate (backfillFolder).
@@ -108,6 +146,7 @@ async function syncFolder(
       cursor = null
     }
 
+    const wasFresh = cursor == null
     if (cursor == null) {
       // First sync: seed the newest SEED_PAGE messages (by sequence number).
       if (status.exists > 0) {
@@ -137,6 +176,10 @@ async function syncFolder(
         setCursorHigh(db, folderId, status.uidValidity, maxUid)
       }
     }
+
+    // Reconcile flags/deletions on established folders (skip the fresh seed —
+    // its flags are already current and first sync stays fast).
+    if (!wasFresh) await reconcileFlags(db, accountId, client, folderId, role)
 
     // Once the real Sent copies land, drop the locally-appended duplicates.
     if (role === 'sent') dedupeAppendedSent(db, folderId)

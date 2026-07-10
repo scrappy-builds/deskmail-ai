@@ -176,6 +176,29 @@ describe('full mail sync — all folders, incremental, back-fill', () => {
     expect(getFolderCursor(db, inboxId)!.uidValidity).toBe(999)
   })
 
+  it('reconciles read/starred flags and moves server-deleted mail to Trash', { timeout: 20000 }, async () => {
+    const box = makeMailbox('INBOX', 'Inbox', 5)
+    server.add(box)
+    await syncAccount(db, 1)
+    ids()
+    const trashId = findFolderByRole(db, 1, 'trash')!.id
+    expect(listMessages(db, inboxId)).toHaveLength(5)
+
+    // On the server: uid 3 gets read, uid 4 gets starred, uid 2 is deleted.
+    box.messages.find((m) => m.uid === 3)!.flags.add('\\Seen')
+    box.messages.find((m) => m.uid === 4)!.flags.add('\\Flagged')
+    box.messages = box.messages.filter((m) => m.uid !== 2)
+
+    await syncAccount(db, 1)
+
+    // uid 2 moved to Trash → inbox 4, trash 1; flag changes reflected locally.
+    const inbox = listMessages(db, inboxId)
+    expect(inbox).toHaveLength(4)
+    expect(listMessages(db, trashId)).toHaveLength(1)
+    expect(inbox.find((m) => m.subject === 'Message 3')!.isRead).toBe(true)
+    expect(inbox.find((m) => m.subject === 'Message 4')!.isStarred).toBe(true)
+  })
+
   it('dedupes a locally-appended Sent copy once the server copy syncs', { timeout: 20000 }, async () => {
     server.add(makeMailbox('INBOX', 'Inbox', 1))
     // One server-side Sent message with a known Message-ID.

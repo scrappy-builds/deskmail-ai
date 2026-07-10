@@ -34,7 +34,18 @@
     ticked-by-default "Set DeskMail as my default email app" finish-page checkbox that opens Windows'
     Default-apps page. **Manual-verify only** (NSIS not exercised by E2E; needs a real install).
   - **Plan 4 DONE** (installer checkbox pending a manual install check).
-- **Plan 1 — Full mail sync** — not started. ← **next**
+- **Plan 1 — Full mail sync**:
+  - [x] 1.1 migration v27 `folder_sync` cursor + `folderSync.ts` (CRUD + pure planners) + unit test.
+  - [x] 1.2 `syncAccount` reworked: all folders, seed newest page then incremental-by-UID, uidvalidity
+    wipe, INBOX-only junk/rules/focus, Sent dedupe; `backfillFolder`/`backfillAccount`. Faked-imapflow
+    integration test.
+  - [x] 1.3 `mail:backfill`/`can-backfill`/`sync-depth` IPC, "Load older" footer in MessageList,
+    Settings → Sync (history depth), background back-fill after first sync, demo Sent/Archive mail.
+    E2E: non-INBOX mail appears.
+  - [x] 1.4 flag reconciliation (read/starred pulled back, server-deleted → local Trash) + `diffFlags`
+    unit test + reconcile integration test.
+  - **Plan 1 DONE.** 341 unit green. Remaining: run the verify skill (launch app, check non-inbox mail
+    + Load older) — pending in this session.
 
 > **Pre-existing E2E failures (NOT caused by this batch):** 4 specs fail on this branch and were
 > verified to fail identically at the pre-batch commit `f4416c1`: `mail.spec` (sanitised body /
