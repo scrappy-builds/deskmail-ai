@@ -337,6 +337,40 @@ export function folderMessageIds(db: DB, folderId: number): number[] {
   return (db.all('SELECT id FROM messages WHERE folder_id = ?', [folderId]) as unknown as { id: number }[]).map((r) => r.id)
 }
 
+// --- Duplicate cleanup (one-off tool in Settings → Local storage) -------------
+// Exact duplicates only: same account, same folder, same non-null Message-ID
+// header — the leftovers of a re-imported mbox. Grouping includes the folder on
+// purpose: the same Message-ID legitimately lives in both Sent and Inbox for
+// self-addressed mail, and that must never be "cleaned up". No fuzzy matching.
+const DUPE_GROUP = "message_id_header IS NOT NULL GROUP BY account_id, COALESCE(folder_id,-1), message_id_header"
+
+export function countDuplicateMessages(db: DB): number {
+  const total = (db.get('SELECT COUNT(*) c FROM messages WHERE message_id_header IS NOT NULL') as { c: number }).c
+  const groups = (db.get(`SELECT COUNT(*) c FROM (SELECT 1 FROM messages WHERE ${DUPE_GROUP})`) as { c: number }).c
+  return total - groups
+}
+
+// Keep the earliest row of each duplicate group, delete the rest (attachments
+// cascade). Returns how many rows were removed; folder counts are refreshed.
+export function dedupeMessages(db: DB): { removed: number } {
+  const removed = countDuplicateMessages(db)
+  if (removed === 0) return { removed }
+  db.run(`DELETE FROM messages WHERE message_id_header IS NOT NULL AND id NOT IN (SELECT MIN(id) FROM messages WHERE ${DUPE_GROUP})`)
+  // Drop orphaned full-text rows so search stops returning ghosts.
+  db.run('DELETE FROM messages_fts WHERE rowid NOT IN (SELECT id FROM messages)')
+  const folders = db.all('SELECT id FROM folders') as unknown as { id: number }[]
+  for (const f of folders) {
+    db.run(
+      `UPDATE folders SET
+         total_count  = (SELECT COUNT(*) FROM messages WHERE folder_id = ?),
+         unread_count = (SELECT COUNT(*) FROM messages WHERE folder_id = ? AND is_read = 0)
+       WHERE id = ?`,
+      [f.id, f.id, f.id]
+    )
+  }
+  return { removed }
+}
+
 // Set (or clear, with null) a "follow up by" date on a message. Surfaced in Today.
 export function setFollowup(db: DB, id: number, iso: string | null): void {
   db.run("UPDATE messages SET followup_at = ?, updated_at = datetime('now') WHERE id = ?", [iso, id])

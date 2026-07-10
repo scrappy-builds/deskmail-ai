@@ -10,7 +10,7 @@ import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/ac
 import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
 import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
-import { getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, markFolderRead, markRead, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned } from '../db/messages'
+import { countDuplicateMessages, dedupeMessages, getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, markFolderRead, markRead, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned } from '../db/messages'
 import { buildEml, saveMessageFile } from './mail/messageExport'
 import { exportMbox, importMailFile } from './mail/mbox'
 import { buildVcf, parseVcf } from './contacts/vcard'
@@ -835,6 +835,14 @@ function registerIpc(): void {
     } catch {
       return { theme: null, error: 'Not a valid DeskMail theme file.' }
     }
+  })
+
+  // One-off duplicate cleanup (same Message-ID left over from imports).
+  ipcMain.handle('storage:dedupe-count', () => countDuplicateMessages(db))
+  ipcMain.handle('storage:dedupe', () => {
+    const r = dedupeMessages(db)
+    if (r.removed > 0) broadcastMailChanged()
+    return r
   })
 
   ipcMain.handle('storage:pick-folder', async (e) => {

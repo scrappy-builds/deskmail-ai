@@ -138,7 +138,9 @@ const api: DeskMailApi = {
     restore: (backupDir?: string) => ipcRenderer.invoke('storage:restore', backupDir),
     autoBackupGet: () => ipcRenderer.invoke('storage:auto-backup-get'),
     autoBackupSet: (dir: string | null, days: number) => ipcRenderer.invoke('storage:auto-backup-set', dir, days),
-    pickFolder: () => ipcRenderer.invoke('storage:pick-folder')
+    pickFolder: () => ipcRenderer.invoke('storage:pick-folder'),
+    dedupeCount: () => ipcRenderer.invoke('storage:dedupe-count'),
+    dedupe: () => ipcRenderer.invoke('storage:dedupe')
   },
   theme: {
     export: (theme: CustomTheme) => ipcRenderer.invoke('theme:export', theme),

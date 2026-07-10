@@ -212,6 +212,9 @@ export interface DeskMailApi {
     autoBackupGet(): Promise<{ dir: string | null; days: number }>
     autoBackupSet(dir: string | null, days: number): Promise<void>
     pickFolder(): Promise<{ path: string | null }>
+    // One-off duplicate-message cleanup (exact Message-ID matches only).
+    dedupeCount(): Promise<number>
+    dedupe(): Promise<{ removed: number }>
   }
   // Custom colour themes: export one to / import one from a .deskmailtheme file.
   theme: {

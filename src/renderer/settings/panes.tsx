@@ -765,6 +765,18 @@ export function LocalStoragePane(): JSX.Element {
     setAutoDays(days)
     void window.deskmail.storage.autoBackupSet(dir, days)
   }
+  // Duplicate cleanup: show the count first, then confirm before deleting.
+  const dedupe = async (): Promise<void> => {
+    const count = await window.deskmail.storage.dedupeCount()
+    if (count === 0) {
+      showToast({ text: 'No duplicate messages found.' })
+      return
+    }
+    if (!window.confirm(`Found ${count} duplicate message${count > 1 ? 's' : ''} — remove ${count > 1 ? 'them' : 'it'}? One copy of each is kept.`)) return
+    const { removed } = await window.deskmail.storage.dedupe()
+    showToast({ text: `Removed ${removed} duplicate${removed === 1 ? '' : 's'}.` })
+  }
+
   const pickAutoFolder = async (): Promise<void> => {
     const r = await window.deskmail.storage.pickFolder()
     if (r.path) saveAuto(r.path, autoDays || 7)
@@ -827,6 +839,20 @@ export function LocalStoragePane(): JSX.Element {
           )}
         </div>
         {autoDir && <div className="mt-2 break-all font-mono text-[11.5px] text-text-3">{autoDir}</div>}
+      </div>
+
+      <div className="rounded-md border border-border bg-bg px-3.5 py-3">
+        <div className="text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Tidy up</div>
+        <p className="mt-1 text-[12px] leading-relaxed text-text-3">
+          Remove exact duplicate messages (same Message-ID in the same folder) left over from imports.
+          Nothing fuzzy — one copy of each is always kept.
+        </p>
+        <button
+          onClick={() => void dedupe()}
+          className="mt-2.5 rounded-md border border-border px-3 py-1.5 text-[12.5px] font-semibold text-text-2 hover:bg-raised"
+        >
+          Remove duplicate messages
+        </button>
       </div>
     </div>
   )
