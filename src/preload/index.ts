@@ -33,6 +33,9 @@ const api: DeskMailApi = {
     pin: (id: number, on: boolean) => ipcRenderer.invoke('mail:pin', id, on),
     mute: (id: number, on: boolean) => ipcRenderer.invoke('mail:mute', id, on),
     printPdf: (id: number) => ipcRenderer.invoke('mail:print-pdf', id),
+    messageSource: (id: number) => ipcRenderer.invoke('mail:message-source', id),
+    messageNeighbours: (id: number) => ipcRenderer.invoke('mail:message-neighbours', id),
+    saveMessage: (id: number, format: 'eml' | 'html') => ipcRenderer.invoke('mail:save-message', id, format),
     listByLabel: (labelId: number) => ipcRenderer.invoke('mail:list-by-label', labelId),
     onChanged: (cb: () => void) => {
       const listener = (): void => cb()

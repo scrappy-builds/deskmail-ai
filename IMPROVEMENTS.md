@@ -37,8 +37,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 - [x] **Edit menu** — [easy]. Undo (last mail action), Select all, Find / Find in message, Mark read / unread, Delete.
 - [x] **View menu** — [med]. View settings, a **Layout drop-down** showing the preset views (Classic / Bottom / Focus / Wide / Right / List-only) as a menu, **Folder-pane show/hide**, reading-pane position, message-list density, **Expand / collapse all conversations**, **Zoom (text size) in/out/reset**, and Sort / Arrange-by.
 - [x] **Message / Actions menu** — [easy]. Reply, Reply all, Forward, Move to, Categorise, Flag / Unflag, Pin, Snooze, Block sender, Mark all read — the same actions as the ribbon, reachable from the menu bar.
-- [x] **Pop-out message window: own menu bar + fuller toolbar** — [med]. File (Save As / Print / Close), Message (reply/forward/move/categorise/flag/pin/snooze), View (zoom, show full headers). Parity with the reading-pane actions. (Today the pop-out only has reply/forward/archive/delete/star/print/mark-read.)
-- [x] **Pop-out message window: Next / Previous navigation** — [med]. Arrows (and keyboard) to step through the folder without going back to the list.
 - [x] **Drag an email onto a sidebar folder to move it** — [med]. Direct drag-to-file, in addition to the Move menu.
 
 ---
@@ -48,8 +46,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 - [x] **Import from `.mbox` / `.eml`** — [med]. Bring in an old archive locally.
 - [x] **Export a folder/mailbox to `.mbox`** — [med]. The reverse of the import; a proper local backup/portability path.
 - [x] **Import / export contacts as vCard (`.vcf`)** — [easy/med]. Bring an address book in or out locally.
-- [x] **Pop-out: Show original / full headers + "View source"** — [easy]. Raw headers and the raw message, like Thunderbird's "View Source".
-- [x] **Pop-out: Save message as `.eml` / `.html`** — [easy]. Save the open email to disk (complements the existing Print-to-PDF).
 - [x] **Multi-column list view (optional)** — [big]. A classic table view (sortable From / Subject / Date / Size columns) as an alternative to the current card rows.
 - [x] **Follow-up flag with a reminder date** — [med]. Flag an email "follow up by <date>" and surface it in Today when due (snooze exists; this is a dated flag).
 - [x] **Inline images + attach from the compose window** — [med]. Confirm/extend drag-in attachments and inline image paste.

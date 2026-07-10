@@ -339,6 +339,25 @@ export function setMuted(db: DB, id: number, on: boolean): void {
 }
 
 // Minimal row for resolving IMAP write-back (source folder + remote uid).
+// Previous/next message ids in the same folder, in the list's display order —
+// so a pop-out window can step through the folder. null at the ends.
+export function messageNeighbours(db: DB, id: number): { prevId: number | null; nextId: number | null } {
+  const meta = getMessageMeta(db, id)
+  if (!meta || meta.folderId == null) return { prevId: null, nextId: null }
+  const rows = db.all(
+    `SELECT id FROM messages WHERE folder_id = ?
+       AND id NOT IN (SELECT message_id FROM snoozes WHERE datetime(snooze_until) > datetime('now'))
+     ORDER BY is_pinned DESC, received_at DESC, id DESC`,
+    [meta.folderId]
+  ) as unknown as { id: number }[]
+  const idx = rows.findIndex((r) => r.id === id)
+  if (idx < 0) return { prevId: null, nextId: null }
+  return {
+    prevId: idx > 0 ? rows[idx - 1].id : null,
+    nextId: idx < rows.length - 1 ? rows[idx + 1].id : null
+  }
+}
+
 export function getMessageMeta(db: DB, id: number): { accountId: number; folderId: number | null; remoteUid: number | null } | null {
   const r = db.get('SELECT account_id, folder_id, remote_uid FROM messages WHERE id = ?', [id]) as
     | { account_id: number; folder_id: number | null; remote_uid: number | null }

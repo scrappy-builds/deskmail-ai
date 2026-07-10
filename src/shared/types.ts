@@ -83,6 +83,10 @@ export interface DeskMailApi {
     pin(id: number, on: boolean): Promise<void>
     mute(id: number, on: boolean): Promise<void>
     printPdf(id: number): Promise<{ path: string | null }>
+    // Pop-out helpers: raw source (reconstructed .eml), prev/next in folder, save to disk.
+    messageSource(id: number): Promise<string | null>
+    messageNeighbours(id: number): Promise<{ prevId: number | null; nextId: number | null }>
+    saveMessage(id: number, format: 'eml' | 'html'): Promise<{ path: string | null }>
     listByLabel(labelId: number): Promise<MessageListItem[]>
     // Subscribe to "mail changed" (after a sync/seed). Returns an unsubscribe fn.
     onChanged(cb: () => void): () => void

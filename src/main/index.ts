@@ -10,7 +10,8 @@ import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/ac
 import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
 import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
-import { getMessage, listMessages, listMessagesByLabel, markFolderRead, markRead, searchMessages, setMuted, setPinned } from '../db/messages'
+import { getMessage, listMessages, listMessagesByLabel, markFolderRead, markRead, messageNeighbours, searchMessages, setMuted, setPinned } from '../db/messages'
+import { buildEml, saveMessageFile } from './mail/messageExport'
 import { createLabel, deleteLabel, labelsForMessage, listLabels, renameLabel, setMessageLabel } from '../db/labels'
 import { createRule, deleteRule, listRules, updateRule } from '../db/rules'
 import { createSmartView, deleteSmartView, listSmartViews, runSmartView } from '../db/smartViews'
@@ -530,6 +531,25 @@ function registerIpc(): void {
     })
     if (res.canceled || !res.filePath) return { path: null }
     await printMessageToPdf(app.getPath('userData'), m, res.filePath)
+    return { path: res.filePath }
+  })
+  ipcMain.handle('mail:message-source', (_e, messageId: number) => {
+    const m = getMessage(db, messageId)
+    return m ? buildEml(m) : null
+  })
+  ipcMain.handle('mail:message-neighbours', (_e, messageId: number) => messageNeighbours(db, messageId))
+  ipcMain.handle('mail:save-message', async (e, messageId: number, format: 'eml' | 'html') => {
+    const m = getMessage(db, messageId)
+    if (!m) return { path: null }
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const safe = (m.subject || 'message').replace(/[^\w -]+/g, '_').slice(0, 60)
+    const res = await dialog.showSaveDialog(win!, {
+      title: `Save message as .${format}`,
+      defaultPath: `${safe}.${format}`,
+      filters: [{ name: format.toUpperCase(), extensions: [format] }]
+    })
+    if (res.canceled || !res.filePath) return { path: null }
+    saveMessageFile(m, res.filePath, format)
     return { path: res.filePath }
   })
 
