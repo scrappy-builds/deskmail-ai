@@ -43,7 +43,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 - [x] **Group by date headers** — [easy/med]. "Today / Yesterday / This week / Older" separators in the list, like both clients.
 - [x] **Drag an email onto a sidebar folder to move it** — [med]. Direct drag-to-file, in addition to the Move menu.
 - [x] **"Mark read" behaviour preference** — [easy]. Choose: mark read on select / after N seconds / never auto-mark. Thunderbird-style; today it always marks read on open.
-- [x] **Block sender → Junk (one click)** — [easy]. From a message, create a rule that routes this sender to Junk (uses the existing rules engine).
 
 ---
 

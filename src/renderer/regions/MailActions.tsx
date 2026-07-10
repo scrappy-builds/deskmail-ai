@@ -150,6 +150,16 @@ export function MailActions(): JSX.Element {
   // Junk, Trash, Archive, then custom folders), minus the folder we're already in.
   const moveTargets = flattenFolderTree(folders).filter((n) => n.folder.id !== activeFolderId)
 
+  // Block sender: add a rule routing this sender to Junk, and junk the open message now.
+  const blockSender = (): void => {
+    if (!selected?.fromEmail) return
+    const from = selected.fromEmail
+    void window.deskmail.rules
+      .create({ name: `Block ${from} → Junk`, enabled: true, field: 'from', op: 'contains', value: from, action: 'junk', targetFolderId: null, targetLabelId: null })
+      .then(() => window.deskmail.mail.action(selected.id, 'junk'))
+      .then(() => { void refresh(); showToast({ text: `Blocked ${from} — mail from them now goes to Junk` }) })
+  }
+
   const createRuleFromSender = (): void => {
     if (!selected?.fromEmail) return
     const folder = folders.find((f) => f.id === activeFolderId)
@@ -236,6 +246,7 @@ export function MailActions(): JSX.Element {
             <MenuItem icon="print" label="Print to PDF" disabled={!single} onClick={() => { close(); void window.deskmail.mail.printPdf(ids[0]).then((r) => { if (r.path) showToast({ text: 'Saved as PDF' }) }) }} />
             <MenuItem icon="openWindow" label="Open in window" disabled={!single} onClick={() => { close(); window.deskmail.openMessage(ids[0]) }} />
             <MenuItem icon="draft" label="Export to NotebookLM" disabled={!single || !selected} onClick={() => { close(); if (selected) void window.deskmail.notebooklm.export(selected.id, selected.attachments.length > 0).then((r) => showToast({ text: r.note ? `Exported to NotebookLM folder (${r.note})` : `Exported ${r.files.length} file(s) for NotebookLM` })) }} />
+            <MenuItem icon="shield" label="Block sender → Junk" disabled={!single || !selected?.fromEmail} onClick={() => { close(); blockSender() }} />
             <MenuItem icon="sliders" label="Create rule from sender" disabled={!single || !selected?.fromEmail} onClick={() => { close(); createRuleFromSender() }} />
           </>
         )}
