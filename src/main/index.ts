@@ -42,7 +42,7 @@ import { isTrustedSender, listTrustedSenders, trustSender, untrustSender } from 
 import { buildTools } from '../mcp/tools'
 import { getCredential, storeCredential } from './credentials'
 import { testIncoming, testOutgoing } from './mail/connectionTest'
-import { syncAccount, syncAllAccounts } from './mail/sync'
+import { backfillAccount, backfillFolder, canBackfill, syncAccount, syncAllAccounts } from './mail/sync'
 import { sendMail } from './mail/send'
 import { appendToSent } from './mail/appendSent'
 import { closePool } from './mail/connectionPool'
@@ -546,6 +546,19 @@ function registerIpc(): void {
     else await syncAllAccounts(db)
     broadcastMailChanged()
   })
+  // "Load older": is there older mail left to pull for this folder, and pull one
+  // more page of it. The account is derived from the folder.
+  ipcMain.handle('mail:can-backfill', (_e, folderId: number) => canBackfill(db, folderId))
+  ipcMain.handle('mail:backfill', async (_e, folderId: number) => {
+    const f = getFolder(db, folderId)
+    if (!f) return { added: 0 }
+    const added = await backfillFolder(db, f.account_id, folderId)
+    broadcastMailChanged()
+    return { added }
+  })
+  // History depth (days back-fill fetches; 0 = everything). Default 365.
+  ipcMain.handle('mail:sync-depth-get', () => Number(getAppSetting(db, 'sync-depth-days') ?? '365'))
+  ipcMain.handle('mail:sync-depth-set', (_e, days: number) => setAppSetting(db, 'sync-depth-days', String(Math.max(0, Math.round(days)))))
   ipcMain.handle('mail:mark-folder-read', (_e, folderId: number) => {
     const n = markFolderRead(db, folderId)
     refreshFolderCounts(db, folderId)
@@ -1288,6 +1301,19 @@ app.whenReady().then(async () => {
   void syncAllAccounts(db).then(() => {
     broadcastMailChanged()
     applyIdleConfig()
+    // Back-fill older history in the background (newest page already seeded), so
+    // folders fill up to the depth limit without blocking first use. Refresh the
+    // UI as each page lands.
+    void (async () => {
+      const accts = db.all("SELECT id FROM accounts WHERE incoming_type = 'imap'") as unknown as { id: number }[]
+      for (const a of accts) {
+        try {
+          await backfillAccount(db, a.id, 200, broadcastMailChanged)
+        } catch {
+          /* leave it for the next launch — never crashes startup */
+        }
+      }
+    })()
   })
   startScheduledSender()
   // Periodic sync that surfaces new inbox mail as desktop notifications.

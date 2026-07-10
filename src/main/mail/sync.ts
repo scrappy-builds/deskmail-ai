@@ -253,13 +253,14 @@ export async function syncAllAccounts(db: DB, skip?: (accountId: number) => bool
 // Back-fill every folder of an account to the history-depth limit, one page at a
 // time, in the background after the initial fast seed. Bounded so a runaway
 // server can't loop forever.
-export async function backfillAccount(db: DB, accountId: number, maxPages = 200): Promise<void> {
+export async function backfillAccount(db: DB, accountId: number, maxPages = 200, onPage?: () => void): Promise<void> {
   const folders = db.all("SELECT id FROM folders WHERE account_id = ? AND role IS NOT 'drafts'", [accountId]) as unknown as { id: number }[]
   for (const f of folders) {
     let pages = 0
     while (canBackfill(db, f.id) && pages < maxPages) {
       const added = await backfillFolder(db, accountId, f.id)
       pages++
+      onPage?.()
       if (added === 0) break // depth reached or nothing there
     }
   }

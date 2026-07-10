@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../Icon'
 import type { AccountInput, AccountSummary } from '@shared/db'
 import { AccountWizard } from './AccountWizard'
-import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, NotificationsPane, RulesPane, SecurityPane, SendingPane, ShortcutsPane, SignaturesPane, TemplatesPane } from './panes'
+import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, NotificationsPane, RulesPane, SecurityPane, SendingPane, ShortcutsPane, SignaturesPane, SyncPane, TemplatesPane } from './panes'
 import { AppearancePane } from './ThemeEditor'
 
 const SECTIONS = [
@@ -13,6 +13,7 @@ const SECTIONS = [
   'Templates',
   'Contacts',
   'Sending',
+  'Sync',
   'Meetings',
   'Claude connector',
   'Appearance',
@@ -185,6 +186,7 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
             {section === 'Templates' && <TemplatesPane />}
             {section === 'Contacts' && <ContactsPane />}
             {section === 'Sending' && <SendingPane />}
+            {section === 'Sync' && <SyncPane />}
             {section === 'Claude connector' && <ClaudeConnectorPane />}
             {section === 'Appearance' && <AppearancePane />}
             {section === 'Shortcuts' && <ShortcutsPane />}
@@ -197,6 +199,7 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
               section !== 'Templates' &&
               section !== 'Contacts' &&
               section !== 'Sending' &&
+              section !== 'Sync' &&
               section !== 'Claude connector' &&
               section !== 'Appearance' &&
               section !== 'Shortcuts' &&

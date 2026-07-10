@@ -191,6 +191,7 @@ function CustomFolderRow({
         onClick={() => void setFolder(f.id)}
         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }) }}
         title={f.name}
+        data-testid={`folder-${f.role ?? f.id}`}
         className="flex w-full items-center gap-3 rounded-md px-[9px] py-2 hover:bg-hover"
         style={{
           justifyContent: showLabels ? 'flex-start' : 'center',
@@ -530,6 +531,7 @@ export function Sidebar({
                 onDragOver={(e) => { if (e.dataTransfer.types.includes(MSG_DND_TYPE)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move' } }}
                 onDrop={(e) => handleMessageDrop(e, f.id, f.name, showToast)}
                 title={f.name}
+                data-testid={`folder-${f.role ?? f.id}`}
                 className="mb-px flex w-full items-center gap-3 rounded-md px-[9px] py-2 hover:bg-hover"
                 style={{
                   justifyContent: showLabels ? 'flex-start' : 'center',

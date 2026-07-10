@@ -629,6 +629,52 @@ export function ContactsPane(): JSX.Element {
 }
 
 // --- Security & junk ----------------------------------------------------------
+// --- Sync (history depth) -----------------------------------------------------
+// How far back the background back-fill fetches. The newest page of every folder
+// is always seeded immediately; this caps how much older history follows.
+const DEPTH_OPTS: { label: string; days: number }[] = [
+  { label: 'Last 30 days', days: 30 },
+  { label: 'Last 3 months', days: 90 },
+  { label: 'Last year', days: 365 },
+  { label: 'Last 2 years', days: 730 },
+  { label: 'Everything', days: 0 }
+]
+export function SyncPane(): JSX.Element {
+  const [days, setDays] = useState<number | null>(null)
+  useEffect(() => {
+    void window.deskmail.mail.syncDepthGet().then(setDays)
+  }, [])
+  const choose = (d: number): void => {
+    setDays(d)
+    void window.deskmail.mail.syncDepthSet(d)
+  }
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <div className="mb-2 text-[13.5px] font-semibold">How much mail to keep on this PC</div>
+        <p className="mb-3 text-[12.5px] leading-relaxed text-text-3">
+          I always fetch the newest messages in every folder straight away. This setting decides how
+          far back I keep filling in older mail. More history means a bigger local database — your mail
+          stays on the server either way, so you can raise this later and I'll fetch the rest.
+        </p>
+        <div className="flex flex-col gap-1.5">
+          {DEPTH_OPTS.map((o) => (
+            <label key={o.days} className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-2.5">
+              <input type="radio" name="sync-depth" checked={days === o.days} onChange={() => choose(o.days)} className="h-4 w-4 accent-accent" />
+              <span className="text-[13px] font-semibold">{o.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <p className="text-[12px] leading-relaxed text-text-3">
+        Older mail loads in the background after the app opens. You can also press{' '}
+        <span className="font-semibold text-text-2">Load older messages</span> at the bottom of any
+        folder to pull the next chunk on demand.
+      </p>
+    </div>
+  )
+}
+
 // --- Keyboard shortcuts -------------------------------------------------------
 // Master on/off plus a per-action rebind. "Rebind" captures the next key press;
 // Escape cancels, Clear unbinds. The cheat-sheet ('?') renders from the same map.

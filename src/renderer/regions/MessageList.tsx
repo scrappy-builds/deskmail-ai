@@ -202,6 +202,32 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
+  // "Load older messages" — only for a plain folder view (not search / label /
+  // smart view / unified). Asks the main process whether the folder still has
+  // older server mail to back-fill, and pulls one more page on click.
+  const isPlainFolder = activeFolderId != null && !searching && activeLabelId == null && activeSmartViewId == null && !activeUnified
+  const [canOlder, setCanOlder] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  useEffect(() => {
+    if (!isPlainFolder || activeFolderId == null) {
+      setCanOlder(false)
+      return
+    }
+    let alive = true
+    void window.deskmail.mail.canBackfill(activeFolderId).then((v) => { if (alive) setCanOlder(v) })
+    return () => { alive = false }
+  }, [activeFolderId, isPlainFolder, messages.length])
+  const loadOlder = async (): Promise<void> => {
+    if (activeFolderId == null) return
+    setLoadingOlder(true)
+    try {
+      await window.deskmail.mail.backfill(activeFolderId) // mail:changed refreshes the list
+      setCanOlder(await window.deskmail.mail.canBackfill(activeFolderId))
+    } finally {
+      setLoadingOlder(false)
+    }
+  }
+
   const activeLabel = labels.find((l) => l.id === activeLabelId)
   const activeSmart = smartViews.find((v) => v.id === activeSmartViewId)
   const title = searching
@@ -413,6 +439,16 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
               </>
             )
           })()
+        )}
+        {isPlainFolder && canOlder && visibleMessages.length > 0 && (
+          <button
+            onClick={() => void loadOlder()}
+            disabled={loadingOlder}
+            className="flex w-full items-center justify-center gap-2 border-t border-border py-3 text-[12.5px] font-semibold text-text-2 hover:bg-hover disabled:opacity-50"
+          >
+            <Icon name="sync" size={14} className={loadingOlder ? 'animate-spin' : undefined} />
+            {loadingOlder ? 'Loading older messages…' : 'Load older messages'}
+          </button>
         )}
       </div>
     </>

@@ -134,9 +134,9 @@ export async function seedDemo(db: DB): Promise<void> {
   const accountId = (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
   ensureDefaultSignature(db, accountId, 'Jamie')
   const inboxId = upsertFolder(db, accountId, 'Inbox', 'inbox', 'INBOX')
-  upsertFolder(db, accountId, 'Sent', 'sent', 'Sent')
+  const sentId = upsertFolder(db, accountId, 'Sent', 'sent', 'Sent')
   upsertFolder(db, accountId, 'Drafts', 'drafts', 'Drafts')
-  upsertFolder(db, accountId, 'Archive', 'archive', 'Archive')
+  const archiveId = upsertFolder(db, accountId, 'Archive', 'archive', 'Archive')
   upsertFolder(db, accountId, 'Junk', 'junk', 'Junk')
   upsertFolder(db, accountId, 'Bin', 'trash', 'Trash')
 
@@ -164,7 +164,35 @@ export async function seedDemo(db: DB): Promise<void> {
     })
   )
   applyJunkIfSpam(db, spamId, true)
+
+  // Mail in non-INBOX folders so full sync's "all folders" behaviour is visible
+  // (and E2E-testable) without a live server.
+  await ingestRaw(
+    db,
+    { accountId, folderId: sentId, remoteUid: uid++, isRead: true, isStarred: false },
+    rawEmail({
+      from: '"Jamie Bell" <jamie@example.com>',
+      to: 'priya@makerspace.uk',
+      subject: 'Licence terms for the radiator clip (printed units)',
+      date: 'Tue, 07 Jul 2026 08:00:00 +0100',
+      html: '<p>Happy to license this for resale of printed units — I\'ll send the terms across today.</p>'
+    })
+  )
+  await ingestRaw(
+    db,
+    { accountId, folderId: archiveId, remoteUid: uid++, isRead: true, isStarred: false },
+    rawEmail({
+      from: '"Companies House" <noreply@companieshouse.gov.uk>',
+      to: 'jamie@example.com',
+      subject: 'Confirmation statement filed',
+      date: 'Mon, 29 Jun 2026 10:00:00 +0100',
+      html: '<p>Your confirmation statement was filed successfully.</p>'
+    })
+  )
+
   refreshFolderCounts(db, inboxId)
+  refreshFolderCounts(db, sentId)
+  refreshFolderCounts(db, archiveId)
 }
 
 // Seed only when asked and the DB is empty.

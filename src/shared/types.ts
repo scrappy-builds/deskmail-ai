@@ -79,6 +79,13 @@ export interface DeskMailApi {
     markFolderRead(folderId: number): Promise<{ count: number }>
     emptyFolder(folderId: number): Promise<{ count: number }>
     sync(accountId?: number): Promise<void>
+    // Full sync back-fill: is there older mail left in this folder, and pull one
+    // more page of it (the "Load older" button).
+    canBackfill(folderId: number): Promise<boolean>
+    backfill(folderId: number): Promise<{ added: number }>
+    // History depth in days the back-fill fetches (0 = everything).
+    syncDepthGet(): Promise<number>
+    syncDepthSet(days: number): Promise<void>
     // Folder management: create/rename/delete custom folders (standard roles are protected).
     createFolder(accountId: number, name: string, parentId?: number | null): Promise<{ id: number }>
     renameFolder(id: number, name: string): Promise<void>
