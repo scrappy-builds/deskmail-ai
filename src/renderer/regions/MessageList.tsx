@@ -1,11 +1,8 @@
-import { useState } from 'react'
 import { Icon } from '../Icon'
 import type { MessageListItem } from '@shared/db'
 import { fmtTime, initials } from '../mail/format'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
-import { planBulk, runBulk, type BulkOp } from '../mail/bulkOps'
-import { useToast } from '../store/toastStore'
 
 interface MessageListProps {
   rowPaddingY: number
@@ -108,24 +105,11 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
   const toggleSelected = useMail((s) => s.toggleSelected)
   const clearSelected = useMail((s) => s.clearSelected)
   const selectAll = useMail((s) => s.selectAll)
-  const refresh = useMail((s) => s.refresh)
-  const showToast = useToast((s) => s.show)
-  const [moveOpen, setMoveOpen] = useState(false)
   const openInFullWindow = useLayout((s) => s.prefs.openEmailBehaviour === 'full-window')
   const searching = searchQuery.trim().length > 0
   const allSelected = messages.length > 0 && selectedIds.size === messages.length
+  const someSelected = selectedIds.size > 0 && !allSelected
 
-  const doBulk = async (op: BulkOp, targetFolderId?: number): Promise<void> => {
-    const steps = planBulk(op, selectedIds, targetFolderId)
-    if (steps.length === 0) return
-    await runBulk(steps)
-    setMoveOpen(false)
-    clearSelected()
-    await refresh()
-    showToast({ text: `${steps.length} message${steps.length > 1 ? 's' : ''} updated` })
-  }
-  // Every folder except drafts — targets for a bulk move.
-  const moveTargets = folders.filter((f) => f.role !== 'drafts' && f.id !== activeFolderId)
   const activeLabel = labels.find((l) => l.id === activeLabelId)
   const activeSmart = smartViews.find((v) => v.id === activeSmartViewId)
   const title = searching
@@ -150,41 +134,27 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
         <button className="flex cursor-pointer rounded-md p-1.5 text-text-2 hover:bg-raised" title="Filter">
           <Icon name="filter" size={18} />
         </button>
-        <button
-          onClick={() => (allSelected ? clearSelected() : selectAll(messages.map((m) => m.id)))}
-          className="flex cursor-pointer rounded-md p-1.5 hover:bg-raised"
-          style={{ color: allSelected ? 'var(--accent)' : 'var(--text-2)' }}
-          title={allSelected ? 'Clear selection' : 'Select all'}
-        >
-          <Icon name="check" size={18} />
-        </button>
       </div>
 
-      {selectedIds.size > 0 && (
-        <div className="relative flex flex-none items-center gap-1 border-b border-border bg-panel px-3 py-2">
-          <span className="mr-1 text-[12.5px] font-semibold text-text-2">{selectedIds.size} selected</span>
-          <button onClick={() => void doBulk('read')} className="rounded-md px-2.5 py-1.5 text-[12px] font-semibold text-text-2 hover:bg-raised">Mark read</button>
-          <button onClick={() => void doBulk('unread')} className="rounded-md px-2.5 py-1.5 text-[12px] font-semibold text-text-2 hover:bg-raised">Mark unread</button>
-          <button onClick={() => void doBulk('delete')} className="rounded-md px-2.5 py-1.5 text-[12px] font-semibold text-danger hover:bg-raised">Delete</button>
-          <button onClick={() => setMoveOpen((v) => !v)} className="rounded-md px-2.5 py-1.5 text-[12px] font-semibold text-text-2 hover:bg-raised">Move to…</button>
-          <div className="flex-1" />
-          <button onClick={clearSelected} className="rounded-md px-2 py-1.5 text-[12px] font-semibold text-text-3 hover:bg-raised">Clear</button>
-          {moveOpen && (
-            <div className="absolute left-3 top-full z-20 mt-1 max-h-[300px] w-[200px] overflow-y-auto rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
-              <div className="px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Move to…</div>
-              {moveTargets.length === 0 ? (
-                <div className="px-2.5 py-1.5 text-[12px] text-text-3">No other folders.</div>
-              ) : (
-                moveTargets.map((f) => (
-                  <button key={f.id} onClick={() => void doBulk('move', f.id)} className="block w-full truncate rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
-                    {f.name}
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+      {/* Select-all tickbox at the head of the checkbox column — aligns under each
+          row's checkbox (row uses 11px left padding + 2.5 gap). Indeterminate when
+          some-but-not-all are ticked. */}
+      {messages.length > 0 && (
+        <label className="flex h-8 flex-none cursor-pointer items-center gap-2.5 border-b border-border pl-[11px] pr-3.5 hover:bg-hover">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            ref={(el) => { if (el) el.indeterminate = someSelected }}
+            onChange={() => (selectedIds.size > 0 ? clearSelected() : selectAll(messages.map((m) => m.id)))}
+            title={allSelected ? 'Clear selection' : 'Select all'}
+            className="h-3.5 w-3.5 accent-[var(--accent)]"
+          />
+          <span className="select-none text-[12px] font-semibold text-text-3">
+            {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+          </span>
+        </label>
       )}
+
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {messages.length === 0 ? (
           <div className="px-6 py-16 text-center">

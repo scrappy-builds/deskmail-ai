@@ -1,4 +1,5 @@
 import { Icon } from './Icon'
+import { MailActions } from './regions/MailActions'
 import { useLayout } from './store/layoutStore'
 import { useMail } from './store/mailStore'
 
@@ -35,13 +36,34 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
 
   return (
     <div className="flex h-[56px] flex-none items-center gap-2.5 border-b border-border bg-panel px-3.5">
-      <div className="flex gap-0.5 rounded-md border border-border bg-inset p-[3px]">
+      {/* Compose sits top-left, Outlook-style. */}
+      <button
+        onClick={onCompose}
+        className="flex items-center gap-2 rounded-md bg-accent px-4 py-[9px] text-[13px] font-semibold text-accent-fg hover:bg-accent-2"
+      >
+        <Icon name={mode === 'calendar' ? 'calendar' : 'compose'} size={16} />
+        <span>{mode === 'calendar' ? 'New event' : 'Compose'}</span>
+      </button>
+
+      <div className="flex flex-none gap-0.5 rounded-md border border-border bg-inset p-[3px]">
         {tab('today', 'Today', 'clock')}
         {tab('mail', 'Mail', 'mail')}
         {tab('calendar', 'Calendar', 'calendar')}
       </div>
 
-      <div className="relative flex max-w-[640px] flex-1 items-center">
+      {/* Message actions live in this same bar (Mail mode only), acting on the
+          ticked messages or the one open in the reading pane. */}
+      {mode === 'mail' && (
+        <>
+          <div className="mx-1 h-6 w-px flex-none bg-border" />
+          <MailActions />
+        </>
+      )}
+
+      <div className="min-w-0 flex-1" />
+
+      {/* Compact search, kept on the right; grows when focused (no separate box). */}
+      <div className="relative flex w-[210px] items-center transition-[width] duration-200 focus-within:w-[380px]">
         <span className="pointer-events-none absolute left-3 flex text-text-3">
           <Icon name="search" size={16} />
         </span>
@@ -50,15 +72,9 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
           value={mode === 'mail' ? searchQuery : ''}
           onChange={(e) => mode === 'mail' && void runSearch(e.target.value)}
           disabled={mode !== 'mail'}
-          className="h-[38px] w-full rounded-md border border-border bg-bg pl-10 pr-[90px] text-[13.5px] text-text outline-none focus:border-accent"
+          className="h-[38px] w-full rounded-md border border-border bg-bg pl-10 pr-3 text-[13.5px] text-text outline-none focus:border-accent"
         />
-        <span className="pointer-events-none absolute right-3 flex gap-1.5">
-          <kbd className="rounded-sm border border-border bg-raised px-1.5 py-0.5 font-mono text-[10.5px] text-text-3">Ctrl</kbd>
-          <kbd className="rounded-sm border border-border bg-raised px-1.5 py-0.5 font-mono text-[10.5px] text-text-3">K</kbd>
-        </span>
       </div>
-
-      <div className="flex-1" />
 
       <button
         onClick={() => void sync()}
@@ -68,14 +84,6 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
       >
         <Icon name="sync" size={16} className={syncing ? 'animate-spin' : undefined} />
         <span>{syncing ? 'Syncing…' : 'Send / Receive'}</span>
-      </button>
-
-      <button
-        onClick={onCompose}
-        className="flex items-center gap-2 rounded-md bg-accent px-4 py-[9px] text-[13px] font-semibold text-accent-fg hover:bg-accent-2"
-      >
-        <Icon name={mode === 'calendar' ? 'calendar' : 'compose'} size={16} />
-        <span>{mode === 'calendar' ? 'New event' : 'Compose'}</span>
       </button>
 
       <button

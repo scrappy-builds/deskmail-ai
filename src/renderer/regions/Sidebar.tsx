@@ -200,7 +200,9 @@ function CustomFolderRow({
 }
 
 // Renders custom (roleless) folders as a nested tree with drag-to-reorder/nest.
-function FolderTree({ folders, activeFolderId, showLabels }: { folders: FolderSummary[]; activeFolderId: number | null; showLabels: boolean }): JSX.Element {
+// rootParentId chooses which parent's children to render (null = top level; a
+// standard-folder id renders that folder's local subfolders, e.g. the Inbox).
+function FolderTree({ folders, activeFolderId, showLabels, rootParentId = null, baseDepth = 0 }: { folders: FolderSummary[]; activeFolderId: number | null; showLabels: boolean; rootParentId?: number | null; baseDepth?: number }): JSX.Element {
   const showToast = useToast((s) => s.show)
   const dragId = useRef<number | null>(null)
   const [drop, setDrop] = useState<{ id: number; pos: DropPos } | null>(null)
@@ -287,7 +289,7 @@ function FolderTree({ folders, activeFolderId, showLabels }: { folders: FolderSu
       return rows
     })
 
-  return <>{render(null, 0)}</>
+  return <>{render(rootParentId, baseDepth)}</>
 }
 
 export function Sidebar({
@@ -309,6 +311,11 @@ export function Sidebar({
   const [newName, setNewName] = useState('')
   const [addingLabel, setAddingLabel] = useState(false)
   const [newLabel, setNewLabel] = useState('')
+  // Inbox right-click menu + inline "new subfolder" (Inbox can hold subfolders).
+  const [inboxMenu, setInboxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [addingInboxChild, setAddingInboxChild] = useState(false)
+  const [inboxChildName, setInboxChildName] = useState('')
+  const inboxMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const refresh = (): void => {
@@ -318,6 +325,16 @@ export function Sidebar({
     refresh()
     return window.deskmail.mail.onChanged(refresh)
   }, [])
+
+  // Close the Inbox menu on an outside click.
+  useEffect(() => {
+    if (!inboxMenu) return
+    const onDown = (e: MouseEvent): void => {
+      if (inboxMenuRef.current && !inboxMenuRef.current.contains(e.target as Node)) setInboxMenu(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [inboxMenu])
 
   if (accounts.length === 0) {
     return (
@@ -343,6 +360,19 @@ export function Sidebar({
     try {
       await window.deskmail.mail.createFolder(targetAccountId, trimmed)
       showToast({ text: `Created folder “${trimmed}”` })
+    } catch (e) {
+      showToast({ text: (e as Error).message })
+    }
+  }
+
+  const createInboxChild = async (inbox: FolderSummary, rawName: string): Promise<void> => {
+    const trimmed = rawName.trim()
+    setAddingInboxChild(false)
+    setInboxChildName('')
+    if (!trimmed) return
+    try {
+      await window.deskmail.mail.createFolder(inbox.accountId, trimmed, inbox.id)
+      showToast({ text: `Created “${trimmed}” in Inbox` })
     } catch (e) {
       showToast({ text: (e as Error).message })
     }
@@ -393,33 +423,72 @@ export function Sidebar({
         </div>
       )}
 
-      {/* Standard mailboxes: fixed order, flat, not draggable. */}
+      {/* Standard mailboxes: fixed order, flat, not draggable. The Inbox is
+          special — it can hold custom subfolders (nested beneath it) and has a
+          right-click / options menu to add one. */}
       {ordered
         .filter((f) => f.role)
         .map((f) => {
           const active = f.id === activeFolderId
+          const isInbox = f.role === 'inbox'
           return (
-            <button
-              key={f.id}
-              onClick={() => void setFolder(f.id)}
-              title={f.name}
-              className="mb-px flex w-full items-center gap-3 rounded-md px-[9px] py-2 hover:bg-hover"
-              style={{
-                justifyContent: showLabels ? 'flex-start' : 'center',
-                background: active ? 'var(--accent-soft)' : 'transparent',
-                color: active ? 'var(--accent)' : 'var(--text-2)'
-              }}
-            >
-              <Icon name={folderIcon(f.role, f.name)} size={18} className="flex-none" />
-              {showLabels && (
-                <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                  <span className="truncate text-[13.5px]" style={{ fontWeight: active ? 700 : 500 }}>
-                    {f.name}
-                  </span>
-                  {f.unreadCount > 0 && <span className="text-[11.5px] font-semibold text-accent">{f.unreadCount}</span>}
+            <div key={f.id} className="group relative">
+              <button
+                onClick={() => void setFolder(f.id)}
+                onContextMenu={isInbox ? (e) => { e.preventDefault(); setInboxMenu({ x: e.clientX, y: e.clientY }) } : undefined}
+                title={f.name}
+                className="mb-px flex w-full items-center gap-3 rounded-md px-[9px] py-2 hover:bg-hover"
+                style={{
+                  justifyContent: showLabels ? 'flex-start' : 'center',
+                  background: active ? 'var(--accent-soft)' : 'transparent',
+                  color: active ? 'var(--accent)' : 'var(--text-2)'
+                }}
+              >
+                <Icon name={folderIcon(f.role, f.name)} size={18} className="flex-none" />
+                {showLabels && (
+                  <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                    <span className="truncate text-[13.5px]" style={{ fontWeight: active ? 700 : 500 }}>
+                      {f.name}
+                    </span>
+                    {f.unreadCount > 0 && <span className="text-[11.5px] font-semibold text-accent">{f.unreadCount}</span>}
+                  </div>
+                )}
+              </button>
+              {isInbox && showLabels && (
+                <button
+                  onClick={(e) => setInboxMenu({ x: e.clientX, y: e.clientY })}
+                  title="Folder options"
+                  className="absolute right-1 top-1.5 hidden rounded p-1 text-text-3 hover:bg-raised group-hover:block"
+                >
+                  <Icon name="sliders" size={14} />
+                </button>
+              )}
+              {isInbox && inboxMenu && (
+                <div ref={inboxMenuRef} className="absolute right-1 top-8 z-20 w-[160px] rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
+                  <button onClick={() => { setInboxMenu(null); setAddingInboxChild(true); setInboxChildName('') }} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+                    New subfolder
+                  </button>
                 </div>
               )}
-            </button>
+              {isInbox && addingInboxChild && showLabels && (
+                <input
+                  autoFocus
+                  value={inboxChildName}
+                  onChange={(e) => setInboxChildName(e.target.value)}
+                  onBlur={() => void createInboxChild(f, inboxChildName)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void createInboxChild(f, inboxChildName)
+                    if (e.key === 'Escape') { setAddingInboxChild(false); setInboxChildName('') }
+                  }}
+                  placeholder="Subfolder name…"
+                  style={{ marginLeft: 16 }}
+                  className="mb-px w-full rounded-md border border-accent bg-bg px-[9px] py-1.5 text-[13.5px] outline-none"
+                />
+              )}
+              {isInbox && showLabels && (
+                <FolderTree folders={folders.filter((x) => !x.role)} activeFolderId={activeFolderId} showLabels={showLabels} rootParentId={f.id} baseDepth={1} />
+              )}
+            </div>
           )
         })}
 

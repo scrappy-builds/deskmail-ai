@@ -97,6 +97,7 @@ export interface NotifySettings {
   dndFrom: string // "HH:MM"
   dndTo: string // "HH:MM"
   focusNow: boolean
+  launchAtStartup: boolean // start DeskMail when Windows starts
 }
 
 // A saved "smart view": a set of conditions (match all/any) over the mailbox.

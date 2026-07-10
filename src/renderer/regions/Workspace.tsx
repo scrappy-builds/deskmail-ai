@@ -69,7 +69,7 @@ export function Workspace({
               minWidth: a.reading.bottom ? undefined : 0
             }}
           >
-            <ReadingPane onOpen={onOpen} />
+            <ReadingPane />
           </div>
         )}
       </div>

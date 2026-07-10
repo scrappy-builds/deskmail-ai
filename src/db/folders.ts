@@ -108,7 +108,8 @@ export function moveFolder(db: DB, id: number, parentId: number | null): void {
     if (parentId === id) throw new Error('A folder can’t be its own parent.')
     const target = getFolder(db, parentId)
     if (!target) throw new Error('That destination folder no longer exists.')
-    if (target.role) throw new Error('The standard folders can’t hold subfolders.')
+    // Only the Inbox may act as a parent among the standard mailboxes.
+    if (target.role && target.role !== 'inbox') throw new Error('Only the Inbox can hold subfolders among the standard mailboxes.')
     let cur: number | null = parentId
     while (cur != null) {
       if (cur === id) throw new Error('You can’t move a folder into one of its own subfolders.')

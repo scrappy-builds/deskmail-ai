@@ -43,7 +43,8 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
   const [laterAt, setLaterAt] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const editor = useEditor({ extensions: [StarterKit], content: draft?.bodyHtml ?? '' })
+  // spellcheck: 'true' turns on Electron's live spell-check underlines in the body.
+  const editor = useEditor({ extensions: [StarterKit], content: draft?.bodyHtml ?? '', editorProps: { attributes: { spellcheck: 'true' } } })
 
   useEffect(() => {
     if (accountId == null) return

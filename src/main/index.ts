@@ -1,6 +1,6 @@
 import { existsSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { app, dialog, shell, nativeImage, BrowserWindow, ipcMain, Menu, Notification, Tray } from 'electron'
+import { app, dialog, session, shell, nativeImage, BrowserWindow, ipcMain, Menu, Notification, Tray } from 'electron'
 import { loadSettings } from './settings'
 import { resolveDataDir } from './dataDir'
 import { backupTo, restoreFrom } from './backup'
@@ -264,6 +264,25 @@ function hardenWindow(win: BrowserWindow): void {
   win.webContents.on('will-attach-webview', (e) => e.preventDefault())
   // Apply the saved text-size zoom once the page is loaded.
   win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor(uiZoom))
+  attachSpellcheckMenu(win)
+}
+
+// Right-click menu for editable fields: spelling suggestions + add-to-dictionary
+// (Electron's built-in spellchecker underlines misspellings as you type), plus the
+// usual cut/copy/paste. Works in compose and any other editable content.
+function attachSpellcheckMenu(win: BrowserWindow): void {
+  win.webContents.on('context-menu', (_e, params) => {
+    if (!params.isEditable && !params.selectionText && !params.misspelledWord) return
+    const t: Electron.MenuItemConstructorOptions[] = []
+    if (params.misspelledWord) {
+      for (const s of params.dictionarySuggestions) t.push({ label: s, click: () => win.webContents.replaceMisspelling(s) })
+      if (params.dictionarySuggestions.length === 0) t.push({ label: 'No suggestions', enabled: false })
+      t.push({ type: 'separator' }, { label: 'Add to dictionary', click: () => win.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord) }, { type: 'separator' })
+    }
+    if (params.isEditable) t.push({ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { type: 'separator' }, { role: 'selectAll' })
+    else if (params.selectionText) t.push({ role: 'copy' }, { role: 'selectAll' })
+    if (t.length) Menu.buildFromTemplate(t).popup({ window: win })
+  })
 }
 
 // Open message windows, keyed by message id, so a second double-click focuses
@@ -374,7 +393,10 @@ function registerIpc(): void {
   ipcMain.handle('mail:list-messages', (_e, folderId: number) => listMessages(db, folderId))
   ipcMain.handle('mail:search', (_e, query: string) => searchMessages(db, query))
   ipcMain.handle('mail:get-message', (_e, id: number) => getMessage(db, id))
-  ipcMain.handle('mail:mark-read', (_e, id: number, read: boolean) => markRead(db, id, read))
+  ipcMain.handle('mail:mark-read', (_e, id: number, read: boolean) => {
+    markRead(db, id, read)
+    broadcastMailChanged() // so the main list refreshes even when marked from a pop-out window
+  })
   ipcMain.handle('mail:action', (_e, messageId: number, op: MailOp, targetFolderId?: number) => {
     // Capture the source folder role before the move, so "not junk" (junk→inbox)
     // can teach the Bayesian filter. Only user actions train it — never auto-junk.
@@ -434,11 +456,13 @@ function registerIpc(): void {
       dndEnabled: { key: 'dnd-enabled', enc: (v) => (v ? 'on' : 'off') },
       dndFrom: { key: 'dnd-from', enc: (v) => String(v) },
       dndTo: { key: 'dnd-to', enc: (v) => String(v) },
-      focusNow: { key: 'focus-now', enc: (v) => (v ? 'on' : 'off') }
+      focusNow: { key: 'focus-now', enc: (v) => (v ? 'on' : 'off') },
+      launchAtStartup: { key: 'launch-at-startup', enc: (v) => (v ? 'on' : 'off') }
     }
     for (const k of Object.keys(patch) as (keyof NotifySettings)[]) {
       if (patch[k] !== undefined) setAppSetting(db, map[k].key, map[k].enc(patch[k]))
     }
+    if (patch.launchAtStartup !== undefined) app.setLoginItemSettings({ openAtLogin: patch.launchAtStartup })
     rebuildTrayMenu() // Focus state may have changed
     return getNotifySettings(db)
   })
@@ -720,7 +744,12 @@ function createMainWindow(): BrowserWindow {
     webPreferences: securePrefs()
   })
 
-  win.once('ready-to-show', () => win.show())
+  // Open maximised (full screen, title bar + taskbar still visible). The width/
+  // height above become the restored-down size.
+  win.once('ready-to-show', () => {
+    win.maximize()
+    win.show()
+  })
   hardenWindow(win)
 
   // Minimise / close to tray when enabled — the window hides instead of quitting,
@@ -745,10 +774,30 @@ function createMainWindow(): BrowserWindow {
   return win
 }
 
+// Apply the "start with Windows" preference to the OS login item. Defaults ON:
+// on first run (no stored value) DeskMail registers itself to launch at startup
+// and records that default, so the Settings toggle shows it as on.
+function applyLaunchAtStartup(): void {
+  const stored = getAppSetting(db, 'launch-at-startup')
+  if (stored == null) setAppSetting(db, 'launch-at-startup', 'on')
+  app.setLoginItemSettings({ openAtLogin: stored !== 'off' })
+}
+
 app.whenReady().then(async () => {
+  // Windows attributes desktop notifications (and their icon) to this AppUserModelID;
+  // it must match the installer's appId so the toast reads "DeskMail AI" with our
+  // logo, not the default "electron.app.DeskMail AI".
+  app.setAppUserModelId('uk.co.functional3d.deskmail')
+  // British English spellcheck for compose (falls back gracefully if unavailable).
+  try {
+    session.defaultSession.setSpellCheckerLanguages(['en-GB'])
+  } catch {
+    /* some platforms use the OS spellchecker and reject explicit languages */
+  }
   // Custom title bar lives in the renderer, so no native menu bar.
   Menu.setApplicationMenu(null)
   await initDatabase()
+  applyLaunchAtStartup()
   uiZoom = loadLayoutPrefs(db).fontScale // apply the saved text size to all windows
   registerIpc()
   createMainWindow()

@@ -39,6 +39,7 @@ export function NotificationsPane(): JSX.Element {
         schedule (or on demand) when you need to focus.
       </p>
       <Toggle on={s.enabled} onChange={(v) => patch({ enabled: v })} label="New-mail notifications" hint="Show a desktop alert for new inbox mail." />
+      <Toggle on={s.launchAtStartup} onChange={(v) => patch({ launchAtStartup: v })} label="Start DeskMail when Windows starts" hint="Launch automatically in the background when you sign in." />
       <Toggle on={s.minimiseToTray} onChange={(v) => patch({ minimiseToTray: v })} label="Minimise to tray" hint="Closing or minimising hides to the tray instead of quitting." />
       <Toggle on={s.focusNow} onChange={(v) => patch({ focusNow: v })} label="Focus — mute notifications now" hint="Silence alerts until you turn this back off." />
 

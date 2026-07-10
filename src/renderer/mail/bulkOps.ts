@@ -2,7 +2,7 @@
 // separate so the mapping (which op → which IPC call per id) is unit-testable
 // without a DOM. ponytail: client-side loop; fine for a folder's worth of mail.
 
-export type BulkOp = 'read' | 'unread' | 'delete' | 'move'
+export type BulkOp = 'read' | 'unread' | 'delete' | 'move' | 'archive' | 'flag' | 'unflag'
 
 export interface BulkStep {
   id: number
@@ -20,6 +20,9 @@ export async function runBulk(steps: BulkStep[]): Promise<void> {
     if (s.op === 'read') await window.deskmail.mail.markRead(s.id, true)
     else if (s.op === 'unread') await window.deskmail.mail.markRead(s.id, false)
     else if (s.op === 'delete') await window.deskmail.mail.action(s.id, 'trash')
+    else if (s.op === 'archive') await window.deskmail.mail.action(s.id, 'archive')
+    else if (s.op === 'flag') await window.deskmail.mail.action(s.id, 'flag')
+    else if (s.op === 'unflag') await window.deskmail.mail.action(s.id, 'unflag')
     else if (s.op === 'move' && s.targetFolderId != null) await window.deskmail.mail.action(s.id, 'move', s.targetFolderId)
   }
 }
