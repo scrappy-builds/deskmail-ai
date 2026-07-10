@@ -337,5 +337,12 @@ export const MIGRATIONS: string[] = [
      done_at TEXT,
      message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );`,
+
+  // --- v25: reply threading headers + dismissed "waiting on a reply" nudges ------
+  `ALTER TABLE messages ADD COLUMN references_json TEXT;
+   CREATE TABLE nudge_dismissals (
+     message_id INTEGER PRIMARY KEY,
+     dismissed_at TEXT NOT NULL DEFAULT (datetime('now'))
    );`
 ]

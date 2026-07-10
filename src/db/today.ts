@@ -1,7 +1,68 @@
-import type { MessageListItem, TodayAgenda } from '@shared/db'
+import type { AwaitingReply, MessageListItem, TodayAgenda } from '@shared/db'
 import { listEvents } from './events'
 import { listTasks } from './tasks'
 import type { DB } from './database'
+
+function parseArr(s: string | null): string[] {
+  if (!s) return []
+  try {
+    const v = JSON.parse(s)
+    return Array.isArray(v) ? v : []
+  } catch {
+    return []
+  }
+}
+
+function bareSubject(s: string | null): string {
+  return (s ?? '').replace(/^(\s*(re|fwd|fw)\s*:\s*)+/i, '').trim().toLowerCase()
+}
+
+// "Waiting on a reply": sent messages older than N days where none of the
+// recipients has come back — matched by In-Reply-To/References against the sent
+// Message-ID, or by a "Re: <same subject>". Dismissed ones stay dismissed.
+export function getAwaitingReply(db: DB, olderThanDays = 3, cap = 10): AwaitingReply[] {
+  const myEmails = new Set(
+    (db.all('SELECT email_address e FROM accounts') as unknown as { e: string }[]).map((r) => r.e.toLowerCase())
+  )
+  const sent = db.all(
+    `SELECT m.id, m.account_id, m.subject, m.to_json, m.sent_at, m.message_id_header
+       FROM messages m JOIN folders f ON f.id = m.folder_id
+      WHERE f.role = 'sent'
+        AND m.sent_at IS NOT NULL AND m.sent_at <= datetime('now', '-' || ? || ' days')
+        AND m.id NOT IN (SELECT message_id FROM nudge_dismissals)
+      ORDER BY m.sent_at DESC LIMIT 100`,
+    [olderThanDays]
+  ) as unknown as { id: number; account_id: number; subject: string | null; to_json: string | null; sent_at: string; message_id_header: string | null }[]
+
+  const out: AwaitingReply[] = []
+  for (const s of sent) {
+    if (out.length >= cap) break
+    const recipients = parseArr(s.to_json).map((r) => r.toLowerCase()).filter((r) => r.includes('@') && !myEmails.has(r))
+    if (recipients.length === 0) continue // self-addressed — nothing to wait on
+
+    const placeholders = recipients.map(() => '?').join(',')
+    const candidates = db.all(
+      `SELECT subject, references_json FROM messages
+        WHERE id != ? AND LOWER(from_email) IN (${placeholders}) AND received_at >= ?`,
+      [s.id, ...recipients, s.sent_at]
+    ) as unknown as { subject: string | null; references_json: string | null }[]
+
+    const subject = bareSubject(s.subject)
+    const replied = candidates.some(
+      (c) =>
+        (s.message_id_header != null && (c.references_json ?? '').includes(s.message_id_header)) ||
+        (subject !== '' && bareSubject(c.subject) === subject)
+    )
+    if (!replied) {
+      out.push({ id: s.id, accountId: s.account_id, subject: s.subject, to: parseArr(s.to_json), sentAt: s.sent_at })
+    }
+  }
+  return out
+}
+
+export function dismissNudge(db: DB, messageId: number): void {
+  db.run('INSERT INTO nudge_dismissals (message_id) VALUES (?) ON CONFLICT(message_id) DO NOTHING', [messageId])
+}
 
 interface MsgRow {
   id: number
@@ -57,5 +118,5 @@ export function getTodayAgenda(db: DB, todayIso: string, opts: TodayOpts = {}): 
     isMuted: !!r.is_muted,
     importance: (r.importance as MessageListItem['importance']) ?? null
   }))
-  return { events, messages, tasks: listTasks(db) }
+  return { events, messages, tasks: listTasks(db), awaitingReply: getAwaitingReply(db) }
 }

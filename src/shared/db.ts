@@ -316,10 +316,20 @@ export interface TaskItem {
   createdAt: string
 }
 
+// One sent message still waiting on a reply (no-reply nudge).
+export interface AwaitingReply {
+  id: number
+  accountId: number
+  subject: string | null
+  to: string[]
+  sentAt: string | null
+}
+
 export interface TodayAgenda {
   events: EventSummary[]
   messages: MessageListItem[]
   tasks: TaskItem[]
+  awaitingReply: AwaitingReply[]
 }
 
 // Mail actions (applied locally + pushed to IMAP). 'trash' = move to Trash
@@ -389,4 +399,5 @@ export interface MessageInsert {
   importance?: 'high' | 'low' | 'normal' | null
   listUnsubscribe?: string | null // raw List-Unsubscribe header, if present
   replyTo?: string | null // Reply-To address when it differs from From
+  references?: string[] // In-Reply-To + References message-ids
 }

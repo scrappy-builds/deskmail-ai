@@ -52,7 +52,9 @@ export async function ingestRaw(db: DB, meta: IngestMeta, raw: Buffer | string):
     // mailparser derives priority from the Importance / X-Priority headers.
     importance: parsed.priority ?? null,
     listUnsubscribe: parsed.headers.get('list-unsubscribe') ? String(parsed.headers.get('list-unsubscribe')) : null,
-    replyTo: parsed.replyTo?.value?.[0]?.address ?? null
+    replyTo: parsed.replyTo?.value?.[0]?.address ?? null,
+    // In-Reply-To + References — how replies are recognised (no-reply nudges).
+    references: [parsed.inReplyTo ?? [], parsed.references ?? []].flat().filter(Boolean)
   }
 
   const attachments = parsed.attachments ?? []

@@ -106,6 +106,8 @@ export interface DeskMailApi {
     unsnooze(messageId: number): Promise<void>
     // Unified Today agenda: today's events + mail that needs attention.
     today(): Promise<TodayAgenda>
+    // Dismiss a "waiting on a reply" nudge for good.
+    dismissNudge(messageId: number): Promise<void>
     // Tune what counts as "needs attention" (unread and/or starred).
     todayConfigGet(): Promise<{ unread: boolean; starred: boolean }>
     todayConfigSet(patch: { unread?: boolean; starred?: boolean }): Promise<void>

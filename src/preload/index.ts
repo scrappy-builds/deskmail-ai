@@ -53,6 +53,7 @@ const api: DeskMailApi = {
     snoozeUntil: (messageId: number, iso: string) => ipcRenderer.invoke('mail:snooze-until', messageId, iso),
     unsnooze: (messageId: number) => ipcRenderer.invoke('mail:unsnooze', messageId),
     today: () => ipcRenderer.invoke('mail:today'),
+    dismissNudge: (messageId: number) => ipcRenderer.invoke('mail:dismiss-nudge', messageId),
     todayConfigGet: () => ipcRenderer.invoke('today:get-config'),
     todayConfigSet: (patch: { unread?: boolean; starred?: boolean }) => ipcRenderer.invoke('today:set-config', patch),
     junkEnabled: () => ipcRenderer.invoke('mail:junk-enabled'),

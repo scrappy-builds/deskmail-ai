@@ -34,7 +34,7 @@ import { cancelScheduled, dueScheduled, listScheduled, markError, markSent, reco
 import { computeSnoozeTime, snoozeMessage, unsnooze } from '../db/snoozes'
 import { createTemplate, deleteTemplate, listTemplates, seedTemplatesIfEmpty, updateTemplate } from '../db/templates'
 import { createContact, deleteContact, listContacts, listContactGroups, listContactsDetail, searchContacts, updateContact } from '../db/contacts'
-import { getTodayAgenda } from '../db/today'
+import { dismissNudge, getTodayAgenda } from '../db/today'
 import { createTask, deleteTask, listTasks, setTaskDone } from '../db/tasks'
 import { isTrustedSender, listTrustedSenders, trustSender, untrustSender } from '../db/trustedSenders'
 import { buildTools } from '../mcp/tools'
@@ -795,6 +795,8 @@ function registerIpc(): void {
       includeStarred: getAppSetting(db, 'today-starred') === 'on'
     })
   })
+  // Dismiss a "waiting on a reply" nudge (stays dismissed).
+  ipcMain.handle('mail:dismiss-nudge', (_e, messageId: number) => dismissNudge(db, messageId))
   ipcMain.handle('today:get-config', () => ({
     unread: getAppSetting(db, 'today-unread') !== 'off',
     starred: getAppSetting(db, 'today-starred') === 'on'

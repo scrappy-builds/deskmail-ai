@@ -11,8 +11,14 @@ function todayIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function daysAgo(iso: string | null): string {
+  if (!iso) return ''
+  const days = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000))
+  return `sent ${days} day${days === 1 ? '' : 's'} ago`
+}
+
 export function Today(): JSX.Element {
-  const [agenda, setAgenda] = useState<TodayAgenda>({ events: [], messages: [], tasks: [] })
+  const [agenda, setAgenda] = useState<TodayAgenda>({ events: [], messages: [], tasks: [], awaitingReply: [] })
   const [cfg, setCfg] = useState<{ unread: boolean; starred: boolean }>({ unread: true, starred: false })
   const [newTask, setNewTask] = useState('')
 
@@ -38,6 +44,24 @@ export function Today(): JSX.Element {
   }
   const tickTask = async (id: number, done: boolean): Promise<void> => {
     await window.deskmail.tasks.setDone(id, done)
+    refresh()
+  }
+
+  // Follow-up nudge: a prefilled compose window; nothing sends on its own.
+  const nudge = async (n: TodayAgenda['awaitingReply'][number]): Promise<void> => {
+    const subject = n.subject && /^re:/i.test(n.subject) ? n.subject : `Re: ${n.subject ?? ''}`
+    const { id } = await window.deskmail.compose.saveDraft({
+      accountId: n.accountId,
+      to: n.to,
+      cc: [],
+      bcc: [],
+      subject,
+      bodyHtml: '<p>Just giving this a gentle nudge — any thoughts?</p>'
+    })
+    window.deskmail.openCompose(id)
+  }
+  const dismissNudge = async (id: number): Promise<void> => {
+    await window.deskmail.mail.dismissNudge(id)
     refresh()
   }
 
@@ -77,6 +101,32 @@ export function Today(): JSX.Element {
             </div>
           )}
         </div>
+
+        {/* Waiting on a reply — sent mail nobody has answered */}
+        {agenda.awaitingReply.length > 0 && (
+          <div className="mt-7">
+            <div className="mb-2.5 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Waiting on a reply</div>
+            <div className="flex flex-col gap-1.5">
+              {agenda.awaitingReply.map((n) => (
+                <div key={n.id} className="flex items-center gap-3 rounded-lg border border-border bg-panel px-4 py-2.5">
+                  <Icon name="clock" size={15} className="flex-none text-text-3" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-semibold">{n.subject || '(no subject)'}</div>
+                    <div className="truncate text-[11.5px] text-text-3">
+                      To {n.to.join(', ') || '—'} · {daysAgo(n.sentAt)}, no reply yet
+                    </div>
+                  </div>
+                  <button onClick={() => void nudge(n)} className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-fg hover:bg-accent-2">
+                    Nudge
+                  </button>
+                  <button onClick={() => void dismissNudge(n.id)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-text-3 hover:text-danger">
+                    Dismiss
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Tasks — Today is their only surface (no separate tasks screen) */}
         <div className="mt-7">
