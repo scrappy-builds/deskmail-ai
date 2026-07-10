@@ -35,7 +35,7 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
   const [bcc, setBcc] = useState(draft?.bcc.join(', ') ?? '')
   const [showCc, setShowCc] = useState(!!(draft?.cc.length || draft?.bcc.length))
   const [subject, setSubject] = useState(draft?.subject ?? '')
-  const [attachments, setAttachments] = useState<ComposeAttachment[]>([])
+  const [attachments, setAttachments] = useState<ComposeAttachment[]>(draft?.attachments ?? [])
   const [signatures, setSignatures] = useState<SignatureItem[]>([])
   const [signatureId, setSignatureId] = useState<number | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])

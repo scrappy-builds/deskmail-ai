@@ -305,5 +305,10 @@ export const MIGRATIONS: string[] = [
 
   // --- v18: custom colour themes (JSON array) + which one is active --------------
   `ALTER TABLE layout_preferences ADD COLUMN custom_themes_json TEXT;
-   ALTER TABLE layout_preferences ADD COLUMN active_theme_id TEXT;`
+   ALTER TABLE layout_preferences ADD COLUMN active_theme_id TEXT;`,
+
+  // --- v19: drafts keep their attachments ([{name, path, size}] — paths, not copies)
+  // + a reason on failed scheduled sends (e.g. "attachment file moved").
+  `ALTER TABLE drafts ADD COLUMN attachments_json TEXT;
+   ALTER TABLE scheduled_sends ADD COLUMN last_error TEXT;`
 ]

@@ -311,6 +311,7 @@ export interface DraftSummary {
   bcc: string[]
   subject: string | null
   bodyHtml: string | null
+  attachments: ComposeAttachment[]
   createdBy: string
   updatedAt: string
 }

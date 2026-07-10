@@ -1,4 +1,4 @@
-import type { ComposePayload, DraftSummary } from '@shared/db'
+import type { ComposeAttachment, ComposePayload, DraftSummary } from '@shared/db'
 import type { DB } from './database'
 
 function parseArr(s: string | null): string[] {
@@ -11,21 +11,34 @@ function parseArr(s: string | null): string[] {
   }
 }
 
+// Attachments are stored as [{name, path, size}] — the file paths the user
+// picked, not copies. NULL (older drafts, Claude-created drafts) → [].
+function parseAttachments(s: string | null): ComposeAttachment[] {
+  if (!s) return []
+  try {
+    const v = JSON.parse(s)
+    return Array.isArray(v) ? (v as ComposeAttachment[]).filter((a) => a && typeof a.path === 'string') : []
+  } catch {
+    return []
+  }
+}
+
 // Insert or update a draft. Returns the draft id. created_by defaults to 'user'
 // (Claude-created drafts set it to 'claude' via the MCP layer in Stage 9).
 export function saveDraft(db: DB, p: ComposePayload, createdBy: 'user' | 'claude' = 'user'): number {
+  const attachmentsJson = JSON.stringify(p.attachments ?? [])
   if (p.draftId != null) {
     db.run(
       `UPDATE drafts SET account_id = ?, to_json = ?, cc_json = ?, bcc_json = ?, subject = ?, body = ?,
-         in_reply_to_message_id = ?, updated_at = datetime('now') WHERE id = ?`,
-      [p.accountId, JSON.stringify(p.to), JSON.stringify(p.cc), JSON.stringify(p.bcc), p.subject, p.bodyHtml, p.inReplyToMessageId ?? null, p.draftId]
+         attachments_json = ?, in_reply_to_message_id = ?, updated_at = datetime('now') WHERE id = ?`,
+      [p.accountId, JSON.stringify(p.to), JSON.stringify(p.cc), JSON.stringify(p.bcc), p.subject, p.bodyHtml, attachmentsJson, p.inReplyToMessageId ?? null, p.draftId]
     )
     return p.draftId
   }
   db.run(
-    `INSERT INTO drafts (account_id, to_json, cc_json, bcc_json, subject, body, created_by, in_reply_to_message_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [p.accountId, JSON.stringify(p.to), JSON.stringify(p.cc), JSON.stringify(p.bcc), p.subject, p.bodyHtml, createdBy, p.inReplyToMessageId ?? null]
+    `INSERT INTO drafts (account_id, to_json, cc_json, bcc_json, subject, body, attachments_json, created_by, in_reply_to_message_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [p.accountId, JSON.stringify(p.to), JSON.stringify(p.cc), JSON.stringify(p.bcc), p.subject, p.bodyHtml, attachmentsJson, createdBy, p.inReplyToMessageId ?? null]
   )
   return (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
 }
@@ -38,6 +51,7 @@ interface DraftRow {
   bcc_json: string | null
   subject: string | null
   body: string | null
+  attachments_json: string | null
   created_by: string
   updated_at: string
 }
@@ -51,6 +65,7 @@ function toSummary(r: DraftRow): DraftSummary {
     bcc: parseArr(r.bcc_json),
     subject: r.subject,
     bodyHtml: r.body,
+    attachments: parseAttachments(r.attachments_json),
     createdBy: r.created_by ?? 'user',
     updatedAt: r.updated_at
   }

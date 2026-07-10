@@ -95,13 +95,21 @@ function startScheduledSender(): void {
         markError(db, s.id)
         continue
       }
+      // Attachments are stored as paths, not copies — a file moved since the
+      // draft was written must fail the send loudly, never send without it.
+      const missing = draft.attachments.filter((a) => !existsSync(a.path))
+      if (missing.length > 0) {
+        markError(db, s.id, `Attachment no longer at ${missing[0].path}`)
+        continue
+      }
       const res = await sendMail(db, {
         accountId: draft.accountId,
         to: draft.to,
         cc: draft.cc,
         bcc: draft.bcc,
         subject: draft.subject ?? '',
-        bodyHtml: draft.bodyHtml ?? ''
+        bodyHtml: draft.bodyHtml ?? '',
+        attachments: draft.attachments
       })
       if (res.ok) {
         markSent(db, s.id)

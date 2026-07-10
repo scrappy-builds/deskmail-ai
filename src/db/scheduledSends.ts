@@ -59,6 +59,6 @@ export function markSent(db: DB, id: number): void {
   if (row?.draft_id != null) deleteDraft(db, row.draft_id)
 }
 
-export function markError(db: DB, id: number): void {
-  db.run("UPDATE scheduled_sends SET status = 'error' WHERE id = ?", [id])
+export function markError(db: DB, id: number, error?: string): void {
+  db.run("UPDATE scheduled_sends SET status = 'error', last_error = ? WHERE id = ?", [error ?? null, id])
 }
