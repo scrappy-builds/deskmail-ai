@@ -68,6 +68,7 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
           <Icon name="search" size={16} />
         </span>
         <input
+          id="deskmail-search"
           placeholder={mode === 'mail' ? 'Search mail…' : 'Search events…'}
           value={mode === 'mail' ? searchQuery : ''}
           onChange={(e) => mode === 'mail' && void runSearch(e.target.value)}

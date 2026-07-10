@@ -96,6 +96,7 @@ export function MailActions(): JSX.Element {
   const activeFolderId = useMail((s) => s.activeFolderId)
   const refresh = useMail((s) => s.refresh)
   const clearSelected = useMail((s) => s.clearSelected)
+  const setUndo = useMail((s) => s.setUndo)
   const showToast = useToast((s) => s.show)
 
   const ids = effectiveTargets(selectedIds, selectedId)
@@ -125,6 +126,13 @@ export function MailActions(): JSX.Element {
   // clear any tick selection, and confirm with a toast.
   const runOp = async (op: BulkOp, toast: string, targetFolderId?: number): Promise<void> => {
     if (!has) return
+    // Reversible ops (move/trash/archive) leave everything they touched movable
+    // back to where it was — record an Undo for the Edit menu.
+    if ((op === 'move' || op === 'delete' || op === 'archive') && activeFolderId != null) {
+      const undoIds = [...ids]
+      const back = activeFolderId
+      setUndo({ label: toast, run: () => { for (const uid of undoIds) void window.deskmail.mail.action(uid, 'move', back); void refresh() } })
+    }
     await runBulk(planBulk(op, ids, targetFolderId))
     await refresh()
     if (selectedIds.size > 0) clearSelected()

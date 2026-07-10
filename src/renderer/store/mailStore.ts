@@ -1,6 +1,17 @@
 import { create } from 'zustand'
 import type { AccountSummary, FolderSummary, LabelInfo, MessageDetail, MessageListItem, SmartView } from '@shared/db'
 import { useLayout } from './layoutStore'
+import type { SortDir, SortField } from '../mail/sortMessages'
+
+function loadSort(): { field: SortField; dir: SortDir } {
+  try {
+    const raw = localStorage.getItem('deskmail.sort')
+    if (raw) return JSON.parse(raw)
+  } catch {
+    /* ignore */
+  }
+  return { field: 'date', dir: 'desc' }
+}
 
 // Mail data state — DB-backed via the IPC bridge. Reads come from the local
 // SQLite cache, so the list and reading pane work offline. Kept separate from
@@ -20,7 +31,11 @@ interface MailState {
   selectedIds: Set<number> // multi-select for bulk actions
   syncing: boolean
   searchQuery: string
+  sort: { field: SortField; dir: SortDir } // list sort, shared by header + View menu
+  lastUndo: { label: string; run: () => void } | null // last reversible action
 
+  setSort: (s: { field: SortField; dir: SortDir }) => void
+  setUndo: (u: { label: string; run: () => void } | null) => void
   init: () => Promise<void>
   refresh: () => Promise<void>
   setFolder: (id: number) => Promise<void>
@@ -48,6 +63,14 @@ export const useMail = create<MailState>((set, get) => ({
   selectedIds: new Set<number>(),
   syncing: false,
   searchQuery: '',
+  sort: loadSort(),
+  lastUndo: null,
+
+  setSort: (s) => {
+    try { localStorage.setItem('deskmail.sort', JSON.stringify(s)) } catch { /* ignore */ }
+    set({ sort: s })
+  },
+  setUndo: (u) => set({ lastUndo: u }),
 
   init: async () => {
     await get().refresh()

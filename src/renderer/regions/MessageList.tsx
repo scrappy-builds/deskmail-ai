@@ -2,21 +2,10 @@ import { useState } from 'react'
 import { Icon } from '../Icon'
 import type { MessageListItem } from '@shared/db'
 import { fmtTime, initials, messageDateGroup } from '../mail/format'
-import { sortMessages, SORT_LABELS, type SortDir, type SortField } from '../mail/sortMessages'
+import { sortMessages, SORT_LABELS, type SortField } from '../mail/sortMessages'
 import { MSG_DND_TYPE } from '../mail/dnd'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
-
-// Persist the sort choice locally (no backend needed).
-function loadSort(): { field: SortField; dir: SortDir } {
-  try {
-    const raw = localStorage.getItem('deskmail.sort')
-    if (raw) return JSON.parse(raw)
-  } catch {
-    /* ignore */
-  }
-  return { field: 'date', dir: 'desc' }
-}
 
 interface MessageListProps {
   rowPaddingY: number
@@ -130,12 +119,9 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
   const allSelected = messages.length > 0 && selectedIds.size === messages.length
   const someSelected = selectedIds.size > 0 && !allSelected
 
-  const [sort, setSort] = useState(loadSort)
+  const sort = useMail((s) => s.sort)
+  const setSortAndSave = useMail((s) => s.setSort)
   const [sortOpen, setSortOpen] = useState(false)
-  const setSortAndSave = (next: { field: SortField; dir: SortDir }): void => {
-    setSort(next)
-    try { localStorage.setItem('deskmail.sort', JSON.stringify(next)) } catch { /* ignore */ }
-  }
   const sorted = sortMessages(messages, sort.field, sort.dir)
   const showDateGroups = sort.field === 'date'
 

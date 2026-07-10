@@ -33,10 +33,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 ## Tier 2 — clear improvements, low/medium effort
 
 - [ ] **Keyboard shortcuts** — [med]. `j`/`k` navigate, `Enter` open, `e` archive, `#` delete, `r` reply, `c` compose, `/` focus search, `u` mark unread. Big daily-use speed-up; all local.
-- [x] **File menu (real entries)** — [med]. New email / New event, **Open… (.eml)**, **Save As… (.eml / .pdf / .html)**, **Print**, **Import…**, **Export…**, **Export settings** (back up accounts + preferences to a file), Settings, Exit. (Print-to-PDF already exists — this just surfaces it in the menu.)
-- [x] **Edit menu** — [easy]. Undo (last mail action), Select all, Find / Find in message, Mark read / unread, Delete.
-- [x] **View menu** — [med]. View settings, a **Layout drop-down** showing the preset views (Classic / Bottom / Focus / Wide / Right / List-only) as a menu, **Folder-pane show/hide**, reading-pane position, message-list density, **Expand / collapse all conversations**, **Zoom (text size) in/out/reset**, and Sort / Arrange-by.
-- [x] **Message / Actions menu** — [easy]. Reply, Reply all, Forward, Move to, Categorise, Flag / Unflag, Pin, Snooze, Block sender, Mark all read — the same actions as the ribbon, reachable from the menu bar.
 
 ---
 
