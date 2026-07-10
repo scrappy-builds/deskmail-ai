@@ -200,6 +200,8 @@ export interface DeskMailApi {
   }
   // Set the UI text-size zoom factor across every window (accessibility).
   setZoom(factor: number): void
+  // Set (null clears) the Windows taskbar unread overlay badge — a PNG data URL.
+  setBadge(dataUrl: string | null): void
   // Notifications / tray / Focus-DND settings.
   notify: {
     get(): Promise<NotifySettings>

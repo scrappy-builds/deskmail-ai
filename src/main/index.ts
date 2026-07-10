@@ -748,6 +748,12 @@ function registerIpc(): void {
     uiZoom = factor
     for (const w of BrowserWindow.getAllWindows()) w.webContents.setZoomFactor(factor)
   })
+  // Windows taskbar unread badge: the renderer draws it (canvas) and sends a PNG
+  // data URL, or null to clear.
+  ipcMain.on('ui:set-badge', (_e, dataUrl: string | null) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    mainWindow.setOverlayIcon(dataUrl ? nativeImage.createFromDataURL(dataUrl) : null, dataUrl ? 'Unread mail' : '')
+  })
 
   ipcMain.handle('storage:restore', async (e, backupDir?: string) => {
     let dir = backupDir

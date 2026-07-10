@@ -146,7 +146,9 @@ const api: DeskMailApi = {
     minimise: () => ipcRenderer.send('window:minimise'),
     toggleMaximise: () => ipcRenderer.send('window:toggle-maximise'),
     close: () => ipcRenderer.send('window:close')
-  }
+  },
+  // Set (or clear with null) the Windows taskbar unread overlay badge (a PNG data URL).
+  setBadge: (dataUrl: string | null) => ipcRenderer.send('ui:set-badge', dataUrl)
 }
 
 contextBridge.exposeInMainWorld('deskmail', api)
