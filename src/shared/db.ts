@@ -205,7 +205,8 @@ export interface EventSummary {
   recurUntil: string | null
 }
 
-// Parsed from an email calendar invite (ICS).
+// Parsed from an email calendar invite (ICS). Times are LOCAL wall-clock
+// (converted from the sender's TZID / UTC form where the invite carried one).
 export interface InviteData {
   title: string
   date: string
@@ -216,6 +217,11 @@ export interface InviteData {
   guests: string[]
   provider: MeetingProvider
   joinUrl: string | null
+  // The sender's original time (e.g. "14:00 Romance Standard Time") when it
+  // differs from local, so the card can show both.
+  originalTime?: string | null
+  // TZID we couldn't resolve — times shown literally, flagged on the card.
+  tzUnknown?: boolean
 }
 
 // --- Stage 8 added features ----------------------------------------------------

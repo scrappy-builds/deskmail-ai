@@ -7,6 +7,7 @@ import { createEvent, deleteEvent, expandOccurrences, getEvent, listEvents, upda
 import { generateJoinLink, providerFromText } from '../../src/shared/meetings'
 import { appUriFor } from '../../src/main/meetings'
 import { parseIcs } from '../../src/main/mail/ics'
+import { utcToLocalParts } from '../../src/shared/tz'
 import type { EventInput } from '../../src/shared/db'
 
 const BASE: EventInput = {
@@ -126,9 +127,12 @@ describe('ICS invite parsing', () => {
   it('extracts the event details', () => {
     const inv = parseIcs(ICS)!
     expect(inv.title).toBe('Q3 launch sync')
-    expect(inv.date).toBe('2026-07-09')
-    expect(inv.start).toBe('14:00')
-    expect(inv.end).toBe('14:30')
+    // UTC (`Z`) invite times now convert to this machine's local wall clock.
+    const localStart = utcToLocalParts(new Date(Date.UTC(2026, 6, 9, 14, 0)))
+    const localEnd = utcToLocalParts(new Date(Date.UTC(2026, 6, 9, 14, 30)))
+    expect(inv.date).toBe(localStart.date)
+    expect(inv.start).toBe(localStart.time)
+    expect(inv.end).toBe(localEnd.time)
     expect(inv.organiser).toBe('Maya Chen')
     expect(inv.guests).toContain('Jordan Ellis')
     expect(inv.provider).toBe('teams')

@@ -16,6 +16,14 @@ export function InviteCard({ messageId, invite }: { messageId: number; invite: I
     return [day, time].filter(Boolean).join(' · ')
   })()
 
+  // Cross-timezone invites show the sender's original time (or an honest note
+  // when the invite's timezone couldn't be resolved).
+  const tzNote = invite.tzUnknown
+    ? "Shown as written — I couldn't work out the invite's timezone."
+    : invite.originalTime
+      ? `${invite.originalTime} where it was sent — shown in your time.`
+      : null
+
   const decide = async (status: 'accepted' | 'tentative' | 'declined'): Promise<void> => {
     setDecision(status)
     if (status === 'accepted') await window.deskmail.calendar.acceptInvite(messageId)
@@ -29,6 +37,7 @@ export function InviteCard({ messageId, invite }: { messageId: number; invite: I
       <div className="p-4">
         <div className="text-[15px] font-bold">{invite.title}</div>
         {when && <div className="mt-0.5 text-[12.5px] text-text-2">{when}</div>}
+        {tzNote && <div className="mt-0.5 text-[11.5px] text-text-3">{tzNote}</div>}
         <div className="mt-1.5 flex items-center gap-1.5 text-[12.5px] font-semibold" style={{ color: provider.colour }}>
           <span className="h-2.5 w-2.5 rounded-full" style={{ background: provider.colour }} />
           {provider.label}

@@ -1,5 +1,6 @@
 import type { InviteData } from '@shared/db'
 import { providerFromText } from '@shared/meetings'
+import { resolveTzid, utcToLocalParts, zonedToUtc } from '@shared/tz'
 
 interface Prop {
   name: string
@@ -34,12 +35,43 @@ function parseLines(ics: string): Prop[] {
     })
 }
 
-// 20260709T140000Z -> { date: '2026-07-09', time: '14:00' }. Literal time (no TZ
-// conversion). ponytail: literal HH:MM is fine for one person; add TZ handling if it bites.
-function parseDateTime(v: string): { date: string | null; time: string | null } {
-  const m = v.match(/(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2}))?/)
-  if (!m) return { date: null, time: null }
-  return { date: `${m[1]}-${m[2]}-${m[3]}`, time: m[4] && m[5] ? `${m[4]}:${m[5]}` : null }
+// 20260709T140000Z / 20260709T140000 (+TZID param) -> local wall-clock parts.
+// - `Z` suffix: a UTC instant — convert to local.
+// - TZID param: convert from that zone (Windows names mapped to IANA) to local.
+// - floating (neither): literal, unchanged.
+// Unknown TZIDs keep the literal time and say so via tzUnknown.
+export interface ParsedIcsTime {
+  date: string | null
+  time: string | null
+  originalTime: string | null // sender's wall-clock HH:MM when we converted
+  tzid: string | null
+  tzUnknown: boolean
+}
+
+function parseDateTime(v: string, tzid?: string): ParsedIcsTime {
+  const m = v.match(/(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(?:\d{2})?(Z)?)?/)
+  if (!m) return { date: null, time: null, originalTime: null, tzid: null, tzUnknown: false }
+  const literal = { date: `${m[1]}-${m[2]}-${m[3]}`, time: m[4] && m[5] ? `${m[4]}:${m[5]}` : null }
+  if (!literal.time) return { ...literal, originalTime: null, tzid: null, tzUnknown: false } // all-day
+
+  const nums = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5])] as const
+  if (m[6] === 'Z') {
+    const local = utcToLocalParts(new Date(Date.UTC(nums[0], nums[1] - 1, nums[2], nums[3], nums[4])))
+    return { ...local, originalTime: changed(local, literal) ? `${literal.time} UTC` : null, tzid: 'UTC', tzUnknown: false }
+  }
+  if (tzid) {
+    const zone = resolveTzid(tzid)
+    if (!zone) return { ...literal, originalTime: null, tzid, tzUnknown: true }
+    const utc = zonedToUtc(nums[0], nums[1], nums[2], nums[3], nums[4], zone)
+    if (!utc) return { ...literal, originalTime: null, tzid, tzUnknown: true }
+    const local = utcToLocalParts(utc)
+    return { ...local, originalTime: changed(local, literal) ? `${literal.time} ${tzid}` : null, tzid, tzUnknown: false }
+  }
+  return { ...literal, originalTime: null, tzid: null, tzUnknown: false }
+}
+
+function changed(local: { date: string; time: string }, literal: { date: string; time: string | null }): boolean {
+  return local.time !== literal.time || local.date !== literal.date
 }
 
 function personLabel(p: Prop): string {
@@ -56,8 +88,9 @@ export function parseIcs(ics: string): InviteData | null {
   const summary = get('SUMMARY')
   if (!dtStart || !summary) return null
 
-  const start = parseDateTime(dtStart.value)
-  const end = get('DTEND') ? parseDateTime(get('DTEND')!.value) : { date: null, time: null }
+  const start = parseDateTime(dtStart.value, dtStart.params.TZID)
+  const dtEnd = get('DTEND')
+  const end = dtEnd ? parseDateTime(dtEnd.value, dtEnd.params.TZID) : null
   const location = get('LOCATION')?.value ?? null
   const url = get('URL')?.value ?? null
   const description = get('DESCRIPTION')?.value ?? ''
@@ -73,11 +106,13 @@ export function parseIcs(ics: string): InviteData | null {
     title: summary.value || '(untitled event)',
     date: start.date ?? '',
     start: start.time,
-    end: end.time,
+    end: end?.time ?? null,
     location,
     organiser,
     guests,
     provider,
-    joinUrl: link
+    joinUrl: link,
+    originalTime: start.originalTime,
+    tzUnknown: start.tzUnknown || undefined
   }
 }
