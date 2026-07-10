@@ -1,20 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Icon } from '../Icon'
 import { sanitiseEmail } from './sanitise'
 import { collapseQuotes } from './collapseQuotes'
+import { isSimpleEmail } from './darkEmail'
 import { externalHref } from './linkHandling'
 
 // Wrap sanitised email HTML in a minimal document. Rendered on a white card so
 // email HTML (which almost always assumes a light background) stays legible in
-// both themes. ponytail: white email card like most clients; per-message dark
-// remapping isn't worth the contrast risk.
-function wrap(inner: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8">
+// both themes. In app-dark mode, "simple" emails can opt into a Thunderbird-
+// style invert (images re-inverted so photos stay true); complex emails keep
+// the white card — the contrast risk isn't worth it.
+function wrap(inner: string, dark: boolean): string {
+  return `<!doctype html><html class="${dark ? 'dm-dark' : ''}"><head><meta charset="utf-8">
 <style>
   html,body{margin:0}
   body{background:#fff;color:#111;font:14px/1.65 'Hanken Grotesk',system-ui,sans-serif;padding:2px 4px;word-wrap:break-word;overflow-wrap:break-word}
   img{max-width:100%;height:auto}
   a{color:#1e7a38}
   table{max-width:100%}
+  html.dm-dark body{filter:invert(0.92) hue-rotate(180deg)}
+  html.dm-dark img{filter:invert(1.087) hue-rotate(180deg)}
   details.dm-quote>summary{list-style:none;cursor:pointer;display:inline-block;margin:6px 0;padding:0 10px;border:1px solid #d5d9e0;border-radius:10px;background:#f2f4f7;color:#5b6472;font-weight:700;letter-spacing:2px;line-height:1.5;user-select:none}
   details.dm-quote>summary::-webkit-details-marker{display:none}
   details.dm-quote[open]>summary{opacity:.6}
@@ -48,7 +53,13 @@ export function EmailBody({
   const remembered = messageId != null && imagesLoaded.has(messageId)
   const [allowImages, setAllowImages] = useState(initialAllow(allowByDefault, remembered))
   const [hoverUrl, setHoverUrl] = useState<string | null>(null)
+  // Per-message dark override (sun/moon chip); null = automatic. Not persisted —
+  // start without persistence, add per-sender memory only if it proves annoying.
+  const [darkOverride, setDarkOverride] = useState<boolean | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  const appDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark'
+  useEffect(() => setDarkOverride(null), [messageId])
 
   // A persisted "always for this sender" choice unblocks images on open.
   useEffect(() => {
@@ -69,6 +80,11 @@ export function EmailBody({
     // Quote collapsing runs after sanitising; it only adds our details/summary.
     return { ...clean, html: collapseQuotes(clean.html).html }
   }, [html, allowImages])
+
+  // Dark transform: automatic only for simple emails in a dark app theme; the
+  // chip below lets any message be flipped either way.
+  const darkAuto = useMemo(() => appDark && !!html && isSimpleEmail(html), [appDark, html])
+  const renderDark = darkOverride ?? darkAuto
 
   if (!html) {
     return <div className="whitespace-pre-line px-6 py-5 text-[14px] leading-[1.65] text-text">{text ?? ''}</div>
@@ -127,14 +143,25 @@ export function EmailBody({
           )}
         </div>
       )}
+      {appDark && (
+        <button
+          onClick={() => setDarkOverride(!renderDark)}
+          title={renderDark ? 'Show this message on the light card' : 'Show this message in dark'}
+          className="absolute right-4 top-1 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-border bg-panel text-text-2 hover:text-accent"
+          data-testid="dark-email-toggle"
+        >
+          <Icon name={renderDark ? 'sun' : 'moon'} size={14} />
+        </button>
+      )}
       <iframe
         ref={iframeRef}
         title="Message body"
         sandbox="allow-same-origin"
-        srcDoc={wrap(result!.html)}
+        srcDoc={wrap(result!.html, renderDark)}
         onLoad={onLoad}
-        className="mt-3 w-full border-0 bg-white"
-        style={{ minHeight: 120 }}
+        data-dark={renderDark || undefined}
+        className="mt-3 w-full border-0"
+        style={{ minHeight: 120, background: renderDark ? '#141414' : '#fff' }}
       />
       {hoverUrl && (
         <div
