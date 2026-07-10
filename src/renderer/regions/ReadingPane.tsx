@@ -199,8 +199,11 @@ function fmtSize(bytes: number | null): string {
 export function ReadingPane(): JSX.Element {
   const m = useMail((s) => s.selected)
   const folders = useMail((s) => s.folders)
+  const accounts = useMail((s) => s.accounts)
   const activeFolderId = useMail((s) => s.activeFolderId)
   const showToast = useToast((s) => s.show)
+  // Account accent colour carries into the pane (border + sender chip).
+  const accountColour = (m && accounts.find((a) => a.id === m.accountId)?.colour) || null
 
   // Message actions now live in the top command-bar ribbon; the pane just reads.
   const inJunk = folders.find((f) => f.id === activeFolderId)?.role === 'junk'
@@ -221,12 +224,15 @@ export function ReadingPane(): JSX.Element {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div key={m.id} className="dm-fade min-h-0 flex-1 overflow-y-auto">
-        <div className="border-b border-border px-6 py-5">
+        <div className="border-b border-border px-6 py-5" style={accountColour ? { borderLeft: `3px solid ${accountColour}` } : undefined}>
           <h1 className="text-[19px] font-bold leading-tight">{m.subject || '(no subject)'}</h1>
           <div className="mt-3 flex items-center gap-3">
             <div
               className="flex h-10 w-10 flex-none items-center justify-center rounded-full text-[14px] font-bold"
-              style={{ background: AVATAR.bg, color: AVATAR.fg }}
+              style={{
+                background: accountColour ? `color-mix(in srgb, ${accountColour} 18%, transparent)` : AVATAR.bg,
+                color: accountColour ?? AVATAR.fg
+              }}
             >
               {initials(m.fromName || m.fromEmail)}
             </div>

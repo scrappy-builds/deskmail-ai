@@ -32,6 +32,7 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
   const [m, setM] = useState<MessageDetail | null | 'loading'>('loading')
   const [nav, setNav] = useState<{ prevId: number | null; nextId: number | null }>({ prevId: null, nextId: null })
   const [folders, setFolders] = useState<FolderSummary[]>([])
+  const [accountColour, setAccountColour] = useState<string | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [source, setSource] = useState<string | null>(null)
   const w = window.deskmail.window
@@ -44,6 +45,11 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
   useEffect(() => {
     void window.deskmail.mail.listFolders().then(setFolders)
   }, [])
+  // The owning account's colour carries into this window (title-bar underline).
+  useEffect(() => {
+    if (!m || m === 'loading') return
+    void window.deskmail.listAccounts().then((accs) => setAccountColour(accs.find((a) => a.id === m.accountId)?.colour ?? null))
+  }, [m])
 
   const startReply = async (kind: ReplyKind): Promise<void> => {
     if (!m || m === 'loading') return
@@ -54,7 +60,11 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
   }
 
   const chrome = (title: string): JSX.Element => (
-    <div className="drag-region flex h-[38px] flex-none items-center border-b border-border bg-raised pl-3.5 pr-1.5">
+    <div
+      className="drag-region flex h-[38px] flex-none items-center border-b border-border bg-raised pl-3.5 pr-1.5"
+      // Account accent: colours are per-account data, not theme tokens.
+      style={accountColour ? { boxShadow: `inset 0 -2px 0 ${accountColour}` } : undefined}
+    >
       <span className="truncate text-[12.5px] font-semibold text-text-2">{title} — DeskMail AI</span>
       <div className="flex-1" />
       <div className="no-drag flex items-center gap-px">
