@@ -1,3 +1,4 @@
+import { readFileSync, unlinkSync } from 'node:fs'
 import type { ImapFlow } from 'imapflow'
 import type { AccountRow } from '@shared/db'
 import type { DB } from '../../db/database'
@@ -7,6 +8,24 @@ import { buildImapClient } from './imapClient'
 
 // Push one queued action to the server.
 async function applyRemote(client: ImapFlow, a: QueuedAction): Promise<void> {
+  // 'append' rows carry a spool file (source_path) and a mailbox (target_path),
+  // not a message UID — replay the Sent-folder copy that failed at send time.
+  if (a.op === 'append') {
+    if (!a.source_path || !a.target_path) return
+    const raw = readFileSync(a.source_path)
+    try {
+      await client.mailboxCreate(a.target_path)
+    } catch {
+      /* already exists */
+    }
+    await client.append(a.target_path, raw, ['\\Seen'])
+    try {
+      unlinkSync(a.source_path)
+    } catch {
+      /* spool file already gone */
+    }
+    return
+  }
   if (!a.source_path || a.remote_uid == null) return // local-only message; nothing to replay
   const uid = String(a.remote_uid)
   const lock = await client.getMailboxLock(a.source_path)

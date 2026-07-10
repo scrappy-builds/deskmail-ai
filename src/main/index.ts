@@ -39,6 +39,7 @@ import { getCredential, storeCredential } from './credentials'
 import { testIncoming, testOutgoing } from './mail/connectionTest'
 import { syncAccount, syncAllAccounts } from './mail/sync'
 import { sendMail } from './mail/send'
+import { appendToSent } from './mail/appendSent'
 import { joinMeeting } from './meetings'
 import { maybeSeedDemo } from './mail/demoSeed'
 import { validateImportedTheme, type CustomTheme } from '@shared/theme'
@@ -63,6 +64,8 @@ const dataDir = resolveDataDir({
 if (dataDir.dir) app.setPath('userData', dataDir.dir)
 
 const settingsPath = () => join(app.getPath('userData'), 'settings.json')
+// Raw copies of sent mail whose IMAP Sent-folder APPEND failed, awaiting retry.
+const spoolDir = () => join(app.getPath('userData'), 'sent-spool')
 
 let db: DB
 
@@ -98,8 +101,10 @@ function startScheduledSender(): void {
         subject: draft.subject ?? '',
         bodyHtml: draft.bodyHtml ?? ''
       })
-      if (res.ok) markSent(db, s.id)
-      else markError(db, s.id) // ponytail: no infinite retry — mark error and move on
+      if (res.ok) {
+        markSent(db, s.id)
+        if (res.raw) void appendToSent(db, draft.accountId, res.raw, spoolDir())
+      } else markError(db, s.id) // ponytail: no infinite retry — mark error and move on
     }
     if (due.length) broadcastMailChanged()
   }
@@ -623,7 +628,13 @@ function registerIpc(): void {
     return res.filePaths.map((p) => ({ path: p, name: basename(p), size: safeSize(p) }))
   })
   // The ONLY path that sends mail — reached solely from the user's Send click.
-  ipcMain.handle('compose:send', (_e, payload: ComposePayload) => sendMail(db, payload))
+  ipcMain.handle('compose:send', async (_e, payload: ComposePayload) => {
+    const { raw, ...result } = await sendMail(db, payload)
+    // Sent-folder copy is fire-and-forget: the send already succeeded, and a
+    // failed append queues its own retry.
+    if (result.ok && raw) void appendToSent(db, payload.accountId, raw, spoolDir()).then(broadcastMailChanged)
+    return result
+  })
   // Send-later & undo-send both queue a scheduled_send; the poller delivers it.
   ipcMain.handle('compose:schedule-send', (_e, payload: ComposePayload, sendAtIso: string) => scheduleSend(db, payload, sendAtIso))
   ipcMain.handle('compose:send-with-undo', (_e, payload: ComposePayload) => {

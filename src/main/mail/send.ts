@@ -1,4 +1,5 @@
 import nodemailer, { type SendMailOptions } from 'nodemailer'
+import MailComposer from 'nodemailer/lib/mail-composer'
 import type { AccountRow, ComposePayload, SendResult } from '@shared/db'
 import type { DB } from '../../db/database'
 import { getCredential } from '../credentials'
@@ -39,9 +40,17 @@ export function buildMail(o: BuildMailOpts): SendMailOptions {
   }
 }
 
+// Compile the exact same options nodemailer sends into a raw RFC822 message,
+// for the IMAP Sent-folder copy. Pure over its input.
+export function buildRaw(mail: SendMailOptions): Promise<Buffer> {
+  return new MailComposer(mail).compile().build()
+}
+
 // Send via the account's SMTP server. Only ever called from the mail:send IPC,
 // which is only triggered by the user's explicit Send action — never automatic.
-export async function sendMail(db: DB, payload: ComposePayload): Promise<SendResult> {
+// On success, `raw` carries the compiled RFC822 copy for the Sent folder (it is
+// stripped before the result crosses IPC to the renderer).
+export async function sendMail(db: DB, payload: ComposePayload): Promise<SendResult & { raw?: Buffer }> {
   const acc = db.get('SELECT * FROM accounts WHERE id = ?', [payload.accountId]) as unknown as AccountRow | undefined
   if (!acc) return { ok: false, error: 'Account not found.' }
   const password = getCredential(db, payload.accountId)
@@ -69,7 +78,8 @@ export async function sendMail(db: DB, payload: ComposePayload): Promise<SendRes
 
   try {
     await transport.sendMail(mail)
-    return { ok: true }
+    const raw = await buildRaw(mail).catch(() => undefined)
+    return { ok: true, raw }
   } catch (err) {
     return { ok: false, error: (err as Error).message ?? 'Sending failed.' }
   }

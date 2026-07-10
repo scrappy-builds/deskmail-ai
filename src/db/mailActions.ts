@@ -20,10 +20,20 @@ export interface QueuedAction {
   id: number
   message_id: number | null
   account_id: number
-  op: MailOp
+  op: MailOp | 'append'
   remote_uid: number | null
   source_path: string | null
   target_path: string | null
+}
+
+// Queue an IMAP APPEND retry (Sent-folder copy that couldn't reach the server).
+// source_path = spool file holding the raw message; target_path = the mailbox.
+export function queueAppend(db: DB, accountId: number, spoolPath: string, targetPath: string): void {
+  db.run(
+    `INSERT INTO mail_actions (message_id, account_id, op, remote_uid, source_path, target_path)
+     VALUES (NULL, ?, 'append', NULL, ?, ?)`,
+    [accountId, spoolPath, targetPath]
+  )
 }
 
 // Apply a mail action: mutate the local cache immediately (snappy UI) and queue
