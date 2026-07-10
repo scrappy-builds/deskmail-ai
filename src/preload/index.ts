@@ -120,6 +120,12 @@ const api: DeskMailApi = {
   mcp: {
     info: () => ipcRenderer.invoke('mcp:info')
   },
+  trust: {
+    is: (email: string) => ipcRenderer.invoke('trust:is', email),
+    add: (email: string) => ipcRenderer.invoke('trust:add', email),
+    remove: (email: string) => ipcRenderer.invoke('trust:remove', email),
+    list: () => ipcRenderer.invoke('trust:list')
+  },
   attachments: {
     open: (messageId: number, attachmentId: number) => ipcRenderer.invoke('attachments:open', messageId, attachmentId)
   },

@@ -245,7 +245,7 @@ export function ReadingPane(): JSX.Element {
 
         {m.invite && <InviteCard messageId={m.id} invite={m.invite} />}
 
-        <EmailBody html={m.bodyHtml} text={m.bodyText} allowByDefault={!inJunk} messageId={m.id} />
+        <EmailBody html={m.bodyHtml} text={m.bodyText} allowByDefault={!inJunk} messageId={m.id} senderEmail={m.fromEmail} />
 
         {m.attachments.length > 0 && (
           <div className="border-t border-border px-6 py-4">

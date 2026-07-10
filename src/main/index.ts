@@ -34,6 +34,7 @@ import { computeSnoozeTime, snoozeMessage, unsnooze } from '../db/snoozes'
 import { createTemplate, deleteTemplate, listTemplates, seedTemplatesIfEmpty, updateTemplate } from '../db/templates'
 import { createContact, deleteContact, listContacts, listContactGroups, listContactsDetail, searchContacts, updateContact } from '../db/contacts'
 import { getTodayAgenda } from '../db/today'
+import { isTrustedSender, listTrustedSenders, trustSender, untrustSender } from '../db/trustedSenders'
 import { buildTools } from '../mcp/tools'
 import { getCredential, storeCredential } from './credentials'
 import { testIncoming, testOutgoing } from './mail/connectionTest'
@@ -720,6 +721,12 @@ function registerIpc(): void {
   })
   ipcMain.handle('mail:junk-enabled', () => getAppSetting(db, 'junk-filter') !== 'off')
   ipcMain.handle('mail:set-junk-enabled', (_e, on: boolean) => setAppSetting(db, 'junk-filter', on ? 'on' : 'off'))
+  // Trusted senders (always load remote images). User-visible in Settings.
+  ipcMain.handle('trust:is', (_e, email: string) => isTrustedSender(db, email))
+  ipcMain.handle('trust:add', (_e, email: string) => trustSender(db, email))
+  ipcMain.handle('trust:remove', (_e, email: string) => untrustSender(db, email))
+  ipcMain.handle('trust:list', () => listTrustedSenders(db))
+
   ipcMain.handle('mail:idle-enabled', () => idleEnabled())
   ipcMain.handle('mail:set-idle-enabled', (_e, on: boolean) => {
     setAppSetting(db, 'imap-idle', on ? 'on' : 'off')

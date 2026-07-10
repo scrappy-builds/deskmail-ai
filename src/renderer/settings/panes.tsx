@@ -623,14 +623,20 @@ export function ContactsPane(): JSX.Element {
 // --- Security & junk ----------------------------------------------------------
 export function SecurityPane(): JSX.Element {
   const [junk, setJunk] = useState<boolean | null>(null)
+  const [trusted, setTrusted] = useState<{ email: string; addedAt: string }[]>([])
   useEffect(() => {
     void window.deskmail.mail.junkEnabled().then(setJunk)
+    void window.deskmail.trust.list().then(setTrusted)
   }, [])
 
   const toggle = (): void => {
     const next = !junk
     setJunk(next)
     void window.deskmail.mail.setJunkEnabled(next)
+  }
+  const untrust = async (email: string): Promise<void> => {
+    await window.deskmail.trust.remove(email)
+    setTrusted(await window.deskmail.trust.list())
   }
 
   return (
@@ -645,6 +651,24 @@ export function SecurityPane(): JSX.Element {
           </div>
         </div>
       </label>
+
+      {trusted.length > 0 && (
+        <div>
+          <div className="mb-2 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Always load images from</div>
+          <p className="mb-2 text-[12.5px] leading-relaxed text-text-3">
+            Senders you've chosen "Always from this sender" for. Remove one to go back to blocking their
+            remote images.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {trusted.map((t) => (
+              <div key={t.email} className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-2">
+                <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-text-2">{t.email}</span>
+                <button onClick={() => void untrust(t.email)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-danger hover:underline">Remove</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="mb-2 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">How DeskMail keeps you safe</div>

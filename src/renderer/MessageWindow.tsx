@@ -203,7 +203,7 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
           )}
 
           <div className="mt-[18px]">
-            <EmailBody html={msg.bodyHtml} text={msg.bodyText} allowByDefault={msg.folderRole !== 'junk'} messageId={msg.id} />
+            <EmailBody html={msg.bodyHtml} text={msg.bodyText} allowByDefault={msg.folderRole !== 'junk'} messageId={msg.id} senderEmail={msg.fromEmail} />
           </div>
         </div>
       </div>

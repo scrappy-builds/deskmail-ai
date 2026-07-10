@@ -310,5 +310,11 @@ export const MIGRATIONS: string[] = [
   // --- v19: drafts keep their attachments ([{name, path, size}] — paths, not copies)
   // + a reason on failed scheduled sends (e.g. "attachment file moved").
   `ALTER TABLE drafts ADD COLUMN attachments_json TEXT;
-   ALTER TABLE scheduled_sends ADD COLUMN last_error TEXT;`
+   ALTER TABLE scheduled_sends ADD COLUMN last_error TEXT;`,
+
+  // --- v20: senders whose remote images always load (user-visible in Settings) --
+  `CREATE TABLE trusted_senders (
+     email TEXT PRIMARY KEY,
+     added_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );`
 ]

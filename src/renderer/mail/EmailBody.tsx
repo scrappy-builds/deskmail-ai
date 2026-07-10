@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { sanitiseEmail } from './sanitise'
 import { externalHref } from './linkHandling'
 
@@ -32,17 +32,32 @@ export function EmailBody({
   html,
   text,
   allowByDefault = true,
-  messageId
+  messageId,
+  senderEmail
 }: {
   html: string | null
   text: string | null
   allowByDefault?: boolean
   messageId?: number
+  senderEmail?: string | null
 }): JSX.Element {
   const remembered = messageId != null && imagesLoaded.has(messageId)
   const [allowImages, setAllowImages] = useState(initialAllow(allowByDefault, remembered))
   const [hoverUrl, setHoverUrl] = useState<string | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  // A persisted "always for this sender" choice unblocks images on open.
+  useEffect(() => {
+    if (allowImages || !senderEmail) return
+    let live = true
+    void window.deskmail.trust.is(senderEmail).then((trusted) => {
+      if (live && trusted) setAllowImages(true)
+    })
+    return () => {
+      live = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [senderEmail, messageId])
 
   const result = useMemo(() => (html ? sanitiseEmail(html, allowImages) : null), [html, allowImages])
 
@@ -89,6 +104,18 @@ export function EmailBody({
           >
             Load images
           </button>
+          {senderEmail && (
+            <button
+              onClick={() => {
+                setAllowImages(true)
+                void window.deskmail.trust.add(senderEmail)
+              }}
+              title={`Always load images from ${senderEmail} (change later in Settings → Security)`}
+              className="rounded-sm px-2.5 py-1 text-[12px] font-semibold text-accent hover:underline"
+            >
+              Always from this sender
+            </button>
+          )}
         </div>
       )}
       <iframe

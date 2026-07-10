@@ -187,6 +187,13 @@ export interface DeskMailApi {
   mcp: {
     info(): Promise<{ configJson: string; tools: string[]; dbPath: string }>
   }
+  // Senders whose remote images always load ("always for this sender").
+  trust: {
+    is(email: string): Promise<boolean>
+    add(email: string): Promise<void>
+    remove(email: string): Promise<void>
+    list(): Promise<{ email: string; addedAt: string }[]>
+  }
   // Attachments + NotebookLM export.
   attachments: {
     // Download (if needed) and open an attachment with the OS default app.
