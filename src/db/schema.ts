@@ -323,5 +323,8 @@ export const MIGRATIONS: string[] = [
    ALTER TABLE scheduled_sends ADD COLUMN next_attempt_at TEXT;`,
 
   // --- v22: iCalendar UID per event, so sent invites and replies reference it ----
-  `ALTER TABLE events ADD COLUMN ics_uid TEXT;`
+  `ALTER TABLE events ADD COLUMN ics_uid TEXT;`,
+
+  // --- v23: Reply-To captured at ingest (phishing signal: replies diverted) ------
+  `ALTER TABLE messages ADD COLUMN reply_to TEXT;`
 ]

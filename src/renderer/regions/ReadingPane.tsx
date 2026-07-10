@@ -4,6 +4,7 @@ import type { LabelInfo, MessageDetail } from '@shared/db'
 import { fmtFullDate, initials } from '../mail/format'
 import { buildReplyDraft } from '../mail/reply'
 import { parseListUnsubscribe } from '../mail/unsubscribe'
+import { SenderBanners } from '../mail/SenderBanners'
 import { EmailBody } from '../mail/EmailBody'
 import { InviteCard } from '../mail/InviteCard'
 import { useMail } from '../store/mailStore'
@@ -248,6 +249,8 @@ export function ReadingPane(): JSX.Element {
           <LabelBar messageId={m.id} />
           <UnsubscribeLine m={m} />
         </div>
+
+        <SenderBanners m={m} />
 
         {m.invite && <InviteCard messageId={m.id} invite={m.invite} />}
 

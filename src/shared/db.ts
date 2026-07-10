@@ -163,6 +163,14 @@ export interface MessageDetail extends MessageListItem {
   invite: InviteData | null
   folderRole: string | null // role of the containing folder (e.g. 'junk'), for image-blocking
   listUnsubscribe: string | null // raw List-Unsubscribe header (mailing lists)
+  replyTo: string | null // Reply-To address (phishing signal when it diverges)
+}
+
+// Context the sender-signal banners need (all queried locally).
+export interface SenderContext {
+  priorMessagesFromSender: number
+  myDomains: string[]
+  frequentDomains: string[]
 }
 
 // --- Calendar & meetings -------------------------------------------------------
@@ -355,4 +363,5 @@ export interface MessageInsert {
   isStarred: boolean
   importance?: 'high' | 'low' | 'normal' | null
   listUnsubscribe?: string | null // raw List-Unsubscribe header, if present
+  replyTo?: string | null // Reply-To address when it differs from From
 }

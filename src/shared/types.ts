@@ -26,6 +26,7 @@ import type {
   SmartView,
   SmartViewInput,
   ScheduledSend,
+  SenderContext,
   SendResult,
   SignatureData,
   SignatureItem,
@@ -112,6 +113,8 @@ export interface DeskMailApi {
     // Instant new mail via IMAP IDLE (push) on/off.
     idleEnabled(): Promise<boolean>
     setIdleEnabled(on: boolean): Promise<void>
+    // Context for the sender-signal banners (first contact / lookalike / reply-to).
+    senderContext(id: number): Promise<SenderContext>
   }
   // Compose: drafts, signatures, attachments and manual send (Stage 6/8).
   compose: {

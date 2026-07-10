@@ -53,7 +53,8 @@ export function upsertMessage(db: DB, m: MessageInsert, hasAttachments = false, 
     has_attachments: hasAttachments ? 1 : 0,
     invite_json: inviteJson,
     importance: m.importance ?? null,
-    list_unsubscribe: m.listUnsubscribe ?? null
+    list_unsubscribe: m.listUnsubscribe ?? null,
+    reply_to: m.replyTo ?? null
   }
 
   if (id != null) {
@@ -200,7 +201,7 @@ export function listMessagesByLabel(db: DB, labelId: number): MessageListItem[] 
 
 export function getMessage(db: DB, id: number): MessageDetail | null {
   const r = db.get('SELECT * FROM messages WHERE id = ?', [id]) as unknown as
-    | (MessageRow & { to_json: string | null; cc_json: string | null; bcc_json: string | null; body_text: string | null; body_html: string | null; invite_json: string | null; list_unsubscribe: string | null })
+    | (MessageRow & { to_json: string | null; cc_json: string | null; bcc_json: string | null; body_text: string | null; body_html: string | null; invite_json: string | null; list_unsubscribe: string | null; reply_to: string | null })
     | undefined
   if (!r) return null
   const atts = db.all('SELECT id, filename, mime_type, size FROM attachments WHERE message_id = ?', [id]) as unknown as {
@@ -231,8 +232,28 @@ export function getMessage(db: DB, id: number): MessageDetail | null {
     attachments,
     invite,
     folderRole,
-    listUnsubscribe: r.list_unsubscribe ?? null
+    listUnsubscribe: r.list_unsubscribe ?? null,
+    replyTo: r.reply_to ?? null
   }
+}
+
+// How many messages we already hold from this sender (any folder), excluding
+// the one being viewed — the "first contact" signal.
+export function countFromSender(db: DB, email: string, excludeId: number): number {
+  return (
+    db.get('SELECT COUNT(*) c FROM messages WHERE LOWER(from_email) = LOWER(?) AND id != ?', [email, excludeId]) as { c: number }
+  ).c
+}
+
+// The domains that email me most (min 3 messages) — lookalike comparison targets.
+export function topSenderDomains(db: DB, limit = 10): string[] {
+  const rows = db.all(
+    `SELECT LOWER(SUBSTR(from_email, INSTR(from_email, '@') + 1)) d, COUNT(*) c
+       FROM messages WHERE from_email LIKE '%@%'
+      GROUP BY d HAVING c >= 3 ORDER BY c DESC LIMIT ?`,
+    [limit]
+  ) as unknown as { d: string }[]
+  return rows.map((r) => r.d)
 }
 
 // Full-text search over the FTS5 index, with operators (from:/subject:/body:,

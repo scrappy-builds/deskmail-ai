@@ -51,7 +51,8 @@ export async function ingestRaw(db: DB, meta: IngestMeta, raw: Buffer | string):
     isStarred: meta.isStarred,
     // mailparser derives priority from the Importance / X-Priority headers.
     importance: parsed.priority ?? null,
-    listUnsubscribe: parsed.headers.get('list-unsubscribe') ? String(parsed.headers.get('list-unsubscribe')) : null
+    listUnsubscribe: parsed.headers.get('list-unsubscribe') ? String(parsed.headers.get('list-unsubscribe')) : null,
+    replyTo: parsed.replyTo?.value?.[0]?.address ?? null
   }
 
   const attachments = parsed.attachments ?? []

@@ -10,7 +10,7 @@ import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/ac
 import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
 import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
-import { countDuplicateMessages, dedupeMessages, getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, markFolderRead, markRead, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned } from '../db/messages'
+import { countDuplicateMessages, countFromSender, dedupeMessages, getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, markFolderRead, markRead, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned, topSenderDomains } from '../db/messages'
 import { buildEml, saveMessageFile } from './mail/messageExport'
 import { exportMbox, importMailFile } from './mail/mbox'
 import { buildVcf, parseVcf } from './contacts/vcard'
@@ -613,6 +613,17 @@ function registerIpc(): void {
     return m ? buildEml(m) : null
   })
   ipcMain.handle('mail:message-neighbours', (_e, messageId: number) => messageNeighbours(db, messageId))
+  // Context for the sender-signal banners (first contact / lookalike / reply-to).
+  ipcMain.handle('mail:sender-context', (_e, messageId: number) => {
+    const m = getMessage(db, messageId)
+    return {
+      priorMessagesFromSender: m?.fromEmail ? countFromSender(db, m.fromEmail, messageId) : 1,
+      myDomains: listAccounts(db)
+        .map((a) => a.emailAddress.split('@')[1] ?? '')
+        .filter(Boolean),
+      frequentDomains: topSenderDomains(db)
+    }
+  })
   ipcMain.handle('mail:save-message', async (e, messageId: number, format: 'eml' | 'html') => {
     const m = getMessage(db, messageId)
     if (!m) return { path: null }

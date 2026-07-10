@@ -5,6 +5,7 @@ import { fmtFullDate, initials } from './mail/format'
 import { buildReplyDraft, type ReplyKind } from './mail/reply'
 import { flattenFolderTree } from './mail/folderTree'
 import { EmailBody } from './mail/EmailBody'
+import { SenderBanners } from './mail/SenderBanners'
 import { InviteCard } from './mail/InviteCard'
 
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
@@ -204,6 +205,10 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
               <div className="mt-0.5 truncate text-[12.5px] text-text-3">to {msg.to.join(', ') || '—'}</div>
             </div>
             <div className="text-[12.5px] text-text-3">{fmtFullDate(msg.receivedAt)}</div>
+          </div>
+
+          <div className="-mx-6">
+            <SenderBanners m={msg} />
           </div>
 
           {msg.invite && (
