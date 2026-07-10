@@ -87,6 +87,9 @@ export interface DeskMailApi {
     messageSource(id: number): Promise<string | null>
     messageNeighbours(id: number): Promise<{ prevId: number | null; nextId: number | null }>
     saveMessage(id: number, format: 'eml' | 'html'): Promise<{ path: string | null }>
+    // Import an .mbox/.eml into a folder; export a folder to .mbox.
+    importMail(folderId: number): Promise<{ count: number }>
+    exportMbox(folderId: number): Promise<{ count: number; path: string | null }>
     listByLabel(labelId: number): Promise<MessageListItem[]>
     // Subscribe to "mail changed" (after a sync/seed). Returns an unsubscribe fn.
     onChanged(cb: () => void): () => void
@@ -143,6 +146,8 @@ export interface DeskMailApi {
     create(input: ContactInput): Promise<{ id: number }>
     update(id: number, input: ContactInput): Promise<void>
     remove(id: number): Promise<void>
+    importVcf(): Promise<{ count: number }>
+    exportVcf(): Promise<{ path: string | null }>
   }
   // Saved smart views: match-all/any condition sets over the mailbox.
   smartViews: {

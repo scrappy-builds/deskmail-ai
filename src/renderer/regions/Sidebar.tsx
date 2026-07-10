@@ -556,6 +556,12 @@ export function Sidebar({
                   <button onClick={() => void markAllRead(f.id)} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
                     Mark all read
                   </button>
+                  <button onClick={() => { setMenuFolderId(null); void window.deskmail.mail.exportMbox(f.id).then((r) => { if (r.path) showToast({ text: `Exported ${r.count} message${r.count === 1 ? '' : 's'} to .mbox` }) }) }} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+                    Export to .mbox
+                  </button>
+                  <button onClick={() => { setMenuFolderId(null); void window.deskmail.mail.importMail(f.id).then((r) => { if (r.count) showToast({ text: `Imported ${r.count} message${r.count === 1 ? '' : 's'}` }) }) }} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+                    Import mail…
+                  </button>
                   {isInbox && (
                     <button onClick={() => { setMenuFolderId(null); setAddingInboxChild(true); setInboxChildName('') }} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
                       New subfolder

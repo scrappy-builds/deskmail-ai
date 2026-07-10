@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { app, dialog, session, shell, nativeImage, BrowserWindow, ipcMain, Menu, Notification, Tray } from 'electron'
 import { loadSettings } from './settings'
@@ -12,6 +12,8 @@ import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/fol
 import { listFolders } from '../db/folders'
 import { getMessage, listMessages, listMessagesByLabel, markFolderRead, markRead, messageNeighbours, searchMessages, setMuted, setPinned } from '../db/messages'
 import { buildEml, saveMessageFile } from './mail/messageExport'
+import { exportMbox, importMailFile } from './mail/mbox'
+import { buildVcf, parseVcf } from './contacts/vcard'
 import { createLabel, deleteLabel, labelsForMessage, listLabels, renameLabel, setMessageLabel } from '../db/labels'
 import { createRule, deleteRule, listRules, updateRule } from '../db/rules'
 import { createSmartView, deleteSmartView, listSmartViews, runSmartView } from '../db/smartViews'
@@ -550,6 +552,46 @@ function registerIpc(): void {
     })
     if (res.canceled || !res.filePath) return { path: null }
     saveMessageFile(m, res.filePath, format)
+    return { path: res.filePath }
+  })
+  ipcMain.handle('mail:import-mail', async (e, folderId: number) => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const res = await dialog.showOpenDialog(win!, {
+      title: 'Import mail',
+      properties: ['openFile'],
+      filters: [{ name: 'Mail archives', extensions: ['mbox', 'eml'] }]
+    })
+    if (res.canceled || !res.filePaths[0]) return { count: 0 }
+    const path = res.filePaths[0]
+    const count = await importMailFile(db, folderId, path, path.toLowerCase().endsWith('.eml') ? 'eml' : 'mbox')
+    broadcastMailChanged()
+    return { count }
+  })
+  ipcMain.handle('mail:export-mbox', async (e, folderId: number) => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const folder = getFolder(db, folderId)
+    const res = await dialog.showSaveDialog(win!, {
+      title: 'Export folder to .mbox',
+      defaultPath: `${(folder?.name || 'folder').replace(/[^\w -]+/g, '_')}.mbox`,
+      filters: [{ name: 'mbox', extensions: ['mbox'] }]
+    })
+    if (res.canceled || !res.filePath) return { count: 0, path: null }
+    const count = exportMbox(db, folderId, res.filePath)
+    return { count, path: res.filePath }
+  })
+  ipcMain.handle('contacts:import-vcf', async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const res = await dialog.showOpenDialog(win!, { title: 'Import contacts (.vcf)', properties: ['openFile'], filters: [{ name: 'vCard', extensions: ['vcf'] }] })
+    if (res.canceled || !res.filePaths[0]) return { count: 0 }
+    const parsed = parseVcf(readFileSync(res.filePaths[0], 'utf-8'))
+    for (const c of parsed) createContact(db, c)
+    return { count: parsed.length }
+  })
+  ipcMain.handle('contacts:export-vcf', async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const res = await dialog.showSaveDialog(win!, { title: 'Export contacts (.vcf)', defaultPath: 'contacts.vcf', filters: [{ name: 'vCard', extensions: ['vcf'] }] })
+    if (res.canceled || !res.filePath) return { path: null }
+    writeFileSync(res.filePath, buildVcf(listContactsDetail(db)), 'utf-8')
     return { path: res.filePath }
   })
 

@@ -413,6 +413,12 @@ export function ContactsPane(): JSX.Element {
         <button onClick={() => setEditing({ id: null, input: { ...BLANK_CONTACT } })} className="flex items-center gap-1.5 rounded-md bg-accent px-3.5 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2">
           <Icon name="plus" size={15} /> Add
         </button>
+        <button onClick={() => void window.deskmail.contacts.importVcf().then((r) => { if (r.count) { refresh(); showToast({ text: `Imported ${r.count} contact${r.count > 1 ? 's' : ''}` }) } })} className="rounded-md border border-border px-3 py-2 text-[12.5px] font-semibold text-text-2 hover:bg-raised" title="Import contacts from a .vcf file">
+          Import
+        </button>
+        <button onClick={() => void window.deskmail.contacts.exportVcf().then((r) => { if (r.path) showToast({ text: 'Contacts exported' }) })} className="rounded-md border border-border px-3 py-2 text-[12.5px] font-semibold text-text-2 hover:bg-raised" title="Export all contacts to a .vcf file">
+          Export
+        </button>
       </div>
       {shown.length === 0 ? (
         <p className="text-[13px] text-text-3">No contacts{group ? ` in “${group}”` : ''} yet.</p>

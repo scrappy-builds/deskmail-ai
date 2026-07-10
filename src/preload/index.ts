@@ -36,6 +36,8 @@ const api: DeskMailApi = {
     messageSource: (id: number) => ipcRenderer.invoke('mail:message-source', id),
     messageNeighbours: (id: number) => ipcRenderer.invoke('mail:message-neighbours', id),
     saveMessage: (id: number, format: 'eml' | 'html') => ipcRenderer.invoke('mail:save-message', id, format),
+    importMail: (folderId: number) => ipcRenderer.invoke('mail:import-mail', folderId),
+    exportMbox: (folderId: number) => ipcRenderer.invoke('mail:export-mbox', folderId),
     listByLabel: (labelId: number) => ipcRenderer.invoke('mail:list-by-label', labelId),
     onChanged: (cb: () => void) => {
       const listener = (): void => cb()
@@ -84,7 +86,9 @@ const api: DeskMailApi = {
     groups: () => ipcRenderer.invoke('contacts:groups'),
     create: (input: ContactInput) => ipcRenderer.invoke('contacts:create', input),
     update: (id: number, input: ContactInput) => ipcRenderer.invoke('contacts:update', id, input),
-    remove: (id: number) => ipcRenderer.invoke('contacts:delete', id)
+    remove: (id: number) => ipcRenderer.invoke('contacts:delete', id),
+    importVcf: () => ipcRenderer.invoke('contacts:import-vcf'),
+    exportVcf: () => ipcRenderer.invoke('contacts:export-vcf')
   },
   smartViews: {
     list: () => ipcRenderer.invoke('smartviews:list'),
