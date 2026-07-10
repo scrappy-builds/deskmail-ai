@@ -112,9 +112,13 @@ function QuickReply({ m }: { m: MessageDetail }): JSX.Element | null {
     const escaped = body.replace(/[&<>]/g, (c) => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'))
     const payload = { ...base, bodyHtml: `<p>${escaped}</p>${base.bodyHtml}` }
     try {
-      const { id } = await window.deskmail.compose.sendWithUndo(payload)
+      const res = await window.deskmail.compose.sendWithUndo(payload)
       setText('')
-      showToast({ text: `Replying to ${m.fromName || m.fromEmail}…`, actionLabel: 'Undo', onAction: () => void window.deskmail.compose.cancelScheduled(id) })
+      if (res.id == null) showToast({ text: res.ok ? 'Reply sent' : `Couldn't send: ${res.error ?? 'unknown error'}` })
+      else {
+        const id = res.id
+        showToast({ text: `Replying to ${m.fromName || m.fromEmail}…`, actionLabel: 'Undo', onAction: () => void window.deskmail.compose.cancelScheduled(id) })
+      }
     } finally {
       setBusy(false)
     }

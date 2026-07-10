@@ -156,7 +156,16 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
       setTimeout(() => w.close(), 1200)
       return
     }
-    const { id } = await window.deskmail.compose.sendWithUndo(payload)
+    const res = await window.deskmail.compose.sendWithUndo(payload)
+    if (res.id == null) {
+      // Undo window set to 0 — the message went straight out.
+      showToast({ text: res.ok ? 'Message sent' : `Couldn't send: ${res.error ?? 'unknown error'}` })
+      if (res.ok) setTimeout(() => w.close(), 900)
+      else setBusy(false)
+      return
+    }
+    const id = res.id
+    const toastMs = Math.max(2000, res.seconds * 1000 - 1000)
     // Keep this window open for the undo window so the Undo button stays reachable,
     // then close once it has elapsed. (Its own window, so we can't hand the toast
     // off to the main window the way the in-app overlay used to.)
@@ -169,9 +178,9 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
           w.close()
         }
       },
-      9000
+      toastMs
     )
-    setTimeout(() => w.close(), 9000)
+    setTimeout(() => w.close(), toastMs)
   }
 
   const field = 'flex items-center gap-2.5 border-b border-border px-4 py-2'

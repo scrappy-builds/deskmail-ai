@@ -75,6 +75,8 @@ const api: DeskMailApi = {
     send: (payload: ComposePayload) => ipcRenderer.invoke('compose:send', payload),
     scheduleSend: (payload: ComposePayload, sendAtIso: string) => ipcRenderer.invoke('compose:schedule-send', payload, sendAtIso),
     sendWithUndo: (payload: ComposePayload) => ipcRenderer.invoke('compose:send-with-undo', payload),
+    undoSeconds: () => ipcRenderer.invoke('compose:undo-seconds'),
+    setUndoSeconds: (n: number) => ipcRenderer.invoke('compose:set-undo-seconds', n),
     listScheduled: () => ipcRenderer.invoke('compose:list-scheduled'),
     cancelScheduled: (id: number) => ipcRenderer.invoke('compose:cancel-scheduled', id)
   },

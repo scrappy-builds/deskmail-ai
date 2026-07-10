@@ -811,9 +811,11 @@ export function LocalStoragePane(): JSX.Element {
 // --- Sending (scheduled sends) ------------------------------------------------
 export function SendingPane(): JSX.Element {
   const [scheduled, setScheduled] = useState<ScheduledSend[]>([])
+  const [undoSecs, setUndoSecs] = useState<number | null>(null)
   const refresh = (): void => void window.deskmail.compose.listScheduled().then(setScheduled)
   useEffect(() => {
     refresh()
+    void window.deskmail.compose.undoSeconds().then(setUndoSecs)
     return window.deskmail.mail.onChanged(refresh)
   }, [])
 
@@ -822,8 +824,34 @@ export function SendingPane(): JSX.Element {
     refresh()
   }
 
+  const saveUndo = (n: number): void => {
+    const clamped = Math.max(0, Math.min(120, Math.round(n)))
+    setUndoSecs(clamped)
+    void window.deskmail.compose.setUndoSeconds(clamped)
+  }
+
   return (
     <div className="flex flex-col gap-3">
+      <div className="rounded-md border border-border bg-bg px-3.5 py-3">
+        <div className="text-[13.5px] font-semibold">Undo send</div>
+        <div className="mt-0.5 text-[12.5px] leading-relaxed text-text-3">
+          How long a message waits before actually going out, so you can catch a mistake. 0 sends
+          immediately with no undo.
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-[12.5px] text-text-2">
+          Hold for
+          <input
+            type="number"
+            min={0}
+            max={120}
+            value={undoSecs ?? ''}
+            onChange={(e) => saveUndo(Number(e.target.value))}
+            aria-label="Undo send seconds"
+            className="w-[70px] rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent"
+          />
+          seconds
+        </div>
+      </div>
       <p className="text-[13px] leading-relaxed text-text-2">
         Messages you've scheduled for later, and any still inside their undo window. You can cancel a
         scheduled send here until it goes out.

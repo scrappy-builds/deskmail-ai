@@ -133,7 +133,11 @@ export interface DeskMailApi {
     send(payload: ComposePayload): Promise<SendResult>
     // Send-later & undo-send (both go through scheduled_sends).
     scheduleSend(payload: ComposePayload, sendAtIso: string): Promise<{ id: number }>
-    sendWithUndo(payload: ComposePayload): Promise<{ id: number }>
+    // id is null when the undo window is set to 0 (sent immediately).
+    sendWithUndo(payload: ComposePayload): Promise<{ id: number | null; seconds: number; ok: boolean; error?: string }>
+    // The configurable undo-send window (seconds, 0–120; 0 = off).
+    undoSeconds(): Promise<number>
+    setUndoSeconds(n: number): Promise<void>
     listScheduled(): Promise<ScheduledSend[]>
     cancelScheduled(id: number): Promise<void>
   }

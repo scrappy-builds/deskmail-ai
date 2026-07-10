@@ -48,8 +48,6 @@ import { validateImportedTheme, type CustomTheme } from '@shared/theme'
 import type { AppSettings } from '@shared/types'
 import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig, ContactInput, EventInput, MailOp, RuleInput, SmartViewInput, SnoozeOption } from '@shared/db'
 
-// Undo-send window in seconds (configurable later; sensible default now).
-const UNDO_DELAY_SECONDS = 10
 
 // Current UI zoom factor (text-size accessibility). Applied to every window on
 // load and updated live from the renderer's Text-size control.
@@ -250,6 +248,12 @@ function safeSize(path: string): number {
 function appSetting(key: string): string | null {
   const row = db.get('SELECT value FROM app_settings WHERE key = ?', [key]) as { value: string | null } | undefined
   return row?.value ?? null
+}
+
+// Undo-send window in seconds (Settings → Sending; 0 = off, send immediately).
+function undoSeconds(): number {
+  const n = Number(appSetting('undo-send-seconds') ?? '10')
+  return Number.isFinite(n) ? Math.max(0, Math.min(120, Math.round(n))) : 10
 }
 
 // --- IMAP IDLE (instant new mail) — on unless turned off in Settings ----------
@@ -667,9 +671,20 @@ function registerIpc(): void {
   })
   // Send-later & undo-send both queue a scheduled_send; the poller delivers it.
   ipcMain.handle('compose:schedule-send', (_e, payload: ComposePayload, sendAtIso: string) => scheduleSend(db, payload, sendAtIso))
-  ipcMain.handle('compose:send-with-undo', (_e, payload: ComposePayload) => {
-    const sendAt = new Date(Date.now() + UNDO_DELAY_SECONDS * 1000).toISOString()
-    return scheduleSend(db, payload, sendAt)
+  ipcMain.handle('compose:send-with-undo', async (_e, payload: ComposePayload) => {
+    const seconds = undoSeconds()
+    if (seconds === 0) {
+      // Undo window turned off — send right away, same path as compose:send.
+      const { raw, ...result } = await sendMail(db, payload)
+      if (result.ok && raw) void appendToSent(db, payload.accountId, raw, spoolDir()).then(broadcastMailChanged)
+      return { id: null, seconds, ok: result.ok, error: result.ok ? undefined : result.error }
+    }
+    const sendAt = new Date(Date.now() + seconds * 1000).toISOString()
+    return { ...scheduleSend(db, payload, sendAt), seconds, ok: true }
+  })
+  ipcMain.handle('compose:undo-seconds', () => undoSeconds())
+  ipcMain.handle('compose:set-undo-seconds', (_e, n: number) => {
+    setAppSetting(db, 'undo-send-seconds', String(Math.max(0, Math.min(120, Math.round(n)))))
   })
   ipcMain.handle('compose:list-scheduled', () => listScheduled(db))
   ipcMain.handle('compose:cancel-scheduled', (_e, id: number) => cancelScheduled(db, id))
