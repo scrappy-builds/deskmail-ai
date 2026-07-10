@@ -352,5 +352,17 @@ export const MIGRATIONS: string[] = [
      token TEXT PRIMARY KEY,
      spam INTEGER NOT NULL DEFAULT 0,
      ham INTEGER NOT NULL DEFAULT 0
+   );`,
+
+  // --- v27: per-folder incremental sync cursor (full sync — all folders) --------
+  // One row per folder tracking the server's UIDVALIDITY, the highest UID we've
+  // ingested (new mail is fetched above it) and the lowest (back-fill fetches
+  // below it). Distinct from the append-only sync_state log. last_seen_uid 0 =
+  // nothing seeded yet; backfill_low_uid NULL until the first seed page lands.
+  `CREATE TABLE folder_sync (
+     folder_id INTEGER PRIMARY KEY REFERENCES folders(id) ON DELETE CASCADE,
+     uidvalidity INTEGER,
+     last_seen_uid INTEGER NOT NULL DEFAULT 0,
+     backfill_low_uid INTEGER
    );`
 ]
