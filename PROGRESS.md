@@ -20,8 +20,10 @@
   - [x] 3.2 persistence (app_settings + IPC `shortcuts:get/set-enabled/set-map`), `mailStore`
     `selectNext/selectPrev`, `installShortcuts`, `App` wiring, `ShortcutHelp` cheat-sheet. E2E: j/k
     nav + Enter opens; `/` focuses search; `?` opens help; typing in search doesn't navigate.
-  - [ ] 3.3 Settings → Shortcuts pane (master toggle + per-action rebind/clear/reset) + E2E. ← **next**
-- **Plan 4 — Default mail app (mailto)** — not started.
+  - [x] 3.3 Settings → Shortcuts pane (master toggle + per-action rebind/clear/reset, reserved-key
+    refusal, duplicate warning). E2E: rebind Archive→'a' (old key inert), master-off disables all.
+  - **Plan 3 DONE.** 4 shortcuts E2E green; typecheck clean.
+- **Plan 4 — Default mail app (mailto)** — not started. ← **next**
 - **Plan 1 — Full mail sync** — not started.
 
 ### Post-build features (requested after the 12 stages)

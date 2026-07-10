@@ -5,6 +5,7 @@ import { Icon } from '../Icon'
 import { InlineImage } from '../editor/InlineImage'
 import { PLATFORMS, buildSocialRow, splitSocial, parseSocialRow } from './socialIcons'
 import type { AccountSummary, ContactDetail, ContactInput, FolderSummary, LabelInfo, NotifySettings, Rule, RuleAction, RuleField, RuleInput, RuleOp, ScheduledSend, SignatureItem, Template } from '@shared/db'
+import { DEFAULT_KEYMAP, RESERVED_KEYS, SHORTCUTS, type Keymap, type ShortcutAction } from '@shared/shortcuts'
 import { useToast } from '../store/toastStore'
 
 const inputCls = 'w-full rounded-md border border-border bg-bg px-3 py-2 text-[13.5px] text-text outline-none focus:border-accent'
@@ -628,6 +629,125 @@ export function ContactsPane(): JSX.Element {
 }
 
 // --- Security & junk ----------------------------------------------------------
+// --- Keyboard shortcuts -------------------------------------------------------
+// Master on/off plus a per-action rebind. "Rebind" captures the next key press;
+// Escape cancels, Clear unbinds. The cheat-sheet ('?') renders from the same map.
+export function ShortcutsPane(): JSX.Element {
+  const [enabled, setEnabled] = useState(true)
+  const [map, setMap] = useState<Keymap>(DEFAULT_KEYMAP)
+  const [capturing, setCapturing] = useState<ShortcutAction | null>(null)
+  const showToast = useToast((s) => s.show)
+
+  useEffect(() => {
+    void window.deskmail.shortcuts.get().then((c) => {
+      setEnabled(c.enabled)
+      setMap(c.map)
+    })
+  }, [])
+
+  const persist = (next: Keymap): void => {
+    setMap(next)
+    void window.deskmail.shortcuts.setMap(next)
+  }
+  const toggleEnabled = (on: boolean): void => {
+    setEnabled(on)
+    void window.deskmail.shortcuts.setEnabled(on)
+  }
+
+  // While capturing, the next key press becomes the binding. Pure modifier
+  // presses are ignored; Escape cancels; reserved keys are refused.
+  useEffect(() => {
+    if (!capturing) return
+    const onKey = (e: KeyboardEvent): void => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return
+      if (e.key === 'Escape') {
+        setCapturing(null)
+        return
+      }
+      if (RESERVED_KEYS.has(e.key)) {
+        showToast({ text: `“${e.key}” is reserved — pick another key.` })
+        setCapturing(null)
+        return
+      }
+      persist({ ...map, [capturing]: e.key })
+      setCapturing(null)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [capturing, map])
+
+  // Keys bound to more than one action (excluding cleared ""), to warn on.
+  const counts = new Map<string, number>()
+  for (const s of SHORTCUTS) {
+    const k = map[s.action]
+    if (k) counts.set(k.toLowerCase(), (counts.get(k.toLowerCase()) ?? 0) + 1)
+  }
+  const isDuplicate = (k: string): boolean => !!k && (counts.get(k.toLowerCase()) ?? 0) > 1
+
+  return (
+    <div className="flex flex-col gap-5">
+      <Toggle
+        on={enabled}
+        onChange={toggleEnabled}
+        label="Keyboard shortcuts"
+        hint="Single-key shortcuts for reading and triaging mail. Turn this off to disable them all."
+      />
+
+      <div className={enabled ? '' : 'pointer-events-none opacity-40'}>
+        <div className="mb-2 flex items-center">
+          <div className="text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Bindings</div>
+          <div className="flex-1" />
+          <button
+            onClick={() => persist({ ...DEFAULT_KEYMAP })}
+            className="rounded-md px-2 py-1 text-[12px] font-semibold text-text-2 hover:bg-raised"
+          >
+            Reset to defaults
+          </button>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {SHORTCUTS.map((s) => {
+            const key = map[s.action]
+            const dup = isDuplicate(key)
+            return (
+              <div key={s.action} className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-2.5">
+                <span className="min-w-0 flex-1 text-[13px] font-semibold text-text-2">{s.label}</span>
+                {dup && <span title="This key is bound to more than one action" className="flex-none text-[11px] font-semibold text-danger">duplicate</span>}
+                {capturing === s.action ? (
+                  <span className="flex-none rounded-md border border-accent bg-[var(--accent-soft)] px-2.5 py-1 text-[12px] font-semibold text-accent">Press a key… (Esc to cancel)</span>
+                ) : (
+                  <button
+                    onClick={() => setCapturing(s.action)}
+                    title="Rebind"
+                    className="flex-none rounded-md border border-border bg-panel px-2.5 py-1 font-mono text-[12px] font-semibold text-text hover:border-accent"
+                    style={dup ? { borderColor: 'var(--danger)' } : undefined}
+                  >
+                    {key === 'Enter' ? '↵ Enter' : key || '—'}
+                  </button>
+                )}
+                <button
+                  onClick={() => persist({ ...map, [s.action]: '' })}
+                  disabled={!key}
+                  title="Clear this shortcut"
+                  className="flex-none rounded-md px-2 py-1 text-[12px] font-semibold text-text-3 hover:text-danger disabled:opacity-30"
+                >
+                  Clear
+                </button>
+              </div>
+            )
+          })}
+        </div>
+        <p className="mt-3 text-[12px] leading-relaxed text-text-3">
+          Shortcuts only fire in Mail, when you're not typing in a box and no dialog is open. Press{' '}
+          <span className="font-mono">{map.help || '?'}</span> anywhere in Mail for the cheat-sheet.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function SecurityPane(): JSX.Element {
   const [junk, setJunk] = useState<boolean | null>(null)
   const [trusted, setTrusted] = useState<{ email: string; addedAt: string }[]>([])

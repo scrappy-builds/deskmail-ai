@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../Icon'
 import type { AccountInput, AccountSummary } from '@shared/db'
 import { AccountWizard } from './AccountWizard'
-import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, NotificationsPane, RulesPane, SecurityPane, SendingPane, SignaturesPane, TemplatesPane } from './panes'
+import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, NotificationsPane, RulesPane, SecurityPane, SendingPane, ShortcutsPane, SignaturesPane, TemplatesPane } from './panes'
 import { AppearancePane } from './ThemeEditor'
 
 const SECTIONS = [
@@ -16,6 +16,7 @@ const SECTIONS = [
   'Meetings',
   'Claude connector',
   'Appearance',
+  'Shortcuts',
   'Security',
   'Local storage',
   'About'
@@ -154,6 +155,7 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
             {section === 'Sending' && <SendingPane />}
             {section === 'Claude connector' && <ClaudeConnectorPane />}
             {section === 'Appearance' && <AppearancePane />}
+            {section === 'Shortcuts' && <ShortcutsPane />}
             {section === 'Security' && <SecurityPane />}
             {section === 'Local storage' && <LocalStoragePane />}
             {section !== 'Accounts' &&
@@ -165,6 +167,7 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
               section !== 'Sending' &&
               section !== 'Claude connector' &&
               section !== 'Appearance' &&
+              section !== 'Shortcuts' &&
               section !== 'Security' &&
               section !== 'Local storage' && <Placeholder name={section} />}
           </div>
