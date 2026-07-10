@@ -179,7 +179,7 @@ export function ReadingPane(): JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div key={m.id} className="dm-fade min-h-0 flex-1 overflow-y-auto">
         <div className="border-b border-border px-6 py-5">
           <h1 className="text-[19px] font-bold leading-tight">{m.subject || '(no subject)'}</h1>
           <div className="mt-3 flex items-center gap-3">

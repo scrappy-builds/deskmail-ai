@@ -95,3 +95,62 @@ body {
   padding-left: 22px;
   margin: 0 0 10px;
 }
+
+/* --- Polish pass: consistent transitions, scrollbars, focus, empty-state fade - */
+
+/* Gentle transitions on interactive chrome so hovers/selection don't snap. */
+button,
+a,
+input,
+select,
+[role='button'] {
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+
+/* One consistent, unobtrusive scrollbar everywhere (was the OS default). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-2) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-2);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Subtle content fade — used when swapping the reading pane between messages. */
+@keyframes dm-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.dm-fade {
+  animation: dm-fade-in 0.16s ease;
+}
+
+/* Respect the OS "reduce motion" setting. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
