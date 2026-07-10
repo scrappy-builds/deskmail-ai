@@ -94,8 +94,11 @@ export function parseIcs(ics: string): InviteData | null {
   const location = get('LOCATION')?.value ?? null
   const url = get('URL')?.value ?? null
   const description = get('DESCRIPTION')?.value ?? ''
-  const organiser = get('ORGANIZER') ? personLabel(get('ORGANIZER')!) : null
+  const organiserProp = get('ORGANIZER')
+  const organiser = organiserProp ? personLabel(organiserProp) : null
+  const organiserEmail = organiserProp?.value.match(/mailto:([^,;>\s]+)/i)?.[1] ?? null
   const guests = props.filter((p) => p.name === 'ATTENDEE').map(personLabel)
+  const uid = get('UID')?.value ?? null
 
   // Find a join link and infer the provider.
   const linkSource = `${url ?? ''} ${location ?? ''} ${description}`
@@ -113,6 +116,72 @@ export function parseIcs(ics: string): InviteData | null {
     provider,
     joinUrl: link,
     originalTime: start.originalTime,
-    tzUnknown: start.tzUnknown || undefined
+    tzUnknown: start.tzUnknown || undefined,
+    uid,
+    organiserEmail
   }
+}
+
+// --- Building outgoing invites (iTIP) -------------------------------------------
+
+// RFC 5545 text escaping for SUMMARY/LOCATION/DESCRIPTION values.
+export function escapeIcsText(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
+}
+
+// Local wall-clock (this machine's zone) → 20260710T130000Z form.
+function toIcsUtc(date: string, time: string): string {
+  const [y, mo, d] = date.split('-').map(Number)
+  const [h, mi] = time.split(':').map(Number)
+  return new Date(y, mo - 1, d, h, mi).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+}
+
+export type InviteMethod = 'REQUEST' | 'REPLY' | 'CANCEL'
+export type PartStat = 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'
+
+export interface BuildInviteOpts {
+  uid: string
+  title: string
+  date: string // YYYY-MM-DD (local)
+  start: string | null // HH:MM (local); null = all-day
+  end: string | null
+  location?: string | null
+  description?: string | null
+  organizer: { name: string; email: string }
+  attendees: { email: string; name?: string | null }[]
+  method: InviteMethod
+  // For REPLY: my response, stamped as PARTSTAT on the (single) attendee line.
+  myResponse?: PartStat
+}
+
+// Build a VCALENDAR/VEVENT that Outlook/Gmail render as an actionable invite
+// (paired with nodemailer's icalEvent so the MIME part is text/calendar).
+export function buildInviteIcs(o: BuildInviteOpts): string {
+  const lines: string[] = [
+    'BEGIN:VCALENDAR',
+    'PRODID:-//DeskMail AI//EN',
+    'VERSION:2.0',
+    `METHOD:${o.method}`,
+    'BEGIN:VEVENT',
+    `UID:${o.uid}`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')}`,
+    'SEQUENCE:0',
+    `SUMMARY:${escapeIcsText(o.title)}`
+  ]
+  if (o.start) {
+    lines.push(`DTSTART:${toIcsUtc(o.date, o.start)}`)
+    lines.push(`DTEND:${toIcsUtc(o.date, o.end ?? o.start)}`)
+  } else {
+    lines.push(`DTSTART;VALUE=DATE:${o.date.replace(/-/g, '')}`)
+  }
+  if (o.location) lines.push(`LOCATION:${escapeIcsText(o.location)}`)
+  if (o.description) lines.push(`DESCRIPTION:${escapeIcsText(o.description)}`)
+  lines.push(`ORGANIZER;CN=${escapeIcsText(o.organizer.name)}:mailto:${o.organizer.email}`)
+  for (const a of o.attendees) {
+    const cn = a.name ? `;CN=${escapeIcsText(a.name)}` : ''
+    const partstat = o.method === 'REPLY' && o.myResponse ? `;PARTSTAT=${o.myResponse}` : ';PARTSTAT=NEEDS-ACTION;RSVP=TRUE'
+    lines.push(`ATTENDEE${cn}${partstat}:mailto:${a.email}`)
+  }
+  lines.push('END:VEVENT', 'END:VCALENDAR')
+  return lines.join('\r\n')
 }

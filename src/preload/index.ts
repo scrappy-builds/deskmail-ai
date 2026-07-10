@@ -160,7 +160,9 @@ const api: DeskMailApi = {
     updateEvent: (id: number, input: EventInput) => ipcRenderer.invoke('calendar:update-event', id, input),
     deleteEvent: (id: number) => ipcRenderer.invoke('calendar:delete-event', id),
     join: (eventId: number) => ipcRenderer.invoke('calendar:join', eventId),
-    acceptInvite: (messageId: number) => ipcRenderer.invoke('calendar:accept-invite', messageId)
+    acceptInvite: (messageId: number) => ipcRenderer.invoke('calendar:accept-invite', messageId),
+    sendInvite: (eventId: number) => ipcRenderer.invoke('calendar:send-invite', eventId),
+    respondInvite: (messageId: number, response: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED') => ipcRenderer.invoke('calendar:respond-invite', messageId, response)
   },
   window: {
     minimise: () => ipcRenderer.send('window:minimise'),

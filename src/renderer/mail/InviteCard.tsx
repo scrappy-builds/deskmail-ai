@@ -7,7 +7,18 @@ import type { InviteData } from '@shared/db'
 // the event to the local calendar (via the message id).
 export function InviteCard({ messageId, invite }: { messageId: number; invite: InviteData }): JSX.Element {
   const [decision, setDecision] = useState<null | 'accepted' | 'tentative' | 'declined'>(null)
+  const [notified, setNotified] = useState<null | 'sending' | 'sent' | 'failed'>(null)
   const provider = PROVIDERS[invite.provider]
+  // We only email the organiser when asked — the button says what it sends.
+  const canNotify = Boolean(invite.organiserEmail && invite.uid)
+
+  const notifyOrganiser = async (): Promise<void> => {
+    if (!decision) return
+    setNotified('sending')
+    const response = decision === 'accepted' ? 'ACCEPTED' : decision === 'tentative' ? 'TENTATIVE' : 'DECLINED'
+    const r = await window.deskmail.calendar.respondInvite(messageId, response)
+    setNotified(r.ok ? 'sent' : 'failed')
+  }
 
   const when = (() => {
     const d = invite.date ? new Date(invite.date + 'T00:00') : null
@@ -52,8 +63,17 @@ export function InviteCard({ messageId, invite }: { messageId: number; invite: I
       </div>
 
       {decision ? (
-        <div className="flex items-center gap-2 border-t border-border px-4 py-3 text-[12.5px] font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+        <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3 text-[12.5px] font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
           <Icon name="check" size={15} /> {statusLabel}
+          <span className="flex-1" />
+          {canNotify && notified === null && (
+            <button onClick={() => void notifyOrganiser()} className="rounded-md border border-current px-2.5 py-1 text-[12px] font-semibold hover:opacity-80" title={`Emails your response to ${invite.organiserEmail}`}>
+              Email {invite.organiser ?? 'the organiser'} my response
+            </button>
+          )}
+          {notified === 'sending' && <span className="text-[12px] font-semibold">Sending…</span>}
+          {notified === 'sent' && <span className="text-[12px] font-semibold">Response emailed</span>}
+          {notified === 'failed' && <span className="text-[12px] font-semibold text-danger">Couldn't email the response</span>}
         </div>
       ) : (
         <div className="flex gap-2 border-t border-border p-3">

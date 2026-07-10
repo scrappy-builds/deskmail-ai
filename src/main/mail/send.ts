@@ -36,7 +36,9 @@ export function buildMail(o: BuildMailOpts): SendMailOptions {
     html: `${o.payload.bodyHtml}${sigHtml}`,
     attachments: o.payload.attachments?.map((a) => ({ filename: a.name, path: a.path })),
     // nodemailer maps this to X-Priority + Importance headers (omit when normal).
-    priority: o.payload.importance && o.payload.importance !== 'normal' ? o.payload.importance : undefined
+    priority: o.payload.importance && o.payload.importance !== 'normal' ? o.payload.importance : undefined,
+    // Calendar invites ride along as a proper text/calendar MIME part.
+    icalEvent: o.payload.icalEvent
   }
 }
 

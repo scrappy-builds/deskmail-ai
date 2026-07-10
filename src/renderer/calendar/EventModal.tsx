@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Icon } from '../Icon'
-import type { RecurFreq } from '@shared/db'
+import type { EventInput, RecurFreq } from '@shared/db'
 import { PROVIDERS, type MeetingProvider } from '@shared/meetings'
 import { useCalendar } from '../store/calendarStore'
+import { useToast } from '../store/toastStore'
 
 const RECUR_LABELS: Record<RecurFreq, string> = { none: 'Does not repeat', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }
 
@@ -14,7 +15,8 @@ function todayIso(): string {
 }
 
 export function EventModal(): JSX.Element {
-  const { newEventDate, closeNew, createEvent } = useCalendar()
+  const { newEventDate, closeNew, createEvent, load } = useCalendar()
+  const showToast = useToast((s) => s.show)
   const [title, setTitle] = useState('')
   const [date, setDate] = useState(newEventDate ?? todayIso())
   const [start, setStart] = useState('14:00')
@@ -28,22 +30,36 @@ export function EventModal(): JSX.Element {
 
   const info = PROVIDERS[provider]
 
+  const buildInput = (): EventInput => ({
+    title: title.trim(),
+    date,
+    start: start || null,
+    end: end || null,
+    provider,
+    location: provider === 'custom' ? customLink.trim() || null : null,
+    joinUrl: null,
+    notes: notes.trim() || null,
+    calendar: 'Personal',
+    guests: guests.split(',').map((g) => g.trim()).filter(Boolean),
+    recurFreq,
+    recurUntil: recurFreq !== 'none' && recurUntil ? recurUntil : null
+  })
+
   const save = (): void => {
     if (!title.trim()) return
-    void createEvent({
-      title: title.trim(),
-      date,
-      start: start || null,
-      end: end || null,
-      provider,
-      location: provider === 'custom' ? customLink.trim() || null : null,
-      joinUrl: null,
-      notes: notes.trim() || null,
-      calendar: 'Personal',
-      guests: guests.split(',').map((g) => g.trim()).filter(Boolean),
-      recurFreq,
-      recurUntil: recurFreq !== 'none' && recurUntil ? recurUntil : null
-    })
+    void createEvent(buildInput())
+  }
+
+  // Guests with an address can be emailed a real calendar invite. Explicit —
+  // the button says it sends.
+  const inviteableGuests = guests.split(',').map((g) => g.trim()).filter((g) => g.includes('@'))
+  const saveAndInvite = async (): Promise<void> => {
+    if (!title.trim()) return
+    const { id } = await window.deskmail.calendar.createEvent(buildInput())
+    const r = await window.deskmail.calendar.sendInvite(id)
+    showToast({ text: r.ok ? `Invitation sent to ${inviteableGuests.join(', ')}` : `Saved, but the invite didn't send: ${r.error}` })
+    closeNew()
+    await load()
   }
 
   const label = 'text-[11px] font-bold uppercase tracking-[.5px] text-text-3'
@@ -148,6 +164,16 @@ export function EventModal(): JSX.Element {
           <button onClick={closeNew} className="rounded-md border border-border px-4 py-2 text-[13px] font-semibold text-text-2 hover:bg-raised">
             Cancel
           </button>
+          {inviteableGuests.length > 0 && (
+            <button
+              onClick={() => void saveAndInvite()}
+              disabled={!title.trim()}
+              title={`Emails a calendar invitation to ${inviteableGuests.join(', ')}`}
+              className="rounded-md border border-accent px-4 py-2 text-[13px] font-bold text-accent hover:bg-[var(--accent-soft)] disabled:opacity-40"
+            >
+              Save &amp; email invites
+            </button>
+          )}
           <button onClick={save} disabled={!title.trim()} className="rounded-md bg-accent px-5 py-2 text-[13px] font-bold text-accent-fg hover:bg-accent-2 disabled:opacity-40">
             Save event
           </button>

@@ -28,7 +28,8 @@ import { listAttachmentRows } from '../db/messages'
 import { exportForNotebookLM } from '../mcp/export'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
 import { createSignature, deleteSignature, ensureDefaultSignature, getSignatureData, listSignatures, setDefaultSignature, setSignatureAppend, updateSignature, updateSignatureById } from '../db/signatures'
-import { createEvent, deleteEvent, getEvent, listEvents, updateEvent } from '../db/events'
+import { createEvent, deleteEvent, ensureEventUid, getEvent, listEvents, updateEvent } from '../db/events'
+import { buildInviteIcs, type PartStat } from './mail/ics'
 import { cancelScheduled, dueScheduled, listScheduled, markError, markSent, recordSendFailure, retryScheduled, scheduleSend } from '../db/scheduledSends'
 import { computeSnoozeTime, snoozeMessage, unsnooze } from '../db/snoozes'
 import { createTemplate, deleteTemplate, listTemplates, seedTemplatesIfEmpty, updateTemplate } from '../db/templates'
@@ -932,6 +933,78 @@ function registerIpc(): void {
     const launchDesktopApp = appSetting('launch-desktop-app') !== 'false'
     await joinMeeting({ provider: ev.provider, joinUrl: ev.joinUrl, launchDesktopApp })
   })
+  // Email a real ICS invite (METHOD:REQUEST) to an event's guests. Explicit
+  // user action only — the button says exactly what it emails.
+  ipcMain.handle('calendar:send-invite', async (_e, eventId: number) => {
+    const ev = getEvent(db, eventId)
+    if (!ev) return { ok: false as const, error: 'That event no longer exists.' }
+    // Guests typed as addresses become attendees; plain names can't receive email.
+    const attendees = ev.attendees.map((a) => a.email || a.name || '').filter((s) => s.includes('@')).map((email) => ({ email }))
+    if (attendees.length === 0) return { ok: false as const, error: 'None of the guests look like an email address.' }
+    const acc = listAccounts(db)[0] // ponytail: single-user app — first account sends invites
+    if (!acc) return { ok: false as const, error: 'Add an account first.' }
+
+    const content = buildInviteIcs({
+      uid: ensureEventUid(db, eventId),
+      title: ev.title,
+      date: ev.date,
+      start: ev.start,
+      end: ev.end,
+      location: ev.location,
+      description: ev.notes,
+      organizer: { name: acc.displayName, email: acc.emailAddress },
+      attendees,
+      method: 'REQUEST'
+    })
+    const { raw, ...result } = await sendMail(db, {
+      accountId: acc.id,
+      to: attendees.map((a) => a.email),
+      cc: [],
+      bcc: [],
+      subject: `Invitation: ${ev.title}`,
+      bodyHtml: `<p>You're invited: <b>${ev.title}</b> — ${ev.date}${ev.start ? ` at ${ev.start}` : ''}.</p>`,
+      icalEvent: { method: 'REQUEST', content }
+    })
+    if (result.ok && raw) void appendToSent(db, acc.id, raw, spoolDir())
+    return result
+  })
+
+  // Email an iTIP REPLY (Accepted/Tentative/Declined) to an invite's organiser.
+  ipcMain.handle('calendar:respond-invite', async (_e, messageId: number, response: PartStat) => {
+    const msg = getMessage(db, messageId)
+    const inv = msg?.invite
+    if (!msg || !inv?.organiserEmail || !inv.uid) return { ok: false as const, error: "I can't tell who organised this invite." }
+    const accounts = listAccounts(db)
+    const acc = accounts.find((a) => a.id === msg.accountId) ?? accounts[0]
+    if (!acc) return { ok: false as const, error: 'Add an account first.' }
+    const me = { name: acc.displayName, email: acc.emailAddress }
+
+    const content = buildInviteIcs({
+      uid: inv.uid,
+      title: inv.title,
+      date: inv.date,
+      start: inv.start,
+      end: inv.end,
+      location: inv.location,
+      organizer: { name: inv.organiser ?? inv.organiserEmail, email: inv.organiserEmail },
+      attendees: [{ email: me.email, name: me.name }],
+      method: 'REPLY',
+      myResponse: response
+    })
+    const label = response === 'ACCEPTED' ? 'Accepted' : response === 'TENTATIVE' ? 'Tentative' : 'Declined'
+    const { raw, ...result } = await sendMail(db, {
+      accountId: acc.id,
+      to: [inv.organiserEmail],
+      cc: [],
+      bcc: [],
+      subject: `${label}: ${inv.title}`,
+      bodyHtml: `<p>${label}: <b>${inv.title}</b></p>`,
+      icalEvent: { method: 'REPLY', content }
+    })
+    if (result.ok && raw) void appendToSent(db, acc.id, raw, spoolDir())
+    return result
+  })
+
   // Accept an email invite → create a calendar event from its parsed data.
   ipcMain.handle('calendar:accept-invite', (_e, messageId: number) => {
     const msg = getMessage(db, messageId)

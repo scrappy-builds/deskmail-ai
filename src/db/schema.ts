@@ -320,5 +320,8 @@ export const MIGRATIONS: string[] = [
 
   // --- v21: scheduled sends retry with backoff before landing on 'error' --------
   `ALTER TABLE scheduled_sends ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
-   ALTER TABLE scheduled_sends ADD COLUMN next_attempt_at TEXT;`
+   ALTER TABLE scheduled_sends ADD COLUMN next_attempt_at TEXT;`,
+
+  // --- v22: iCalendar UID per event, so sent invites and replies reference it ----
+  `ALTER TABLE events ADD COLUMN ics_uid TEXT;`
 ]

@@ -246,6 +246,10 @@ export interface DeskMailApi {
     join(eventId: number): Promise<void>
     // Accept an email invite → adds it to the calendar, returns the new event id.
     acceptInvite(messageId: number): Promise<{ id: number } | null>
+    // Email a real ICS invite (METHOD:REQUEST) to the event's guests.
+    sendInvite(eventId: number): Promise<SendResult>
+    // Email an iTIP REPLY (Accepted/Tentative/Declined) to the invite's organiser.
+    respondInvite(messageId: number, response: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'): Promise<SendResult>
   }
   // Window controls for the custom (frameless) title bar.
   window: {

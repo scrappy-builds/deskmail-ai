@@ -222,6 +222,10 @@ export interface InviteData {
   originalTime?: string | null
   // TZID we couldn't resolve — times shown literally, flagged on the card.
   tzUnknown?: boolean
+  // iTIP plumbing: the invite's UID and the organiser's address, so an
+  // Accept/Decline REPLY can reference the right event and reach the sender.
+  uid?: string | null
+  organiserEmail?: string | null
 }
 
 // --- Stage 8 added features ----------------------------------------------------
@@ -311,6 +315,8 @@ export interface ComposePayload {
   signatureId?: number | null
   // Outgoing priority; sets the Importance / X-Priority header when not 'normal'.
   importance?: 'high' | 'normal' | 'low'
+  // Calendar invite payload (nodemailer renders it as a text/calendar part).
+  icalEvent?: { method: string; content: string }
 }
 
 export interface DraftSummary {

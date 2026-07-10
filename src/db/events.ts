@@ -115,3 +115,13 @@ export function updateEvent(db: DB, id: number, e: EventInput): void {
 export function deleteEvent(db: DB, id: number): void {
   db.run('DELETE FROM events WHERE id = ?', [id])
 }
+
+// The event's iCalendar UID (generated on first use, then stable — updates and
+// replies must reference the same UID the invite went out with).
+export function ensureEventUid(db: DB, eventId: number): string {
+  const row = db.get('SELECT ics_uid FROM events WHERE id = ?', [eventId]) as { ics_uid: string | null } | undefined
+  if (row?.ics_uid) return row.ics_uid
+  const uid = `deskmail-${eventId}-${Date.now()}-${Math.floor(Math.random() * 1e9)}@deskmail.local`
+  db.run('UPDATE events SET ics_uid = ? WHERE id = ?', [uid, eventId])
+  return uid
+}
