@@ -22,10 +22,15 @@ extraMetadata:
   main: out/main/index.js
 
 # deskmail:// carries toast quick-action activations back to the running app.
+# mailto registers DeskMail as an *available* email-link handler; the user still
+# confirms it as the default in Windows' own Default-apps page (Win10+ rule).
 protocols:
   - name: DeskMail AI
     schemes:
       - deskmail
+  - name: Email
+    schemes:
+      - mailto
 
 win:
   icon: build/icon.png
@@ -37,3 +42,6 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   artifactName: ${productName}-${version}-setup.${ext}
+  # Adds the ticked-by-default "Set DeskMail as my default email app" checkbox
+  # to the installer's finish page (see build/installer.nsh).
+  include: build/installer.nsh

@@ -7,6 +7,7 @@ import { backupTo, restoreFrom } from './backup'
 import { openDatabase, quarantineIfCorrupt, type DB } from '../db/database'
 import { getAppSetting, loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty, setAppSetting } from '../db/settings'
 import { mergeKeymap, type Keymap } from '@shared/shortcuts'
+import { parseMailto } from '@shared/mailto'
 import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/accounts'
 import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
 import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
@@ -249,9 +250,26 @@ function handleProtocolUrl(url: string): boolean {
   return true
 }
 
+// Open a prefilled Compose window from a mailto: URL (clicked email link). The
+// URL is untrusted — parseMailto sanitises it to plain fields. We honour a
+// mailto the OS hands us regardless of our own toggle (the toggle only controls
+// whether we register as the handler, not whether we're polite when invoked).
+function handleMailto(url: string): boolean {
+  const p = parseMailto(url)
+  const accountId = (db.get('SELECT id FROM accounts ORDER BY id LIMIT 1') as { id: number } | undefined)?.id ?? null
+  const esc = (s: string): string => s.replace(/[&<>]/g, (c) => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'))
+  const bodyHtml = p.body ? `<p>${esc(p.body).replace(/\n/g, '<br>')}</p>` : ''
+  const id = saveDraft(db, { accountId, to: p.to, cc: p.cc, bcc: p.bcc, subject: p.subject, bodyHtml } as unknown as ComposePayload)
+  showMainWindow()
+  openComposeWindow(id)
+  return true
+}
+
 function handleProtocolArgs(argv: string[]): boolean {
-  const arg = argv.find((a) => a.startsWith('deskmail://'))
-  return arg ? handleProtocolUrl(arg) : false
+  const proto = argv.find((a) => a.startsWith('deskmail://'))
+  if (proto) return handleProtocolUrl(proto)
+  const mailto = argv.find((a) => a.toLowerCase().startsWith('mailto:'))
+  return mailto ? handleMailto(mailto) : false
 }
 
 // Fire a one-off reminder for any event starting within ~10 minutes. Keyed per
@@ -832,6 +850,20 @@ function registerIpc(): void {
   })
   ipcMain.handle('shortcuts:set-enabled', (_e, on: boolean) => setAppSetting(db, 'shortcuts-enabled', on ? 'on' : 'off'))
   ipcMain.handle('shortcuts:set-map', (_e, map: Keymap) => setAppSetting(db, 'shortcuts-map', JSON.stringify(map)))
+  // Default mail app (mailto:). Off by default — we don't hijack email links
+  // without the user opting in. Turning it ON registers DeskMail as an available
+  // handler and opens Windows' own Default-apps page; Windows 10+ requires the
+  // user to confirm there — no app can set the default silently.
+  ipcMain.handle('mailto:enabled', () => getAppSetting(db, 'mailto-handler') === 'on')
+  ipcMain.handle('mailto:set-enabled', (_e, on: boolean) => {
+    setAppSetting(db, 'mailto-handler', on ? 'on' : 'off')
+    if (on) {
+      app.setAsDefaultProtocolClient('mailto')
+      void shell.openExternal('ms-settings:defaultapps')
+    } else {
+      app.removeAsDefaultProtocolClient('mailto')
+    }
+  })
   // Trusted senders (always load remote images). User-visible in Settings.
   ipcMain.handle('trust:is', (_e, email: string) => isTrustedSender(db, email))
   ipcMain.handle('trust:add', (_e, email: string) => trustSender(db, email))
@@ -1224,6 +1256,10 @@ app.whenReady().then(async () => {
   applyLaunchAtStartup()
   uiZoom = loadLayoutPrefs(db).fontScale // apply the saved text size to all windows
   registerIpc()
+  // Re-assert the mailto handler registration if the user has opted in (the OS
+  // can drop it after an update/reinstall). Never forces the default — that's
+  // the user's confirmation in Windows' Default-apps page.
+  if (getAppSetting(db, 'mailto-handler') === 'on') app.setAsDefaultProtocolClient('mailto')
   // A Windows sign-in launch passes --hidden (see setStartup) so we come up in
   // the tray, syncing quietly, instead of opening the window.
   createMainWindow(process.argv.includes('--hidden'))

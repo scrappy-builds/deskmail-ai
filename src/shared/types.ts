@@ -217,6 +217,12 @@ export interface DeskMailApi {
     setEnabled(on: boolean): Promise<void>
     setMap(map: Keymap): Promise<void>
   }
+  // Default mail app (mailto:). setEnabled(true) registers DeskMail as an
+  // available handler and opens Windows' Default-apps page for confirmation.
+  mailto: {
+    enabled(): Promise<boolean>
+    setEnabled(on: boolean): Promise<void>
+  }
   // Senders whose remote images always load ("always for this sender").
   trust: {
     is(email: string): Promise<boolean>

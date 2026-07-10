@@ -139,6 +139,10 @@ const api: DeskMailApi = {
     setEnabled: (on: boolean) => ipcRenderer.invoke('shortcuts:set-enabled', on),
     setMap: (map: Keymap) => ipcRenderer.invoke('shortcuts:set-map', map)
   },
+  mailto: {
+    enabled: () => ipcRenderer.invoke('mailto:enabled'),
+    setEnabled: (on: boolean) => ipcRenderer.invoke('mailto:set-enabled', on)
+  },
   trust: {
     is: (email: string) => ipcRenderer.invoke('trust:is', email),
     add: (email: string) => ipcRenderer.invoke('trust:add', email),

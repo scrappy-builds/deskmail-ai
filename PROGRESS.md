@@ -23,8 +23,24 @@
   - [x] 3.3 Settings → Shortcuts pane (master toggle + per-action rebind/clear/reset, reserved-key
     refusal, duplicate warning). E2E: rebind Archive→'a' (old key inert), master-off disables all.
   - **Plan 3 DONE.** 4 shortcuts E2E green; typecheck clean.
-- **Plan 4 — Default mail app (mailto)** — not started. ← **next**
-- **Plan 1 — Full mail sync** — not started.
+- **Plan 4 — Default mail app (mailto)**:
+  - [x] 4.1 `src/shared/mailto.ts` `parseMailto` (RFC 6068) + unit test (trust boundary: junk → empty).
+  - [x] 4.2 main: `handleMailto` (parse → draft → Compose window), `handleProtocolArgs` recognises
+    `mailto:` (first-launch argv + second-instance), IPC `mailto:enabled/set-enabled` (register +
+    open `ms-settings:defaultapps` / unregister), re-assert on launch when opted in. Settings →
+    Accounts toggle with honest Win10+ copy. E2E: argv mailto opens Compose prefilled; toggle off by
+    default + present.
+  - [x] 4.3 `electron-builder.yml` `protocols` gains `mailto`; NSIS `build/installer.nsh` adds a
+    ticked-by-default "Set DeskMail as my default email app" finish-page checkbox that opens Windows'
+    Default-apps page. **Manual-verify only** (NSIS not exercised by E2E; needs a real install).
+  - **Plan 4 DONE** (installer checkbox pending a manual install check).
+- **Plan 1 — Full mail sync** — not started. ← **next**
+
+> **Pre-existing E2E failures (NOT caused by this batch):** 4 specs fail on this branch and were
+> verified to fail identically at the pre-batch commit `f4416c1`: `mail.spec` (sanitised body /
+> remote-image block), `mail-actions` (archive removes from inbox), `features` (signature save),
+> `notebooklm` (export). Unrelated to Plans 3/4/1 — investigate separately. Everything this batch
+> added (unit + the shortcuts/mailto E2E) is green.
 
 ### Post-build features (requested after the 12 stages)
 - **App icon + title-bar logo** — `icon/icon.png` → electron-builder icon + the top-left logo.

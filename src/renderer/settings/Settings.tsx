@@ -92,6 +92,38 @@ function AccountsPane(): JSX.Element {
       >
         <Icon name="plus" size={16} /> Add account
       </button>
+
+      <MailtoToggle />
+    </div>
+  )
+}
+
+// On/off for making DeskMail the handler for email (mailto:) links. The copy is
+// deliberately honest: on Windows 10+ no app can set the default silently — the
+// OS makes you confirm it in its own Default-apps page, which we open for you.
+function MailtoToggle(): JSX.Element {
+  const [on, setOn] = useState<boolean | null>(null)
+  useEffect(() => {
+    void window.deskmail.mailto.enabled().then(setOn)
+  }, [])
+  const toggle = (): void => {
+    const next = !on
+    setOn(next)
+    void window.deskmail.mailto.setEnabled(next)
+  }
+  return (
+    <div className="mt-6 border-t border-border pt-5">
+      <label className="flex items-start gap-3 rounded-md border border-border bg-bg px-3.5 py-3">
+        <input type="checkbox" checked={!!on} onChange={toggle} className="mt-0.5 h-4 w-4 accent-accent" />
+        <div>
+          <div className="text-[13.5px] font-semibold">Use DeskMail for email links</div>
+          <div className="mt-0.5 text-[12.5px] leading-relaxed text-text-3">
+            Opens a new message here when you click a <span className="font-mono">mailto:</span> link on a
+            web page. Windows 10 and 11 won't let any app take this over silently — when you turn it on I'll
+            register DeskMail and open Windows' “Default apps” page, where you confirm the change yourself.
+          </div>
+        </div>
+      </label>
     </div>
   )
 }
