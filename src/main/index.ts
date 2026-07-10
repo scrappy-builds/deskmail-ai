@@ -29,7 +29,7 @@ import { exportForNotebookLM } from '../mcp/export'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
 import { createSignature, deleteSignature, ensureDefaultSignature, getSignatureData, listSignatures, setDefaultSignature, setSignatureAppend, updateSignature, updateSignatureById } from '../db/signatures'
 import { createEvent, deleteEvent, getEvent, listEvents, updateEvent } from '../db/events'
-import { cancelScheduled, dueScheduled, listScheduled, markError, markSent, scheduleSend } from '../db/scheduledSends'
+import { cancelScheduled, dueScheduled, listScheduled, markError, markSent, recordSendFailure, retryScheduled, scheduleSend } from '../db/scheduledSends'
 import { computeSnoozeTime, snoozeMessage, unsnooze } from '../db/snoozes'
 import { createTemplate, deleteTemplate, listTemplates, seedTemplatesIfEmpty, updateTemplate } from '../db/templates'
 import { createContact, deleteContact, listContacts, listContactGroups, listContactsDetail, searchContacts, updateContact } from '../db/contacts'
@@ -113,7 +113,18 @@ function startScheduledSender(): void {
       if (res.ok) {
         markSent(db, s.id)
         if (res.raw) void appendToSent(db, draft.accountId, res.raw, spoolDir())
-      } else markError(db, s.id) // ponytail: no infinite retry — mark error and move on
+      } else {
+        // Retry with backoff (1 → 5 → 30 min); the 5th failure is final and loud.
+        const { final } = recordSendFailure(db, s.id, res.error)
+        if (final && Notification.isSupported()) {
+          const n = new Notification({
+            title: "I couldn't send your message",
+            body: `"${draft.subject || '(no subject)'}" kept failing — it's waiting in your Outbox.`
+          })
+          n.on('click', showMainWindow)
+          n.show()
+        }
+      }
     }
     if (due.length) broadcastMailChanged()
   }
@@ -689,6 +700,10 @@ function registerIpc(): void {
   })
   ipcMain.handle('compose:list-scheduled', () => listScheduled(db))
   ipcMain.handle('compose:cancel-scheduled', (_e, id: number) => cancelScheduled(db, id))
+  ipcMain.handle('compose:retry-scheduled', (_e, id: number) => {
+    retryScheduled(db, id)
+    broadcastMailChanged()
+  })
 
   // --- Snooze / Today (Stage 8) -----------------------------------------------
   ipcMain.handle('mail:snooze', (_e, messageId: number, option: SnoozeOption) => {

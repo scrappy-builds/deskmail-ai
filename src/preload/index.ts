@@ -78,7 +78,8 @@ const api: DeskMailApi = {
     undoSeconds: () => ipcRenderer.invoke('compose:undo-seconds'),
     setUndoSeconds: (n: number) => ipcRenderer.invoke('compose:set-undo-seconds', n),
     listScheduled: () => ipcRenderer.invoke('compose:list-scheduled'),
-    cancelScheduled: (id: number) => ipcRenderer.invoke('compose:cancel-scheduled', id)
+    cancelScheduled: (id: number) => ipcRenderer.invoke('compose:cancel-scheduled', id),
+    retryScheduled: (id: number) => ipcRenderer.invoke('compose:retry-scheduled', id)
   },
   templates: {
     list: () => ipcRenderer.invoke('templates:list'),

@@ -240,6 +240,9 @@ export interface ScheduledSend {
   accountId: number | null
   sendAt: string
   status: string
+  attempts: number
+  nextAttemptAt: string | null
+  lastError: string | null
   subject: string | null
   to: string[]
 }

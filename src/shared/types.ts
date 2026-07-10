@@ -139,6 +139,8 @@ export interface DeskMailApi {
     undoSeconds(): Promise<number>
     setUndoSeconds(n: number): Promise<void>
     listScheduled(): Promise<ScheduledSend[]>
+    // Put a failed send back in the queue with fresh retries.
+    retryScheduled(id: number): Promise<void>
     cancelScheduled(id: number): Promise<void>
   }
   // Canned reply templates (Stage 8).

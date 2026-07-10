@@ -316,5 +316,9 @@ export const MIGRATIONS: string[] = [
   `CREATE TABLE trusted_senders (
      email TEXT PRIMARY KEY,
      added_at TEXT NOT NULL DEFAULT (datetime('now'))
-   );`
+   );`,
+
+  // --- v21: scheduled sends retry with backoff before landing on 'error' --------
+  `ALTER TABLE scheduled_sends ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE scheduled_sends ADD COLUMN next_attempt_at TEXT;`
 ]

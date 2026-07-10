@@ -19,6 +19,17 @@ export function OutboxModal({ onClose }: { onClose: () => void }): JSX.Element {
     await window.deskmail.compose.cancelScheduled(id)
     void refresh()
   }
+  const retry = async (id: number): Promise<void> => {
+    await window.deskmail.compose.retryScheduled(id)
+    void refresh()
+  }
+
+  // One status line per row: failed loudly, mid-backoff, or simply queued.
+  const statusLine = (s: ScheduledSend): string => {
+    if (s.status === 'error') return `Failed after ${s.attempts} attempt${s.attempts === 1 ? '' : 's'}${s.lastError ? ` — ${s.lastError}` : ''}`
+    if (s.attempts > 0 && s.nextAttemptAt) return `Attempt ${s.attempts} failed — retrying ${fmtTime(s.nextAttemptAt)}`
+    return `sends ${fmtTime(s.sendAt)}`
+  }
 
   return (
     <div className="absolute inset-0 z-[64] flex items-center justify-center" style={{ background: 'rgba(5,6,10,0.55)', backdropFilter: 'blur(3px)' }} onClick={onClose}>
@@ -45,11 +56,20 @@ export function OutboxModal({ onClose }: { onClose: () => void }): JSX.Element {
             <div className="flex flex-col gap-1.5">
               {items.map((s) => (
                 <div key={s.id} className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-2.5">
-                  <Icon name="clock" size={16} className="flex-none text-text-3" />
+                  <span className="flex flex-none" style={{ color: s.status === 'error' ? 'var(--danger)' : 'var(--text-3)' }}>
+                    <Icon name="clock" size={16} />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-semibold">{s.subject || '(no subject)'}</div>
-                    <div className="truncate text-[12px] text-text-3">To {s.to.join(', ') || '—'} · sends {fmtTime(s.sendAt)}</div>
+                    <div className="truncate text-[12px]" style={{ color: s.status === 'error' ? 'var(--danger)' : 'var(--text-3)' }}>
+                      To {s.to.join(', ') || '—'} · {statusLine(s)}
+                    </div>
                   </div>
+                  {s.status === 'error' && (
+                    <button onClick={() => void retry(s.id)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-accent hover:underline">
+                      Retry now
+                    </button>
+                  )}
                   <button onClick={() => void cancel(s.id)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-danger hover:underline">
                     Cancel
                   </button>
