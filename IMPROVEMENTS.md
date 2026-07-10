@@ -25,7 +25,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 
 ## Tier 1 — highest value, all local
 
-- [x] **Conversation threading** — [med]. Group a subject's back-and-forth into one expandable thread in the reading pane. Grouping by normalised subject works with what's stored today; true `In-Reply-To` threading needs a new column on `messages` plus capturing that header on sync (small addition — flagged, still achievable). (Note from Jamie: This should be an option that can be turned on or off)
 
 ---
 

@@ -34,9 +34,11 @@ interface MailState {
   searchQuery: string
   sort: { field: SortField; dir: SortDir } // list sort, shared by header + View menu
   lastUndo: { label: string; run: () => void } | null // last reversible action
+  threading: boolean // group the list into conversations (on/off)
 
   setSort: (s: { field: SortField; dir: SortDir }) => void
   setUndo: (u: { label: string; run: () => void } | null) => void
+  setThreading: (on: boolean) => void
   init: () => Promise<void>
   refresh: () => Promise<void>
   setFolder: (id: number) => Promise<void>
@@ -68,12 +70,17 @@ export const useMail = create<MailState>((set, get) => ({
   searchQuery: '',
   sort: loadSort(),
   lastUndo: null,
+  threading: (() => { try { return localStorage.getItem('deskmail.threading') === 'on' } catch { return false } })(),
 
   setSort: (s) => {
     try { localStorage.setItem('deskmail.sort', JSON.stringify(s)) } catch { /* ignore */ }
     set({ sort: s })
   },
   setUndo: (u) => set({ lastUndo: u }),
+  setThreading: (on) => {
+    try { localStorage.setItem('deskmail.threading', on ? 'on' : 'off') } catch { /* ignore */ }
+    set({ threading: on })
+  },
 
   init: async () => {
     await get().refresh()

@@ -1,6 +1,7 @@
 import { Icon } from './Icon'
 import { PRESET_LABELS, type LayoutPreferences, type LayoutPreset } from '@shared/layout'
 import { useLayout } from './store/layoutStore'
+import { useMail } from './store/mailStore'
 
 const PRESET_CARDS: { key: Exclude<LayoutPreset, 'custom'>; desc: string }[] = [
   { key: 'classic', desc: 'Sidebar, list, reading pane on the right.' },
@@ -77,6 +78,8 @@ function Segmented<T extends string>({
 
 export function ViewSettings({ onClose }: { onClose: () => void }): JSX.Element {
   const { prefs, usePreset, setPref } = useLayout()
+  const threading = useMail((s) => s.threading)
+  const setThreading = useMail((s) => s.setThreading)
   const set = <K extends keyof LayoutPreferences>(k: K, v: LayoutPreferences[K]) => () => setPref(k, v)
 
   // "Reading pane" collapses position + visibility into one control.
@@ -181,6 +184,14 @@ export function ViewSettings({ onClose }: { onClose: () => void }): JSX.Element 
               options={[
                 { label: 'Reading pane', val: 'reading-pane', on: set('openEmailBehaviour', 'reading-pane') },
                 { label: 'Full window', val: 'full-window', on: set('openEmailBehaviour', 'full-window') }
+              ]}
+            />
+            <Segmented
+              label="Conversations"
+              value={threading ? 'on' : 'off'}
+              options={[
+                { label: 'Grouped', val: 'on', on: () => setThreading(true) },
+                { label: 'Off', val: 'off', on: () => setThreading(false) }
               ]}
             />
             <Segmented

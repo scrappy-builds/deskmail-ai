@@ -139,6 +139,7 @@ export function TitleBar({
       ...(Object.keys(SORT_LABELS) as SortField[]).map((f): Item => ({ label: SORT_LABELS[f], indent: true, onClick: () => mail.setSort({ field: f, dir: mail.sort.dir }) })),
       { label: mail.sort.dir === 'asc' ? 'Ascending ✓' : 'Descending ✓', indent: true, onClick: () => mail.setSort({ field: mail.sort.field, dir: mail.sort.dir === 'asc' ? 'desc' : 'asc' }) },
       'sep',
+      { label: mail.threading ? 'Conversations: on ✓' : 'Group into conversations', onClick: () => mail.setThreading(!mail.threading) },
       { label: 'Show / hide folder pane', onClick: () => setPref('sidebarMode', prefs.sidebarMode === 'hidden' ? 'expanded' : 'hidden') },
       { label: 'Zoom in', kbd: 'Ctrl +', onClick: () => zoom(0.1) },
       { label: 'Zoom out', kbd: 'Ctrl -', onClick: () => zoom(-0.1) },

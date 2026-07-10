@@ -3,6 +3,7 @@ import { Icon } from '../Icon'
 import type { MessageListItem } from '@shared/db'
 import { fmtTime, initials, messageDateGroup } from '../mail/format'
 import { sortMessages, SORT_LABELS, type SortField } from '../mail/sortMessages'
+import { groupThreads } from '../mail/threads'
 import { MSG_DND_TYPE } from '../mail/dnd'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
@@ -28,7 +29,11 @@ function Row({
   rowPaddingY,
   clamp,
   showSnippet,
-  showAvatars
+  showAvatars,
+  threadCount,
+  threadExpanded,
+  onToggleThread,
+  indent
 }: {
   m: MessageListItem
   selected: boolean
@@ -41,6 +46,10 @@ function Row({
   clamp: number
   showSnippet: boolean
   showAvatars: boolean
+  threadCount?: number
+  threadExpanded?: boolean
+  onToggleThread?: () => void
+  indent?: boolean
 }): JSX.Element {
   const weight = m.isRead ? 500 : 700
   const name = m.fromName || m.fromEmail || 'Unknown sender'
@@ -53,7 +62,7 @@ function Row({
       onDoubleClick={onOpen}
       className="flex cursor-pointer gap-2.5 border-b border-border hover:bg-hover"
       style={{
-        padding: `${rowPaddingY}px 14px ${rowPaddingY}px 11px`,
+        padding: `${rowPaddingY}px 14px ${rowPaddingY}px ${indent ? 30 : 11}px`,
         background: selected ? 'var(--accent-soft)' : 'transparent',
         borderLeft: `3px solid ${selected ? 'var(--accent)' : 'transparent'}`,
         opacity: m.isMuted ? 0.55 : 1
@@ -85,6 +94,16 @@ function Row({
           <span className="flex-1 truncate text-[13.5px] text-text" style={{ fontWeight: weight }}>
             {name}
           </span>
+          {threadCount != null && threadCount > 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleThread?.() }}
+              title={threadExpanded ? 'Collapse thread' : 'Expand thread'}
+              className="flex flex-none items-center gap-0.5 rounded-full bg-[var(--accent-soft)] px-1.5 text-[11px] font-bold text-accent"
+            >
+              {threadCount}
+              <Icon name="chevronDown" size={11} className={threadExpanded ? '' : '-rotate-90'} />
+            </button>
+          )}
           {m.importance === 'high' && <span title="High importance" className="flex-none text-[13px] font-extrabold text-danger">!</span>}
           {m.importance === 'low' && <Icon name="chevronDown" size={13} className="text-text-3" />}
           {m.followupAt && <Icon name="clock" size={13} className="text-accent" />}
@@ -123,8 +142,15 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
   const sort = useMail((s) => s.sort)
   const setSortAndSave = useMail((s) => s.setSort)
   const [sortOpen, setSortOpen] = useState(false)
+  const threading = useMail((s) => s.threading)
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set())
+  const toggleThread = (key: string): void => setExpandedThreads((prev) => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
   const sorted = sortMessages(messages, sort.field, sort.dir)
-  const showDateGroups = sort.field === 'date'
+  const showDateGroups = sort.field === 'date' && !threading
 
   const activeLabel = labels.find((l) => l.id === activeLabelId)
   const activeSmart = smartViews.find((v) => v.id === activeSmartViewId)
@@ -216,36 +242,44 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
           </div>
         ) : (
           (() => {
-            // Interleave "Today / Yesterday / This week / …" separators as the
-            // date bucket changes down the list (pinned mail groups under "Pinned").
+            // Interleave date separators (Today/Yesterday/…) when not threading.
+            // When threading is on, group by conversation and let each expand.
             let lastGroup = ''
             const out: JSX.Element[] = []
-            for (const m of sorted) {
-              const group = m.isPinned ? 'Pinned' : messageDateGroup(m.receivedAt)
-              if (showDateGroups && group !== lastGroup) {
-                lastGroup = group
-                out.push(
-                  <div key={`grp-${group}-${m.id}`} className="sticky top-0 z-[1] border-b border-border bg-panel px-3.5 py-1 text-[11px] font-bold uppercase tracking-[.5px] text-text-3">
-                    {group}
-                  </div>
-                )
+            const rowFor = (m: MessageListItem, extra: { threadCount?: number; threadExpanded?: boolean; onToggleThread?: () => void; indent?: boolean } = {}): JSX.Element => (
+              <Row
+                key={extra.indent ? `child-${m.id}` : m.id}
+                m={m}
+                selected={m.id === selectedId}
+                checked={selectedIds.has(m.id)}
+                onToggleCheck={() => toggleSelected(m.id)}
+                onSelect={() => handleSelect(m.id)}
+                onOpen={() => onOpen?.(m.id)}
+                onDragStart={(e) => startDrag(e, m.id)}
+                rowPaddingY={rowPaddingY}
+                clamp={Math.max(1, previewLineCount)}
+                showSnippet={showSnippet}
+                showAvatars={showAvatars}
+                {...extra}
+              />
+            )
+            const threads = threading ? groupThreads(sorted) : sorted.map((m) => ({ key: `s${m.id}`, items: [m] }))
+            for (const t of threads) {
+              const rep = t.items[0]
+              if (showDateGroups) {
+                const group = rep.isPinned ? 'Pinned' : messageDateGroup(rep.receivedAt)
+                if (group !== lastGroup) {
+                  lastGroup = group
+                  out.push(
+                    <div key={`grp-${group}-${rep.id}`} className="sticky top-0 z-[1] border-b border-border bg-panel px-3.5 py-1 text-[11px] font-bold uppercase tracking-[.5px] text-text-3">
+                      {group}
+                    </div>
+                  )
+                }
               }
-              out.push(
-                <Row
-                  key={m.id}
-                  m={m}
-                  selected={m.id === selectedId}
-                  checked={selectedIds.has(m.id)}
-                  onToggleCheck={() => toggleSelected(m.id)}
-                  onSelect={() => handleSelect(m.id)}
-                  onOpen={() => onOpen?.(m.id)}
-                  onDragStart={(e) => startDrag(e, m.id)}
-                  rowPaddingY={rowPaddingY}
-                  clamp={Math.max(1, previewLineCount)}
-                  showSnippet={showSnippet}
-                  showAvatars={showAvatars}
-                />
-              )
+              const expanded = expandedThreads.has(t.key)
+              out.push(rowFor(rep, { threadCount: t.items.length, threadExpanded: expanded, onToggleThread: () => toggleThread(t.key) }))
+              if (threading && expanded) for (const m of t.items.slice(1)) out.push(rowFor(m, { indent: true }))
             }
             return out
           })()
