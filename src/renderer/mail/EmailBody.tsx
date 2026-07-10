@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { sanitiseEmail } from './sanitise'
+import { collapseQuotes } from './collapseQuotes'
 import { externalHref } from './linkHandling'
 
 // Wrap sanitised email HTML in a minimal document. Rendered on a white card so
@@ -14,6 +15,9 @@ function wrap(inner: string): string {
   img{max-width:100%;height:auto}
   a{color:#1e7a38}
   table{max-width:100%}
+  details.dm-quote>summary{list-style:none;cursor:pointer;display:inline-block;margin:6px 0;padding:0 10px;border:1px solid #d5d9e0;border-radius:10px;background:#f2f4f7;color:#5b6472;font-weight:700;letter-spacing:2px;line-height:1.5;user-select:none}
+  details.dm-quote>summary::-webkit-details-marker{display:none}
+  details.dm-quote[open]>summary{opacity:.6}
 </style></head><body>${inner}</body></html>`
 }
 
@@ -59,7 +63,12 @@ export function EmailBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [senderEmail, messageId])
 
-  const result = useMemo(() => (html ? sanitiseEmail(html, allowImages) : null), [html, allowImages])
+  const result = useMemo(() => {
+    if (!html) return null
+    const clean = sanitiseEmail(html, allowImages)
+    // Quote collapsing runs after sanitising; it only adds our details/summary.
+    return { ...clean, html: collapseQuotes(clean.html).html }
+  }, [html, allowImages])
 
   if (!html) {
     return <div className="whitespace-pre-line px-6 py-5 text-[14px] leading-[1.65] text-text">{text ?? ''}</div>
