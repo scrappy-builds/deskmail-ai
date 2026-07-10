@@ -44,8 +44,16 @@
     E2E: non-INBOX mail appears.
   - [x] 1.4 flag reconciliation (read/starred pulled back, server-deleted → local Trash) + `diffFlags`
     unit test + reconcile integration test.
-  - **Plan 1 DONE.** 341 unit green. Remaining: run the verify skill (launch app, check non-inbox mail
-    + Load older) — pending in this session.
+  - **Plan 1 DONE.** 341 unit green. **Verified in the running app** (verify skill): Sent + Archive
+    folders show their mail, Settings → Sync renders, back-fill bridge wired, 0 console errors. The
+    live back-fill *fetch* needs a real IMAP account (demo has no server cursor, so the "Load older"
+    button stays hidden) — that path is covered by the faked-imapflow unit integration test.
+
+### Batch complete
+- **Plans 3, 4, 1 all shipped.** Unit: 341 green. New E2E (shortcuts ×4, mailto ×2, sync-folders ×1)
+  all green. Typecheck + build clean.
+- **Manual follow-ups:** (a) Plan 4 installer checkbox needs a real NSIS install to confirm; (b) the
+  4 pre-existing E2E failures (see note below) predate this batch and are worth a separate look.
 
 > **Pre-existing E2E failures (NOT caused by this batch):** 4 specs fail on this branch and were
 > verified to fail identically at the pre-batch commit `f4416c1`: `mail.spec` (sanitised body /
