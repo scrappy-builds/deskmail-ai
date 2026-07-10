@@ -3,6 +3,7 @@ import { Icon } from '../Icon'
 import type { LabelInfo, MessageDetail } from '@shared/db'
 import { fmtFullDate, initials } from '../mail/format'
 import { buildReplyDraft } from '../mail/reply'
+import { parseListUnsubscribe } from '../mail/unsubscribe'
 import { EmailBody } from '../mail/EmailBody'
 import { InviteCard } from '../mail/InviteCard'
 import { useMail } from '../store/mailStore'
@@ -150,6 +151,42 @@ function QuickReply({ m }: { m: MessageDetail }): JSX.Element | null {
   )
 }
 
+// "Mailing list — Unsubscribe" line, driven by the stored List-Unsubscribe
+// header. mailto → a compose window to review and send; https → the browser
+// (after a confirm). Nothing ever fires without a click.
+export function UnsubscribeLine({ m }: { m: MessageDetail }): JSX.Element | null {
+  const opts = parseListUnsubscribe(m.listUnsubscribe)
+  if (!opts) return null
+
+  const unsubscribe = async (): Promise<void> => {
+    if (opts.mailto) {
+      const { id } = await window.deskmail.compose.saveDraft({
+        accountId: m.accountId,
+        to: [opts.mailto.to],
+        cc: [],
+        bcc: [],
+        subject: opts.mailto.subject ?? 'unsubscribe',
+        bodyHtml: '<p>Please unsubscribe me from this mailing list.</p>'
+      })
+      window.deskmail.openCompose(id)
+      return
+    }
+    if (opts.url && window.confirm('This opens the unsubscribe page in your browser. Continue?')) {
+      window.deskmail.openExternal(opts.url)
+    }
+  }
+
+  return (
+    <div className="mt-2 flex items-center gap-1.5 text-[12px] text-text-3">
+      <Icon name="mail" size={12} className="flex-none" />
+      Mailing list —
+      <button onClick={() => void unsubscribe()} className="font-semibold text-accent hover:underline">
+        Unsubscribe
+      </button>
+    </div>
+  )
+}
+
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
 
 function fmtSize(bytes: number | null): string {
@@ -203,6 +240,7 @@ export function ReadingPane(): JSX.Element {
             <div className="flex-none text-[12px] text-text-3">{fmtFullDate(m.receivedAt)}</div>
           </div>
           <LabelBar messageId={m.id} />
+          <UnsubscribeLine m={m} />
         </div>
 
         {m.invite && <InviteCard messageId={m.id} invite={m.invite} />}

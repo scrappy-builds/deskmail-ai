@@ -162,6 +162,7 @@ export interface MessageDetail extends MessageListItem {
   attachments: AttachmentInfo[]
   invite: InviteData | null
   folderRole: string | null // role of the containing folder (e.g. 'junk'), for image-blocking
+  listUnsubscribe: string | null // raw List-Unsubscribe header (mailing lists)
 }
 
 // --- Calendar & meetings -------------------------------------------------------

@@ -200,7 +200,7 @@ export function listMessagesByLabel(db: DB, labelId: number): MessageListItem[] 
 
 export function getMessage(db: DB, id: number): MessageDetail | null {
   const r = db.get('SELECT * FROM messages WHERE id = ?', [id]) as unknown as
-    | (MessageRow & { to_json: string | null; cc_json: string | null; bcc_json: string | null; body_text: string | null; body_html: string | null; invite_json: string | null })
+    | (MessageRow & { to_json: string | null; cc_json: string | null; bcc_json: string | null; body_text: string | null; body_html: string | null; invite_json: string | null; list_unsubscribe: string | null })
     | undefined
   if (!r) return null
   const atts = db.all('SELECT id, filename, mime_type, size FROM attachments WHERE message_id = ?', [id]) as unknown as {
@@ -230,7 +230,8 @@ export function getMessage(db: DB, id: number): MessageDetail | null {
     bodyHtml: r.body_html,
     attachments,
     invite,
-    folderRole
+    folderRole,
+    listUnsubscribe: r.list_unsubscribe ?? null
   }
 }
 
