@@ -165,6 +165,7 @@ export interface MessageListItem {
   isMuted: boolean
   importance: 'high' | 'low' | 'normal' | null // from the Importance / X-Priority header
   followupAt?: string | null // "follow up by" date, if set
+  isFocused: boolean // Focused/Other inbox classification (learned locally)
 }
 
 export interface MessageDetail extends MessageListItem {

@@ -59,7 +59,10 @@ const api: DeskMailApi = {
     junkEnabled: () => ipcRenderer.invoke('mail:junk-enabled'),
     setJunkEnabled: (on: boolean) => ipcRenderer.invoke('mail:set-junk-enabled', on),
     idleEnabled: () => ipcRenderer.invoke('mail:idle-enabled'),
-    setIdleEnabled: (on: boolean) => ipcRenderer.invoke('mail:set-idle-enabled', on)
+    setIdleEnabled: (on: boolean) => ipcRenderer.invoke('mail:set-idle-enabled', on),
+    focusedEnabled: () => ipcRenderer.invoke('mail:focused-enabled'),
+    setFocusedEnabled: (on: boolean) => ipcRenderer.invoke('mail:set-focused-enabled', on),
+    setFocused: (messageId: number, focused: boolean) => ipcRenderer.invoke('mail:set-focused', messageId, focused)
   },
   compose: {
     getSignature: (accountId: number) => ipcRenderer.invoke('compose:get-signature', accountId),

@@ -79,6 +79,7 @@ interface MsgRow {
   is_pinned: number
   is_muted: number
   importance: string | null
+  is_focused: number
 }
 
 export interface TodayOpts {
@@ -116,7 +117,8 @@ export function getTodayAgenda(db: DB, todayIso: string, opts: TodayOpts = {}): 
     hasAttachments: !!r.has_attachments,
     isPinned: !!r.is_pinned,
     isMuted: !!r.is_muted,
-    importance: (r.importance as MessageListItem['importance']) ?? null
+    importance: (r.importance as MessageListItem['importance']) ?? null,
+    isFocused: r.is_focused == null ? true : !!r.is_focused
   }))
   return { events, messages, tasks: listTasks(db), awaitingReply: getAwaitingReply(db) }
 }

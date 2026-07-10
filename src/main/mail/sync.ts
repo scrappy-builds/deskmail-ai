@@ -5,6 +5,7 @@ import { ensureStandardFolders, refreshFolderCounts, upsertFolder } from '../../
 import { getAppSetting } from '../../db/settings'
 import { ingestRaw } from './ingest'
 import { applyJunkIfSpam } from './junk'
+import { applyFocusClassification } from './focus'
 import { applyRulesToMessage } from '../../db/rules'
 
 // How many recent messages to pull per synced folder. Keeps first sync quick.
@@ -48,6 +49,7 @@ export async function syncAccount(db: DB, accountId: number): Promise<SyncResult
         try {
           const total = client.mailbox && typeof client.mailbox !== 'boolean' ? client.mailbox.exists : 0
           const junkEnabled = getAppSetting(db, 'junk-filter') !== 'off'
+          const myEmails = (db.all('SELECT email_address e FROM accounts') as unknown as { e: string }[]).map((r) => r.e)
           if (total > 0) {
             const start = Math.max(1, total - (RECENT - 1))
             for await (const msg of client.fetch(`${start}:*`, { uid: true, flags: true, source: true })) {
@@ -65,6 +67,7 @@ export async function syncAccount(db: DB, accountId: number): Promise<SyncResult
               )
               applyJunkIfSpam(db, id, junkEnabled) // auto-move obvious spam to Junk
               applyRulesToMessage(db, id) // then run the user's local rules
+              applyFocusClassification(db, id, myEmails) // Focused/Other (INBOX-only path)
             }
           }
           refreshFolderCounts(db, inboxId)

@@ -27,9 +27,11 @@ function Toggle({ on, onChange, label, hint }: { on: boolean; onChange: (v: bool
 export function NotificationsPane(): JSX.Element {
   const [s, setS] = useState<NotifySettings | null>(null)
   const [idle, setIdle] = useState(true)
+  const [focused, setFocused] = useState(false)
   useEffect(() => {
     void window.deskmail.notify.get().then(setS)
     void window.deskmail.mail.idleEnabled().then(setIdle)
+    void window.deskmail.mail.focusedEnabled().then(setFocused)
   }, [])
   const patch = (p: Partial<NotifySettings>): void => {
     void window.deskmail.notify.set(p).then(setS)
@@ -37,6 +39,10 @@ export function NotificationsPane(): JSX.Element {
   const toggleIdle = (v: boolean): void => {
     setIdle(v)
     void window.deskmail.mail.setIdleEnabled(v)
+  }
+  const toggleFocused = (v: boolean): void => {
+    setFocused(v)
+    void window.deskmail.mail.setFocusedEnabled(v)
   }
   if (!s) return <div className="text-[13px] text-text-3">Loading…</div>
 
@@ -48,6 +54,7 @@ export function NotificationsPane(): JSX.Element {
       </p>
       <Toggle on={s.enabled} onChange={(v) => patch({ enabled: v })} label="New-mail notifications" hint="Show a desktop alert for new inbox mail." />
       <Toggle on={idle} onChange={toggleIdle} label="Instant new mail (push)" hint="The mail server tells DeskMail the moment something arrives, instead of waiting for the next check. Turn off if your provider dislikes long-lived connections." />
+      <Toggle on={focused} onChange={toggleFocused} label="Focused inbox" hint="Split the Inbox into Focused and Other, learned from your own behaviour. Move messages between the tabs to teach it; only Focused mail notifies." />
       <Toggle on={s.launchAtStartup} onChange={(v) => patch({ launchAtStartup: v })} label="Start DeskMail when Windows starts" hint="Launch automatically in the background when you sign in." />
       <Toggle on={s.minimiseToTray} onChange={(v) => patch({ minimiseToTray: v })} label="Minimise to tray" hint="Closing or minimising hides to the tray instead of quitting." />
       <Toggle on={s.focusNow} onChange={(v) => patch({ focusNow: v })} label="Focus — mute notifications now" hint="Silence alerts until you turn this back off." />

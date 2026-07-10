@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Database } from 'node-sqlite3-wasm'
 import { openDatabase, runMigrations } from '../../src/db/database'
+import { MIGRATIONS } from '../../src/db/schema'
 import { loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty } from '../../src/db/settings'
 import { getAccount, insertAccount, updateAccount } from '../../src/db/accounts'
 import { createFolder, deleteFolder, ensureStandardFolders, listFolders, moveFolder, renameFolder, reorderFolders, upsertFolder } from '../../src/db/folders'
@@ -17,7 +18,8 @@ import type { AccountInput } from '../../src/shared/db'
 const EXPECTED_TABLES = [
   'accounts', 'credentials', 'folders', 'messages', 'attachments', 'drafts', 'labels',
   'message_labels', 'sync_state', 'layout_preferences', 'app_settings', 'signatures',
-  'scheduled_sends', 'snoozes', 'templates', 'contacts', 'events', 'event_attendees', 'mail_actions'
+  'scheduled_sends', 'snoozes', 'templates', 'contacts', 'events', 'event_attendees', 'mail_actions',
+  'trusted_senders', 'tasks', 'nudge_dismissals', 'focus_tokens'
 ]
 
 describe('database migrations', () => {
@@ -32,7 +34,7 @@ describe('database migrations', () => {
   it('creates every table and sets user_version', () => {
     const db = openDatabase(file)
     const version = (db.get('PRAGMA user_version') as { user_version: number }).user_version
-    expect(version).toBe(18)
+    expect(version).toBe(MIGRATIONS.length)
 
     const rows = db.all("SELECT name FROM sqlite_master WHERE type='table'") as { name: string }[]
     const names = rows.map((r) => r.name)
@@ -44,7 +46,7 @@ describe('database migrations', () => {
     const db = openDatabase(file)
     runMigrations(db) // again
     const version = (db.get('PRAGMA user_version') as { user_version: number }).user_version
-    expect(version).toBe(18)
+    expect(version).toBe(MIGRATIONS.length)
     db.close()
   })
 

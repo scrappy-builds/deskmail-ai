@@ -1,9 +1,17 @@
 import type { DB } from './database'
 import { getAppSetting, setAppSetting } from './settings'
 
-// A small local Bayesian spam filter that learns from what the owner marks junk
-// / not junk — same idea as SpamAssassin/Thunderbird's adaptive filter, entirely
-// on this PC. Token counts live in `junk_tokens`; message totals in app_settings.
+// A small local Bayesian classifier that learns from what the owner marks —
+// junk/not-junk by default, and (reusing the same machinery) Focused/Other for
+// the focused inbox. Token counts live in a per-category table; message totals
+// in app_settings under the category's key prefix.
+
+// The classifier writes table names into SQL, so only these exact identifiers
+// are ever accepted — never caller-supplied strings.
+const TOKEN_TABLES = new Set(['junk_tokens', 'focus_tokens'])
+function assertTable(table: string): void {
+  if (!TOKEN_TABLES.has(table)) throw new Error(`Unknown token table: ${table}`)
+}
 
 // Lowercase alphanumeric words (len >= 3), de-duplicated per message (presence-
 // based, à la Paul Graham), capped so a huge email can't dominate.
@@ -38,30 +46,31 @@ export function combineProbabilities(probs: number[], top = 15): number {
   return prod / (prod + comp)
 }
 
-function counts(db: DB): { nspam: number; nham: number } {
+function counts(db: DB, prefix: string): { nspam: number; nham: number } {
   return {
-    nspam: Number(getAppSetting(db, 'junk-spam-count') ?? '0'),
-    nham: Number(getAppSetting(db, 'junk-ham-count') ?? '0')
+    nspam: Number(getAppSetting(db, `${prefix}-spam-count`) ?? '0'),
+    nham: Number(getAppSetting(db, `${prefix}-ham-count`) ?? '0')
   }
 }
 
 // Only trust the filter once it's seen a few of each — before that, defer to the
 // rule-based classifier alone.
-export function isBayesTrained(db: DB): boolean {
-  const { nspam, nham } = counts(db)
+export function isBayesTrained(db: DB, prefix = 'junk'): boolean {
+  const { nspam, nham } = counts(db, prefix)
   return nspam >= 3 && nham >= 3
 }
 
-export function trainBayes(db: DB, text: string, isSpam: boolean): void {
+export function trainBayes(db: DB, text: string, isSpam: boolean, table = 'junk_tokens', prefix = 'junk'): void {
+  assertTable(table)
   const col = isSpam ? 'spam' : 'ham' // fixed identifiers, not user input
   for (const t of tokenize(text)) {
     db.run(
-      `INSERT INTO junk_tokens (token, ${col}) VALUES (?, 1)
+      `INSERT INTO ${table} (token, ${col}) VALUES (?, 1)
        ON CONFLICT(token) DO UPDATE SET ${col} = ${col} + 1`,
       [t]
     )
   }
-  const key = isSpam ? 'junk-spam-count' : 'junk-ham-count'
+  const key = `${prefix}-${isSpam ? 'spam' : 'ham'}-count`
   setAppSetting(db, key, String(Number(getAppSetting(db, key) ?? '0') + 1))
 }
 
@@ -74,12 +83,14 @@ export function trainBayesFromMessage(db: DB, messageId: number, isSpam: boolean
   trainBayes(db, `${r.subject ?? ''} ${r.from_name ?? ''} ${r.from_email ?? ''} ${r.body_text ?? ''}`, isSpam)
 }
 
-// Spam probability 0..1 for a piece of text (0 when untrained).
-export function scoreSpam(db: DB, text: string): number {
-  const { nspam, nham } = counts(db)
+// "Spam-side" probability 0..1 for a piece of text (0 when untrained). For the
+// focus classifier, spam-side = Other and ham-side = Focused.
+export function scoreSpam(db: DB, text: string, table = 'junk_tokens', prefix = 'junk'): number {
+  assertTable(table)
+  const { nspam, nham } = counts(db, prefix)
   if (nspam === 0 || nham === 0) return 0
   const probs = tokenize(text).map((t) => {
-    const row = db.get('SELECT spam, ham FROM junk_tokens WHERE token = ?', [t]) as { spam: number; ham: number } | undefined
+    const row = db.get(`SELECT spam, ham FROM ${table} WHERE token = ?`, [t]) as { spam: number; ham: number } | undefined
     return tokenProb(row?.spam ?? 0, row?.ham ?? 0, nspam, nham)
   })
   return combineProbabilities(probs)

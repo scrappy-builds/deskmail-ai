@@ -144,6 +144,15 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
   const sort = useMail((s) => s.sort)
   const setSortAndSave = useMail((s) => s.setSort)
   const [sortOpen, setSortOpen] = useState(false)
+
+  // Focused/Other tabs — inbox and unified inbox only, when the feature is on.
+  const [focusedEnabled, setFocusedEnabled] = useState(false)
+  const [focusTab, setFocusTab] = useState<'focused' | 'other'>('focused')
+  useEffect(() => {
+    void window.deskmail.mail.focusedEnabled().then(setFocusedEnabled)
+  }, [])
+  const inInbox = activeUnified || folders.find((f) => f.id === activeFolderId)?.role === 'inbox'
+  const focusTabsOn = focusedEnabled && inInbox && !searching
   const threading = useMail((s) => s.threading)
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set())
   const toggleThread = (key: string): void => setExpandedThreads((prev) => {
@@ -151,8 +160,11 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
     next.has(key) ? next.delete(key) : next.add(key)
     return next
   })
-  const sorted = sortMessages(messages, sort.field, sort.dir)
+  const visibleMessages = focusTabsOn ? messages.filter((m) => m.isFocused === (focusTab === 'focused')) : messages
+  const sorted = sortMessages(visibleMessages, sort.field, sort.dir)
   const showDateGroups = sort.field === 'date' && !threading
+  const otherUnread = focusTabsOn ? messages.filter((m) => !m.isFocused && !m.isRead).length : 0
+  const focusedUnread = focusTabsOn ? messages.filter((m) => m.isFocused && !m.isRead).length : 0
 
   // --- Windowing: only the visible rows exist in the DOM ---------------------
   const HEADER_H = 25
@@ -247,6 +259,29 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
         </div>
       </div>
 
+      {focusTabsOn && (
+        <div className="flex flex-none border-b border-border">
+          {(['focused', 'other'] as const).map((tab) => {
+            const active = focusTab === tab
+            const unread = tab === 'focused' ? focusedUnread : otherUnread
+            return (
+              <button
+                key={tab}
+                onClick={() => setFocusTab(tab)}
+                data-testid={`focus-tab-${tab}`}
+                className="flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-[12.5px] font-bold capitalize"
+                style={active ? { color: 'var(--accent)', boxShadow: 'inset 0 -2px 0 var(--accent)' } : { color: 'var(--text-3)' }}
+              >
+                {tab}
+                {unread > 0 && (
+                  <span className="rounded-full bg-[var(--accent-soft)] px-1.5 text-[10.5px] font-bold text-accent">{unread}</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* Select-all tickbox at the head of the checkbox column — aligns under each
           row's checkbox (row uses 11px left padding + 2.5 gap). Indeterminate when
           some-but-not-all are ticked. */}
@@ -267,10 +302,10 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
       )}
 
       <div ref={scrollRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-        {messages.length === 0 ? (
+        {visibleMessages.length === 0 ? (
           <div className="px-6 py-16 text-center">
             <div className="text-[14px] font-bold text-text-2">
-              {searching ? `No messages match "${searchQuery}"` : 'Nothing here yet'}
+              {searching ? `No messages match "${searchQuery}"` : focusTabsOn && messages.length > 0 ? `Nothing in ${focusTab === 'focused' ? 'Focused' : 'Other'}` : 'Nothing here yet'}
             </div>
             <p className="mx-auto mt-1.5 max-w-[280px] text-[12.5px] text-text-3">
               {searching

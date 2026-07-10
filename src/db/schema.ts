@@ -344,5 +344,13 @@ export const MIGRATIONS: string[] = [
    CREATE TABLE nudge_dismissals (
      message_id INTEGER PRIMARY KEY,
      dismissed_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );`,
+
+  // --- v26: focused inbox — classification flag + its own Bayes token table ------
+  `ALTER TABLE messages ADD COLUMN is_focused INTEGER NOT NULL DEFAULT 1;
+   CREATE TABLE focus_tokens (
+     token TEXT PRIMARY KEY,
+     spam INTEGER NOT NULL DEFAULT 0,
+     ham INTEGER NOT NULL DEFAULT 0
    );`
 ]

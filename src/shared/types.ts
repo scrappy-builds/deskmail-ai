@@ -117,6 +117,11 @@ export interface DeskMailApi {
     // Instant new mail via IMAP IDLE (push) on/off.
     idleEnabled(): Promise<boolean>
     setIdleEnabled(on: boolean): Promise<void>
+    // Focused inbox (Focused/Other tabs) — off by default until trained.
+    focusedEnabled(): Promise<boolean>
+    setFocusedEnabled(on: boolean): Promise<void>
+    // Move a message between Focused and Other (also trains the classifier).
+    setFocused(messageId: number, focused: boolean): Promise<void>
     // Context for the sender-signal banners (first contact / lookalike / reply-to).
     senderContext(id: number): Promise<SenderContext>
     // Every domain mail history has corresponded with (compose first-contact check).

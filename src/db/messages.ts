@@ -135,6 +135,7 @@ interface MessageRow {
   is_muted: number
   importance: string | null
   followup_at: string | null
+  is_focused: number
 }
 
 function toListItem(r: MessageRow): MessageListItem {
@@ -153,7 +154,8 @@ function toListItem(r: MessageRow): MessageListItem {
     isPinned: !!r.is_pinned,
     isMuted: !!r.is_muted,
     importance: (r.importance as MessageListItem['importance']) ?? null,
-    followupAt: r.followup_at ?? null
+    followupAt: r.followup_at ?? null,
+    isFocused: r.is_focused == null ? true : !!r.is_focused
   }
 }
 

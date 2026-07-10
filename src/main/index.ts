@@ -45,6 +45,7 @@ import { sendMail } from './mail/send'
 import { appendToSent } from './mail/appendSent'
 import { closePool } from './mail/connectionPool'
 import { isIdleHealthy, startIdle, stopAllIdle } from './mail/idle'
+import { setMessageFocused } from './mail/focus'
 import { buildToastXml, parseActionUrl } from './toastActions'
 import { joinMeeting } from './meetings'
 import { maybeSeedDemo } from './mail/demoSeed'
@@ -285,8 +286,10 @@ async function syncAndNotify(accountId?: number): Promise<void> {
   if (accountId != null) await syncAccount(db, accountId)
   else await syncAllAccounts(db, (id) => idleEnabled() && isIdleHealthy(id))
   broadcastMailChanged()
+  // With the focused inbox on, only Focused mail notifies — Other stays quiet.
+  const focusedOnly = appSetting('focused-inbox') === 'on' ? ' AND is_focused = 1' : ''
   const rows = db.all(
-    "SELECT id FROM messages WHERE id > ? AND is_read = 0 AND is_muted = 0 AND folder_id IN (SELECT id FROM folders WHERE role = 'inbox') ORDER BY id",
+    `SELECT id FROM messages WHERE id > ? AND is_read = 0 AND is_muted = 0${focusedOnly} AND folder_id IN (SELECT id FROM folders WHERE role = 'inbox') ORDER BY id`,
     [before]
   ) as unknown as { id: number }[]
   if (rows.length) notifyNewMail(rows.map((r) => r.id))
@@ -823,6 +826,17 @@ function registerIpc(): void {
   ipcMain.handle('mail:set-idle-enabled', (_e, on: boolean) => {
     setAppSetting(db, 'imap-idle', on ? 'on' : 'off')
     applyIdleConfig()
+  })
+  // Focused inbox: off by default until it has training data (honest default).
+  ipcMain.handle('mail:focused-enabled', () => appSetting('focused-inbox') === 'on')
+  ipcMain.handle('mail:set-focused-enabled', (_e, on: boolean) => {
+    setAppSetting(db, 'focused-inbox', on ? 'on' : 'off')
+    broadcastMailChanged()
+  })
+  // "Move to Focused/Other" — flips the flag and trains the classifier.
+  ipcMain.handle('mail:set-focused', (_e, messageId: number, focused: boolean) => {
+    setMessageFocused(db, messageId, focused)
+    broadcastMailChanged()
   })
 
   // --- Attachments + NotebookLM export ----------------------------------------
