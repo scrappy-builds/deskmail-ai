@@ -10,6 +10,7 @@ export type MessageListDensity = 'comfortable' | 'cozy' | 'compact'
 export type MessageListStyle = 'avatars' | 'plain'
 export type ClaudePanelPosition = 'right' | 'left' | 'float' | 'docked' | 'hidden'
 export type OpenEmailBehaviour = 'reading-pane' | 'full-window'
+export type MarkReadBehaviour = 'select' | 'delay' | 'never'
 export type LayoutPreset =
   | 'classic'
   | 'bottom'
@@ -28,6 +29,8 @@ export interface LayoutPreferences {
   messageListStyle: MessageListStyle
   previewLineCount: number // 0..3
   openEmailBehaviour: OpenEmailBehaviour
+  markReadBehaviour: MarkReadBehaviour // when to auto-mark an opened message read
+  markReadDelaySeconds: number // used when markReadBehaviour === 'delay'
   claudePanelPosition: ClaudePanelPosition
   selectedLayoutPreset: LayoutPreset
   theme: Theme
@@ -43,6 +46,8 @@ export const DEFAULT_LAYOUT: LayoutPreferences = {
   messageListStyle: 'avatars',
   previewLineCount: 2,
   openEmailBehaviour: 'reading-pane',
+  markReadBehaviour: 'select',
+  markReadDelaySeconds: 2,
   claudePanelPosition: 'right',
   selectedLayoutPreset: 'classic',
   theme: 'light',

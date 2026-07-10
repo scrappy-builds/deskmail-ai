@@ -12,6 +12,8 @@ interface LayoutRow {
   message_list_style: string
   preview_line_count: number
   open_email_behaviour: string
+  mark_read_behaviour: string
+  mark_read_delay_seconds: number
   claude_panel_position: string
   selected_layout_preset: string
   theme: string
@@ -28,6 +30,8 @@ function rowToPrefs(r: LayoutRow): LayoutPreferences {
     messageListStyle: r.message_list_style as LayoutPreferences['messageListStyle'],
     previewLineCount: r.preview_line_count,
     openEmailBehaviour: r.open_email_behaviour as LayoutPreferences['openEmailBehaviour'],
+    markReadBehaviour: (r.mark_read_behaviour ?? 'select') as LayoutPreferences['markReadBehaviour'],
+    markReadDelaySeconds: r.mark_read_delay_seconds ?? 2,
     claudePanelPosition: r.claude_panel_position as LayoutPreferences['claudePanelPosition'],
     selectedLayoutPreset: r.selected_layout_preset as LayoutPreferences['selectedLayoutPreset'],
     theme: r.theme as LayoutPreferences['theme'],
@@ -45,8 +49,9 @@ export function saveLayoutPrefs(db: DB, p: LayoutPreferences): void {
     `INSERT INTO layout_preferences (
        id, reading_pane_position, reading_pane_visible, sidebar_position, sidebar_mode,
        message_list_density, message_list_style, preview_line_count, open_email_behaviour,
+       mark_read_behaviour, mark_read_delay_seconds,
        claude_panel_position, selected_layout_preset, theme, font_scale, updated_at
-     ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+     ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
      ON CONFLICT(id) DO UPDATE SET
        reading_pane_position = excluded.reading_pane_position,
        reading_pane_visible  = excluded.reading_pane_visible,
@@ -56,6 +61,8 @@ export function saveLayoutPrefs(db: DB, p: LayoutPreferences): void {
        message_list_style    = excluded.message_list_style,
        preview_line_count    = excluded.preview_line_count,
        open_email_behaviour  = excluded.open_email_behaviour,
+       mark_read_behaviour   = excluded.mark_read_behaviour,
+       mark_read_delay_seconds = excluded.mark_read_delay_seconds,
        claude_panel_position = excluded.claude_panel_position,
        selected_layout_preset = excluded.selected_layout_preset,
        theme                 = excluded.theme,
@@ -70,6 +77,8 @@ export function saveLayoutPrefs(db: DB, p: LayoutPreferences): void {
       p.messageListStyle,
       p.previewLineCount,
       p.openEmailBehaviour,
+      p.markReadBehaviour,
+      p.markReadDelaySeconds,
       p.claudePanelPosition,
       p.selectedLayoutPreset,
       p.theme,

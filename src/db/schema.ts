@@ -288,5 +288,9 @@ export const MIGRATIONS: string[] = [
   `DELETE FROM attachments WHERE id NOT IN (
      SELECT MIN(id) FROM attachments
      GROUP BY message_id, COALESCE(filename,''), COALESCE(size,-1)
-   );`
+   );`,
+
+  // --- v14: "mark read" behaviour preference (on select / after delay / never) -
+  `ALTER TABLE layout_preferences ADD COLUMN mark_read_behaviour TEXT NOT NULL DEFAULT 'select';
+   ALTER TABLE layout_preferences ADD COLUMN mark_read_delay_seconds INTEGER NOT NULL DEFAULT 2;`
 ]

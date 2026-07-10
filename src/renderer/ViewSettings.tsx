@@ -183,6 +183,29 @@ export function ViewSettings({ onClose }: { onClose: () => void }): JSX.Element 
                 { label: 'Full window', val: 'full-window', on: set('openEmailBehaviour', 'full-window') }
               ]}
             />
+            <Segmented
+              label="Mark as read"
+              value={prefs.markReadBehaviour}
+              options={[
+                { label: 'On select', val: 'select', on: set('markReadBehaviour', 'select') },
+                { label: 'After a delay', val: 'delay', on: set('markReadBehaviour', 'delay') },
+                { label: 'Never', val: 'never', on: set('markReadBehaviour', 'never') }
+              ]}
+            />
+            {prefs.markReadBehaviour === 'delay' && (
+              <label className="flex items-center gap-2 pl-1 text-[12.5px] text-text-2">
+                Mark read after
+                <input
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={prefs.markReadDelaySeconds}
+                  onChange={(e) => setPref('markReadDelaySeconds', Math.max(0, Number(e.target.value)))}
+                  className="w-[64px] rounded-md border border-border bg-bg px-2 py-1.5 text-[13px] outline-none focus:border-accent"
+                />
+                seconds
+              </label>
+            )}
             <div>
               <div className="mb-[7px] text-[12.5px] font-semibold">
                 Preview lines · <span className="text-accent">{prefs.previewLineCount}</span>

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AccountSummary, FolderSummary, LabelInfo, MessageDetail, MessageListItem, SmartView } from '@shared/db'
+import { useLayout } from './layoutStore'
 
 // Mail data state — DB-backed via the IPC bridge. Reads come from the local
 // SQLite cache, so the list and reading pane work offline. Kept separate from
@@ -119,9 +120,19 @@ export const useMail = create<MailState>((set, get) => ({
     set({ selectedId: id })
     const selected = await window.deskmail.mail.getMessage(id)
     set({ selected })
-    if (selected && !selected.isRead) {
+    if (!selected || selected.isRead) return
+    // Respect the "mark read" preference: immediately, after a delay, or never.
+    const { markReadBehaviour: mode, markReadDelaySeconds: delay } = useLayout.getState().prefs
+    if (mode === 'never') return
+    const doMark = async (): Promise<void> => {
       await window.deskmail.mail.markRead(id, true)
       void get().refresh()
+    }
+    if (mode === 'delay') {
+      // Only mark read if the message is still the selected one when the timer fires.
+      setTimeout(() => { if (get().selectedId === id) void doMark() }, Math.max(0, delay) * 1000)
+    } else {
+      void doMark()
     }
   },
 
