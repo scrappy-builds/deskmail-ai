@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '../Icon'
-import { InlineImage } from '../editor/InlineImage'
+import { downscaleImage, InlineImage } from '../editor/InlineImage'
 import type { AccountSummary, ComposeAttachment, ComposePayload, Contact, DraftSummary, SignatureItem, Template } from '@shared/db'
 import { mentionsAttachment } from './attachmentReminder'
 import { RecipientInput } from './RecipientInput'
+import { unusualRecipients } from './unusualRecipients'
 import { useToast } from '../store/toastStore'
 
 
@@ -43,13 +44,17 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
   const [importance, setImportance] = useState<'high' | 'normal' | 'low'>('normal')
   const [busy, setBusy] = useState(false)
   const [attachReminder, setAttachReminder] = useState(false)
+  const [knownDomains, setKnownDomains] = useState<string[] | null>(null)
 
-  // Paste/drop images inline; drop other files to attach them.
+  // Paste/drop images inline (downscaled to a sane width); drop other files to
+  // attach them.
   const handleFiles = (files: File[]): void => {
     for (const f of files) {
       if (f.type.startsWith('image/')) {
         const r = new FileReader()
-        r.onload = () => editor?.chain().focus().insertContent({ type: 'image', attrs: { src: r.result } }).run()
+        r.onload = () => {
+          void downscaleImage(String(r.result), f.type).then((src) => editor?.chain().focus().insertContent({ type: 'image', attrs: { src } }).run())
+        }
         r.readAsDataURL(f)
       } else {
         const path = (f as File & { path?: string }).path
@@ -96,7 +101,11 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
     })
     void window.deskmail.templates.list().then(setTemplates)
     void window.deskmail.contacts.list().then(setContacts)
+    void window.deskmail.mail.knownDomains().then(setKnownDomains)
   }, [])
+
+  // "First email to <domain>" — informational, never blocks the send.
+  const newDomains = knownDomains ? unusualRecipients([...to, ...cc, ...bcc], knownDomains) : []
 
   const payload = useMemo(
     (): ComposePayload => ({
@@ -330,6 +339,12 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
           )}
         </div>
 
+        {newDomains.length > 0 && (
+          <div className="flex flex-none items-center gap-2 border-t border-border px-4 py-2 text-[12px] text-text-3">
+            <Icon name="mail" size={13} className="flex-none" />
+            First email to {newDomains.join(', ')} — just checking the address looks right.
+          </div>
+        )}
         {attachReminder && (
           <div className="flex flex-none flex-wrap items-center gap-2.5 border-t border-border bg-[var(--accent-soft)] px-4 py-2.5">
             <Icon name="clip" size={15} className="flex-none text-accent" />

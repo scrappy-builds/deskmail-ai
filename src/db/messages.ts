@@ -245,6 +245,24 @@ export function countFromSender(db: DB, email: string, excludeId: number): numbe
   ).c
 }
 
+// Every domain that appears anywhere in mail history (senders and recipients)
+// — the compose "first email to <domain>" check treats these as familiar.
+export function allKnownDomains(db: DB): string[] {
+  const senders = db.all(
+    "SELECT DISTINCT LOWER(SUBSTR(from_email, INSTR(from_email, '@') + 1)) d FROM messages WHERE from_email LIKE '%@%'"
+  ) as unknown as { d: string }[]
+  const out = new Set(senders.map((r) => r.d))
+  // Recipient domains from stored to_json (covers sent mail once it's cached).
+  const rows = db.all("SELECT to_json FROM messages WHERE to_json IS NOT NULL AND to_json != '[]'") as unknown as { to_json: string }[]
+  for (const r of rows) {
+    for (const addr of parseJsonArray(r.to_json)) {
+      const at = addr.lastIndexOf('@')
+      if (at > 0) out.add(addr.slice(at + 1).toLowerCase())
+    }
+  }
+  return [...out]
+}
+
 // The domains that email me most (min 3 messages) — lookalike comparison targets.
 export function topSenderDomains(db: DB, limit = 10): string[] {
   const rows = db.all(

@@ -115,6 +115,8 @@ export interface DeskMailApi {
     setIdleEnabled(on: boolean): Promise<void>
     // Context for the sender-signal banners (first contact / lookalike / reply-to).
     senderContext(id: number): Promise<SenderContext>
+    // Every domain mail history has corresponded with (compose first-contact check).
+    knownDomains(): Promise<string[]>
   }
   // Compose: drafts, signatures, attachments and manual send (Stage 6/8).
   compose: {

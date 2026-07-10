@@ -38,6 +38,7 @@ const api: DeskMailApi = {
     messageSource: (id: number) => ipcRenderer.invoke('mail:message-source', id),
     messageNeighbours: (id: number) => ipcRenderer.invoke('mail:message-neighbours', id),
     senderContext: (id: number) => ipcRenderer.invoke('mail:sender-context', id),
+    knownDomains: () => ipcRenderer.invoke('mail:known-domains'),
     saveMessage: (id: number, format: 'eml' | 'html') => ipcRenderer.invoke('mail:save-message', id, format),
     importMail: (folderId: number) => ipcRenderer.invoke('mail:import-mail', folderId),
     exportMbox: (folderId: number) => ipcRenderer.invoke('mail:export-mbox', folderId),

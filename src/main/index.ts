@@ -10,7 +10,7 @@ import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/ac
 import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
 import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
-import { countDuplicateMessages, countFromSender, dedupeMessages, getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, markFolderRead, markRead, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned, topSenderDomains } from '../db/messages'
+import { allKnownDomains, countDuplicateMessages, countFromSender, dedupeMessages, getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, markFolderRead, markRead, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned, topSenderDomains } from '../db/messages'
 import { buildEml, saveMessageFile } from './mail/messageExport'
 import { exportMbox, importMailFile } from './mail/mbox'
 import { buildVcf, parseVcf } from './contacts/vcard'
@@ -649,6 +649,11 @@ function registerIpc(): void {
     return m ? buildEml(m) : null
   })
   ipcMain.handle('mail:message-neighbours', (_e, messageId: number) => messageNeighbours(db, messageId))
+  // Domains this mailbox has ever corresponded with (compose first-contact check).
+  ipcMain.handle('mail:known-domains', () => [
+    ...allKnownDomains(db),
+    ...listAccounts(db).map((a) => a.emailAddress.split('@')[1] ?? '').filter(Boolean)
+  ])
   // Context for the sender-signal banners (first contact / lookalike / reply-to).
   ipcMain.handle('mail:sender-context', (_e, messageId: number) => {
     const m = getMessage(db, messageId)
