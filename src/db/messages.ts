@@ -51,7 +51,8 @@ export function upsertMessage(db: DB, m: MessageInsert, hasAttachments = false, 
     is_read: m.isRead ? 1 : 0,
     is_starred: m.isStarred ? 1 : 0,
     has_attachments: hasAttachments ? 1 : 0,
-    invite_json: inviteJson
+    invite_json: inviteJson,
+    importance: m.importance ?? null
   }
 
   if (id != null) {
@@ -129,6 +130,7 @@ interface MessageRow {
   has_attachments: number
   is_pinned: number
   is_muted: number
+  importance: string | null
 }
 
 function toListItem(r: MessageRow): MessageListItem {
@@ -145,7 +147,8 @@ function toListItem(r: MessageRow): MessageListItem {
     isStarred: !!r.is_starred,
     hasAttachments: !!r.has_attachments,
     isPinned: !!r.is_pinned,
-    isMuted: !!r.is_muted
+    isMuted: !!r.is_muted,
+    importance: (r.importance as MessageListItem['importance']) ?? null
   }
 }
 

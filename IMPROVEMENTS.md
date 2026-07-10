@@ -52,7 +52,6 @@ with its action buttons + search/compose reshuffle) are **not** repeated here.
 - [x] **Pop-out: Save message as `.eml` / `.html`** — [easy]. Save the open email to disk (complements the existing Print-to-PDF).
 - [x] **Multi-column list view (optional)** — [big]. A classic table view (sortable From / Subject / Date / Size columns) as an alternative to the current card rows.
 - [x] **Follow-up flag with a reminder date** — [med]. Flag an email "follow up by <date>" and surface it in Today when due (snooze exists; this is a dated flag).
-- [x] **Importance / priority marker (High / Normal / Low)** — [easy]. Set and show a priority marker on messages (reads the `Importance` header on sync; settable on send).
 - [x] **Inline images + attach from the compose window** — [med]. Confirm/extend drag-in attachments and inline image paste.
 - [ ] **Local database encryption / master password** — [big]. SQLCipher-style, so a stolen laptop can't read the cached message bodies. (Passwords are already OS-encrypted; this would extend that to message content.)
 - [ ] **Per-account colour accents throughout** — [easy]. Dots exist; extend to the reading pane.

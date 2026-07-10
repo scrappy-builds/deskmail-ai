@@ -292,5 +292,8 @@ export const MIGRATIONS: string[] = [
 
   // --- v14: "mark read" behaviour preference (on select / after delay / never) -
   `ALTER TABLE layout_preferences ADD COLUMN mark_read_behaviour TEXT NOT NULL DEFAULT 'select';
-   ALTER TABLE layout_preferences ADD COLUMN mark_read_delay_seconds INTEGER NOT NULL DEFAULT 2;`
+   ALTER TABLE layout_preferences ADD COLUMN mark_read_delay_seconds INTEGER NOT NULL DEFAULT 2;`,
+
+  // --- v15: message importance/priority (High/Normal/Low from the Importance hdr) -
+  `ALTER TABLE messages ADD COLUMN importance TEXT;`
 ]

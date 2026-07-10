@@ -91,6 +91,8 @@ function Row({
           <span className="flex-1 truncate text-[13.5px] text-text" style={{ fontWeight: weight }}>
             {name}
           </span>
+          {m.importance === 'high' && <span title="High importance" className="flex-none text-[13px] font-extrabold text-danger">!</span>}
+          {m.importance === 'low' && <Icon name="chevronDown" size={13} className="text-text-3" />}
           {m.isPinned && <Icon name="pin" size={14} className="text-accent" />}
           {m.hasAttachments && <Icon name="clip" size={14} className="text-text-3" />}
           {m.isStarred && <Icon name="star" size={14} className="text-star" fill />}

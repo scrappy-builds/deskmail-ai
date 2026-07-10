@@ -33,7 +33,9 @@ export function buildMail(o: BuildMailOpts): SendMailOptions {
     bcc: o.payload.bcc.length ? o.payload.bcc.join(', ') : undefined,
     subject: o.payload.subject,
     html: `${o.payload.bodyHtml}${sigHtml}`,
-    attachments: o.payload.attachments?.map((a) => ({ filename: a.name, path: a.path }))
+    attachments: o.payload.attachments?.map((a) => ({ filename: a.name, path: a.path })),
+    // nodemailer maps this to X-Priority + Importance headers (omit when normal).
+    priority: o.payload.importance && o.payload.importance !== 'normal' ? o.payload.importance : undefined
   }
 }
 

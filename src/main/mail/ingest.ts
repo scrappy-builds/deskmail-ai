@@ -48,7 +48,9 @@ export async function ingestRaw(db: DB, meta: IngestMeta, raw: Buffer | string):
     receivedAt: parsed.date?.toISOString() ?? null,
     sentAt: parsed.date?.toISOString() ?? null,
     isRead: meta.isRead,
-    isStarred: meta.isStarred
+    isStarred: meta.isStarred,
+    // mailparser derives priority from the Importance / X-Priority headers.
+    importance: parsed.priority ?? null
   }
 
   const attachments = parsed.attachments ?? []

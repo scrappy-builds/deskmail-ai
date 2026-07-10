@@ -149,6 +149,7 @@ export interface MessageListItem {
   hasAttachments: boolean
   isPinned: boolean
   isMuted: boolean
+  importance: 'high' | 'low' | 'normal' | null // from the Importance / X-Priority header
 }
 
 export interface MessageDetail extends MessageListItem {
@@ -297,6 +298,8 @@ export interface ComposePayload {
   inReplyToMessageId?: number | null
   // Which signature to append (null/undefined → the account default when set to append).
   signatureId?: number | null
+  // Outgoing priority; sets the Importance / X-Priority header when not 'normal'.
+  importance?: 'high' | 'normal' | 'low'
 }
 
 export interface DraftSummary {
@@ -332,4 +335,5 @@ export interface MessageInsert {
   sentAt: string | null
   isRead: boolean
   isStarred: boolean
+  importance?: 'high' | 'low' | 'normal' | null
 }

@@ -16,6 +16,7 @@ interface MsgRow {
   has_attachments: number
   is_pinned: number
   is_muted: number
+  importance: string | null
 }
 
 export interface TodayOpts {
@@ -52,7 +53,8 @@ export function getTodayAgenda(db: DB, todayIso: string, opts: TodayOpts = {}): 
     isStarred: !!r.is_starred,
     hasAttachments: !!r.has_attachments,
     isPinned: !!r.is_pinned,
-    isMuted: !!r.is_muted
+    isMuted: !!r.is_muted,
+    importance: (r.importance as MessageListItem['importance']) ?? null
   }))
   return { events, messages }
 }

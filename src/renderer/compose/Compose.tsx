@@ -41,6 +41,7 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [showTemplates, setShowTemplates] = useState(false)
   const [laterAt, setLaterAt] = useState<string | null>(null)
+  const [importance, setImportance] = useState<'high' | 'normal' | 'low'>('normal')
   const [busy, setBusy] = useState(false)
 
   // spellcheck: 'true' turns on Electron's live spell-check underlines in the body.
@@ -74,9 +75,10 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
       subject,
       bodyHtml: editor?.getHTML() ?? '',
       attachments,
-      signatureId
+      signatureId,
+      importance
     }),
-    [draft, accountId, to, cc, bcc, subject, editor, attachments, signatureId]
+    [draft, accountId, to, cc, bcc, subject, editor, attachments, signatureId, importance]
   )
 
   const canSend = accountId != null && payload.to.length > 0 && !busy
@@ -223,6 +225,17 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
                 </div>
               )}
             </div>
+            <select
+              value={importance}
+              onChange={(e) => setImportance(e.target.value as 'high' | 'normal' | 'low')}
+              title="Message priority"
+              aria-label="Message priority"
+              className="rounded-md border border-border bg-bg px-2 py-1 text-[12px] font-semibold text-text-2 outline-none focus:border-accent"
+            >
+              <option value="normal">Normal</option>
+              <option value="high">High priority</option>
+              <option value="low">Low priority</option>
+            </select>
           </div>
 
           <EditorContent editor={editor} className="min-h-[130px] flex-1 px-4 py-3 text-[14px] leading-[1.6]" />
