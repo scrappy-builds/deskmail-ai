@@ -174,6 +174,18 @@ export function listMessages(db: DB, folderId: number): MessageListItem[] {
   return rows.map(toListItem)
 }
 
+// All messages across every account's Inbox — the "unified inbox" view.
+export function listUnifiedInbox(db: DB): MessageListItem[] {
+  const rows = db.all(
+    `SELECT * FROM messages
+       WHERE folder_id IN (SELECT id FROM folders WHERE role = 'inbox')
+         AND id NOT IN (SELECT message_id FROM snoozes WHERE datetime(snooze_until) > datetime('now'))
+     ORDER BY is_pinned DESC, received_at DESC, id DESC
+     LIMIT 500`
+  ) as unknown as MessageRow[]
+  return rows.map(toListItem)
+}
+
 // Messages carrying a given label, newest first (pinned float up). Cross-folder.
 export function listMessagesByLabel(db: DB, labelId: number): MessageListItem[] {
   const rows = db.all(

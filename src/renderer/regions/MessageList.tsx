@@ -110,7 +110,7 @@ function Row({
 }
 
 export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAvatars, onOpen }: MessageListProps): JSX.Element {
-  const { folders, labels, smartViews, messages, activeFolderId, activeLabelId, activeSmartViewId, selectedId, select, searchQuery } = useMail()
+  const { folders, labels, smartViews, messages, activeFolderId, activeLabelId, activeSmartViewId, activeUnified, selectedId, select, searchQuery } = useMail()
   const selectedIds = useMail((s) => s.selectedIds)
   const toggleSelected = useMail((s) => s.toggleSelected)
   const clearSelected = useMail((s) => s.clearSelected)
@@ -130,11 +130,13 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
   const activeSmart = smartViews.find((v) => v.id === activeSmartViewId)
   const title = searching
     ? `Search: ${searchQuery}`
-    : activeSmart
-      ? activeSmart.name
-      : activeLabel
-        ? activeLabel.name
-        : folders.find((f) => f.id === activeFolderId)?.name ?? 'Inbox'
+    : activeUnified
+      ? 'All inboxes'
+      : activeSmart
+        ? activeSmart.name
+        : activeLabel
+          ? activeLabel.name
+          : folders.find((f) => f.id === activeFolderId)?.name ?? 'Inbox'
 
   const handleSelect = (msgId: number): void => {
     void select(msgId)

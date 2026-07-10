@@ -355,7 +355,7 @@ export function Sidebar({
   onOpenOutbox?: () => void
   onOpenSmartBuilder?: () => void
 }): JSX.Element {
-  const { accounts, folders, labels, smartViews, activeFolderId, activeLabelId, activeSmartViewId, setFolder, setLabel, setSmartView } = useMail()
+  const { accounts, folders, labels, smartViews, activeFolderId, activeLabelId, activeSmartViewId, activeUnified, setFolder, setLabel, setSmartView, setUnified } = useMail()
   const showToast = useToast((s) => s.show)
   const [draftCount, setDraftCount] = useState(0)
   const [outboxCount, setOutboxCount] = useState(0)
@@ -487,6 +487,19 @@ export function Sidebar({
           )}
         </div>
       ))}
+
+      {/* Unified inbox: all accounts' Inboxes in one list (only useful with 2+). */}
+      {accounts.length > 1 && (
+        <button
+          onClick={() => void setUnified()}
+          title="All inboxes"
+          className="mb-px mt-1.5 flex w-full items-center gap-3 rounded-md px-[9px] py-2 hover:bg-hover"
+          style={{ justifyContent: showLabels ? 'flex-start' : 'center', background: activeUnified ? 'var(--accent-soft)' : 'transparent', color: activeUnified ? 'var(--accent)' : 'var(--text-2)' }}
+        >
+          <Icon name="inbox" size={18} className="flex-none" />
+          {showLabels && <span className="truncate text-[13.5px]" style={{ fontWeight: activeUnified ? 700 : 500 }}>All inboxes</span>}
+        </button>
+      )}
 
       <div className="h-3.5" />
       {showLabels && (

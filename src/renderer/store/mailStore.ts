@@ -26,6 +26,7 @@ interface MailState {
   activeFolderId: number | null
   activeLabelId: number | null // when set, the list shows this label's messages
   activeSmartViewId: number | null // when set, the list shows this smart view
+  activeUnified: boolean // when true, the list shows all accounts' inboxes combined
   selectedId: number | null
   selected: MessageDetail | null
   selectedIds: Set<number> // multi-select for bulk actions
@@ -41,6 +42,7 @@ interface MailState {
   setFolder: (id: number) => Promise<void>
   setLabel: (id: number) => Promise<void>
   setSmartView: (id: number) => Promise<void>
+  setUnified: () => Promise<void>
   select: (id: number) => Promise<void>
   toggleSelected: (id: number) => void
   clearSelected: () => void
@@ -58,6 +60,7 @@ export const useMail = create<MailState>((set, get) => ({
   activeFolderId: null,
   activeLabelId: null,
   activeSmartViewId: null,
+  activeUnified: false,
   selectedId: null,
   selected: null,
   selectedIds: new Set<number>(),
@@ -88,7 +91,9 @@ export const useMail = create<MailState>((set, get) => ({
     const smartId = get().activeSmartViewId
     let active = get().activeFolderId
     let messages: MessageListItem[]
-    if (smartId != null) {
+    if (get().activeUnified) {
+      messages = await window.deskmail.mail.listUnified()
+    } else if (smartId != null) {
       messages = await window.deskmail.smartViews.run(smartId)
     } else if (labelId != null) {
       messages = await window.deskmail.mail.listByLabel(labelId)
@@ -105,17 +110,22 @@ export const useMail = create<MailState>((set, get) => ({
 
   setFolder: async (id) => {
     const messages = await window.deskmail.mail.listMessages(id)
-    set({ activeFolderId: id, activeLabelId: null, activeSmartViewId: null, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
+    set({ activeFolderId: id, activeLabelId: null, activeSmartViewId: null, activeUnified: false, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
   },
 
   setLabel: async (id) => {
     const messages = await window.deskmail.mail.listByLabel(id)
-    set({ activeLabelId: id, activeSmartViewId: null, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
+    set({ activeLabelId: id, activeSmartViewId: null, activeUnified: false, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
   },
 
   setSmartView: async (id) => {
     const messages = await window.deskmail.smartViews.run(id)
-    set({ activeSmartViewId: id, activeLabelId: null, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
+    set({ activeSmartViewId: id, activeLabelId: null, activeUnified: false, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
+  },
+
+  setUnified: async () => {
+    const messages = await window.deskmail.mail.listUnified()
+    set({ activeUnified: true, activeFolderId: null, activeLabelId: null, activeSmartViewId: null, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
   },
 
   toggleSelected: (id) =>

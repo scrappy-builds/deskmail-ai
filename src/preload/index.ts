@@ -18,6 +18,7 @@ const api: DeskMailApi = {
   mail: {
     listFolders: (accountId?: number) => ipcRenderer.invoke('mail:list-folders', accountId),
     listMessages: (folderId: number) => ipcRenderer.invoke('mail:list-messages', folderId),
+    listUnified: () => ipcRenderer.invoke('mail:list-unified'),
     search: (query: string) => ipcRenderer.invoke('mail:search', query),
     getMessage: (id: number) => ipcRenderer.invoke('mail:get-message', id),
     markRead: (id: number, read: boolean) => ipcRenderer.invoke('mail:mark-read', id, read),

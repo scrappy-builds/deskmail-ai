@@ -64,6 +64,7 @@ export interface DeskMailApi {
   mail: {
     listFolders(accountId?: number): Promise<FolderSummary[]>
     listMessages(folderId: number): Promise<MessageListItem[]>
+    listUnified(): Promise<MessageListItem[]> // all accounts' inboxes combined
     search(query: string): Promise<MessageListItem[]>
     getMessage(id: number): Promise<MessageDetail | null>
     markRead(id: number, read: boolean): Promise<void>

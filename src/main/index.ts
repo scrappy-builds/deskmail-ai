@@ -10,7 +10,7 @@ import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/ac
 import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
 import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
-import { getMessage, listMessages, listMessagesByLabel, markFolderRead, markRead, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned } from '../db/messages'
+import { getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, markFolderRead, markRead, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned } from '../db/messages'
 import { buildEml, saveMessageFile } from './mail/messageExport'
 import { exportMbox, importMailFile } from './mail/mbox'
 import { buildVcf, parseVcf } from './contacts/vcard'
@@ -394,6 +394,7 @@ function registerIpc(): void {
   // --- Mail data + sync (Stage 5) ---------------------------------------------
   ipcMain.handle('mail:list-folders', (_e, accountId?: number) => listFolders(db, accountId))
   ipcMain.handle('mail:list-messages', (_e, folderId: number) => listMessages(db, folderId))
+  ipcMain.handle('mail:list-unified', () => listUnifiedInbox(db))
   ipcMain.handle('mail:search', (_e, query: string) => searchMessages(db, query))
   ipcMain.handle('mail:get-message', (_e, id: number) => getMessage(db, id))
   ipcMain.handle('mail:mark-read', (_e, id: number, read: boolean) => {
