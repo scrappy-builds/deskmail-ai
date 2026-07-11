@@ -141,6 +141,36 @@ function MailtoToggle(): JSX.Element {
   )
 }
 
+function AboutPane(): JSX.Element {
+  // ponytail: version string mirrors package.json — bump both at release time.
+  const version = '0.1.0'
+  const items: { label: string; value: string }[] = [
+    { label: 'Private by design', value: 'Your mail is cached on this PC and your password is encrypted by Windows. No accounts, no telemetry — nothing leaves your machine except your own mail server and, if you choose, your own Claude.' },
+    { label: 'Claude connector', value: 'Read and draft only. It can never send mail, permanently delete, or read your password.' },
+    { label: 'Licence', value: 'Apache License 2.0 — free and open source. Use it, change it, share it. See the LICENSE file for the full terms.' }
+  ]
+  return (
+    <div className="max-w-[480px]">
+      <div className="text-[20px] font-bold">DeskMail AI</div>
+      <div className="mt-0.5 text-[12.5px] font-semibold text-text-3">Version {version}</div>
+      <p className="mt-4 text-[13px] leading-relaxed text-text-2">
+        A local, private desktop email client with a safe, built-in Claude connector.
+      </p>
+      <div className="mt-5 flex flex-col gap-3.5">
+        {items.map((it) => (
+          <div key={it.label}>
+            <div className="text-[12px] font-semibold text-accent">{it.label}</div>
+            <div className="mt-0.5 text-[12.5px] leading-relaxed text-text-3">{it.value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-6 border-t border-border pt-4 text-[12px] leading-relaxed text-text-3">
+        No warranty — this software comes as-is. Use at your own risk and keep your own backups.
+      </div>
+    </div>
+  )
+}
+
 function Placeholder({ name }: { name: Section }): JSX.Element {
   return (
     <div className="rounded-lg border border-dashed border-border-2 p-6 text-[13px] leading-relaxed text-text-3">
@@ -204,6 +234,7 @@ export function Settings({ onClose, initialAccountSetup }: { onClose: () => void
             {section === 'Shortcuts' && <ShortcutsPane />}
             {section === 'Security' && <SecurityPane />}
             {section === 'Local storage' && <LocalStoragePane />}
+            {section === 'About' && <AboutPane />}
             {section !== 'Accounts' &&
               section !== 'Rules' &&
               section !== 'Notifications' &&
@@ -216,7 +247,8 @@ export function Settings({ onClose, initialAccountSetup }: { onClose: () => void
               section !== 'Appearance' &&
               section !== 'Shortcuts' &&
               section !== 'Security' &&
-              section !== 'Local storage' && <Placeholder name={section} />}
+              section !== 'Local storage' &&
+              section !== 'About' && <Placeholder name={section} />}
           </div>
         </div>
       </div>
