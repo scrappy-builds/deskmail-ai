@@ -17,6 +17,25 @@ export function upsertFolder(
     db.run('UPDATE folders SET name = ?, role = ? WHERE id = ?', [name, role, existing.id])
     return existing.id
   }
+  // A standard role maps to exactly one mailbox. If a row for this role already
+  // exists (typically the pre-sync placeholder, whose remote_path is a bare
+  // 'Sent'/'Trash'/… ), adopt it and point it at the real server path — rather
+  // than inserting a duplicate. This is what keeps prefixed-namespace servers
+  // (Dovecot's 'INBOX.Sent', the cPanel default) from spawning two 'sent' rows
+  // and making findFolderByRole resolve to the empty placeholder.
+  // ponytail: assumes one folder per role; a server reporting two same-role
+  // mailboxes (e.g. Gmail's label model) would collapse them — revisit if we add
+  // Gmail label support.
+  if (role) {
+    const byRole = db.get(
+      'SELECT id FROM folders WHERE account_id = ? AND role = ?',
+      [accountId, role]
+    ) as { id: number } | undefined
+    if (byRole) {
+      db.run('UPDATE folders SET name = ?, remote_path = ? WHERE id = ?', [name, remotePath, byRole.id])
+      return byRole.id
+    }
+  }
   db.run(
     'INSERT INTO folders (account_id, name, role, remote_path) VALUES (?, ?, ?, ?)',
     [accountId, name, role, remotePath]
@@ -73,8 +92,9 @@ const STANDARD: { role: string; name: string; remote: string }[] = [
 
 // Make sure the familiar mailboxes exist locally so the sidebar shows a full
 // folder tree even before the first successful sync creates them. Idempotent.
-// ponytail: if a prefixed-namespace server later syncs e.g. 'INBOX.Sent', a
-// second 'sent' row can appear; the sidebar dedupes standard roles by count.
+// When the real sync later discovers the server's mailbox for a role (even under
+// a prefixed namespace like 'INBOX.Sent'), upsertFolder adopts this placeholder
+// row rather than creating a duplicate.
 export function ensureStandardFolders(db: DB, accountId: number): void {
   for (const s of STANDARD) {
     if (!findFolderByRole(db, accountId, s.role)) upsertFolder(db, accountId, s.name, s.role, s.remote)

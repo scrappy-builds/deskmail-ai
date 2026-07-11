@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { openDatabase, type DB } from '../../src/db/database'
-import { createFolder, ensureStandardFolders, findFolderByRole, listFolders, moveFolder } from '../../src/db/folders'
+import { createFolder, ensureStandardFolders, findFolderByRole, listFolders, moveFolder, upsertFolder } from '../../src/db/folders'
 
 // Insert the bare minimum account so folders (account_id NOT NULL) can be created.
 function seedAccount(db: DB): number {
@@ -49,5 +49,17 @@ describe('folders: subfolders inside the Inbox', () => {
   it('refuses to nest a folder under a non-Inbox standard mailbox', () => {
     const id = createFolder(db, accountId, 'Receipts')
     expect(() => moveFolder(db, id, junkId)).toThrow(/Inbox/)
+  })
+
+  // A prefixed-namespace server (Dovecot 'INBOX.Sent') must adopt the pre-sync
+  // placeholder rather than create a second 'sent' row that findFolderByRole
+  // would then resolve to instead of the real, populated mailbox.
+  it('adopts the placeholder when a prefixed-namespace folder syncs', () => {
+    const placeholderSent = findFolderByRole(db, accountId, 'sent')!.id
+    const synced = upsertFolder(db, accountId, 'Sent', 'sent', 'INBOX.Sent')
+    expect(synced).toBe(placeholderSent) // same row, not a duplicate
+    const sentRows = listFolders(db, accountId).filter((f) => f.role === 'sent')
+    expect(sentRows).toHaveLength(1)
+    expect(findFolderByRole(db, accountId, 'sent')!.remote_path).toBe('INBOX.Sent')
   })
 })
