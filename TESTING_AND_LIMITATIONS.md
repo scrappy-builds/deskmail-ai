@@ -96,6 +96,11 @@ personal use; they're a roadmap.
   what Windows shows for apps without a paid certificate.
 - **Single user, single machine.** No multi-user support, no sync of settings between
   machines (other than manual backup/restore).
+- **No built-in video-meeting creation yet.** DeskMail's calendar reads and joins
+  Teams/Meet/Zoom links from invites you receive, but it can't *create* a real
+  meeting on those services (that needs each provider's API). When you make your own
+  event you choose "In person" or paste your own link ("Custom link"). Real
+  Teams/Meet/Zoom integration is a roadmap item.
 - **The Claude connector cannot send or permanently delete.** By design — it can
   draft and organise, but sending and hard-deletes are always your action. (This is a
   feature, listed here so expectations are clear.)

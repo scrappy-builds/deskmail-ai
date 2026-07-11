@@ -973,8 +973,8 @@ export function ClaudeConnectorPane(): JSX.Element {
 export function MeetingsPane(): JSX.Element {
   const items = [
     { t: 'Invites in your inbox', d: 'When an email contains a meeting invitation, open it and accept — the event is added to your calendar, with a one-click Join if it has a video link.' },
-    { t: 'Your own events', d: 'Create events in the Calendar tab. For a video call you can pick Microsoft Teams, Google Meet, Zoom, In person, or Custom link.' },
-    { t: 'Joining', d: 'DeskMail recognises Teams, Google Meet and Zoom links from invites and gives you a one-click Join button.' }
+    { t: 'Your own events', d: 'Create events in the Calendar tab. For a video call, create the meeting in Teams/Zoom/Meet, then choose Custom link and paste the real link — or pick In person.' },
+    { t: 'Joining', d: 'DeskMail recognises Teams, Google Meet and Zoom links from invites you receive and gives you a one-click Join button.' }
   ]
   return (
     <div className="flex max-w-[540px] flex-col gap-4">
@@ -990,9 +990,8 @@ export function MeetingsPane(): JSX.Element {
         ))}
       </div>
       <div className="rounded-md border border-border px-3.5 py-2.5 text-[12.5px] leading-relaxed text-text-3">
-        <b>Good to know:</b> picking Teams, Meet or Zoom adds a placeholder link so the in-app Join button
-        works, but it isn't a real meeting on that service. To invite others to a genuine call, create the
-        meeting in your Teams/Zoom/Meet app first, then choose <b>Custom link</b> here and paste the real link.
+        <b>Coming later:</b> built-in Teams, Google Meet and Zoom integration that creates a real meeting for
+        you. For now, paste your own meeting link with <b>Custom link</b>.
       </div>
     </div>
   )

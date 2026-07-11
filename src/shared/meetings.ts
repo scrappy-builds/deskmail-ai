@@ -17,30 +17,12 @@ export const PROVIDERS: Record<MeetingProvider, ProviderInfo> = {
   custom: { label: 'Custom link', colour: '#1e7a38', video: false }
 }
 
-function rand(n: number): string {
-  let s = ''
-  const chars = 'abcdefghijklmnopqrstuvwxyz'
-  for (let i = 0; i < n; i++) s += chars[Math.floor(Math.random() * chars.length)]
-  return s
-}
-
-// Generate a plausible join link for a video provider. Real per-meeting links
-// need the provider's API/OAuth; this mirrors the prototype (format-correct URL)
-// so join/launch works end to end. custom uses the pasted URL as-is.
-// ponytail: format-correct placeholder links; wire real provider APIs if/when needed.
+// Resolve the join link for a self-created event. Only a pasted Custom link is a
+// real link; we no longer fabricate one for Teams/Meet/Zoom (a genuine meeting
+// needs each provider's own API — that's a roadmap item). Real links that arrive
+// inside an actual invite are kept as-is on the event (joinUrl), not generated here.
 export function generateJoinLink(provider: MeetingProvider, customUrl?: string): string | null {
-  switch (provider) {
-    case 'teams':
-      return `https://teams.microsoft.com/l/meetup-join/${rand(8)}${rand(8)}`
-    case 'meet':
-      return `https://meet.google.com/${rand(3)}-${rand(4)}-${rand(3)}`
-    case 'zoom':
-      return `https://zoom.us/j/${Math.floor(1e9 + Math.random() * 8e9)}`
-    case 'custom':
-      return customUrl?.trim() || null
-    case 'inperson':
-      return null
-  }
+  return provider === 'custom' ? customUrl?.trim() || null : null
 }
 
 // Detect a provider from a URL or location string (used when parsing invites).

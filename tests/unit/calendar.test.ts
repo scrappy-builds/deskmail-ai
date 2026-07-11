@@ -37,12 +37,15 @@ describe('events CRUD', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it('creates an event, generates a join link, and stores guests', () => {
-    const id = createEvent(db, BASE)
+  it('creates an event and stores guests; only a Custom link yields a join link', () => {
+    const id = createEvent(db, BASE) // provider 'teams', no pasted link
     const e = getEvent(db, id)!
     expect(e.title).toBe('Q3 sync')
-    expect(e.joinUrl).toMatch(/^https:\/\/teams\.microsoft\.com/)
+    expect(e.joinUrl).toBeNull() // Teams/Meet/Zoom are no longer fabricated
     expect(e.attendees.map((a) => a.name)).toEqual(['Alex Reed', 'Priya Nair'])
+
+    const id2 = createEvent(db, { ...BASE, provider: 'custom', location: 'https://whereby.com/room' })
+    expect(getEvent(db, id2)!.joinUrl).toBe('https://whereby.com/room')
   })
 
   it('lists events within a date range', () => {
@@ -87,12 +90,13 @@ describe('recurrence expansion (pure)', () => {
 })
 
 describe('meeting links', () => {
-  it('generates provider-correct links', () => {
-    expect(generateJoinLink('teams')).toMatch(/^https:\/\/teams\.microsoft\.com/)
-    expect(generateJoinLink('meet')).toMatch(/^https:\/\/meet\.google\.com/)
-    expect(generateJoinLink('zoom')).toMatch(/^https:\/\/zoom\.us\/j\/\d+/)
+  it('only returns a real (pasted) Custom link — never fabricates Teams/Meet/Zoom', () => {
+    expect(generateJoinLink('teams')).toBeNull()
+    expect(generateJoinLink('meet')).toBeNull()
+    expect(generateJoinLink('zoom')).toBeNull()
     expect(generateJoinLink('inperson')).toBeNull()
     expect(generateJoinLink('custom', 'https://whereby.com/room')).toBe('https://whereby.com/room')
+    expect(generateJoinLink('custom')).toBeNull()
   })
 
   it('derives desktop deep links, browser-only for others', () => {

@@ -7,7 +7,11 @@ import { useToast } from '../store/toastStore'
 
 const RECUR_LABELS: Record<RecurFreq, string> = { none: 'Does not repeat', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }
 
-const PROVIDER_ORDER: MeetingProvider[] = ['teams', 'meet', 'zoom', 'inperson', 'custom']
+// Only In person + Custom link for now — DeskMail doesn't create real
+// Teams/Meet/Zoom meetings (that needs each provider's API; on the roadmap).
+// Paste a real meeting link via Custom link. Links inside received invites still
+// show a Join button.
+const PROVIDER_ORDER: MeetingProvider[] = ['inperson', 'custom']
 
 function todayIso(): string {
   const d = new Date()
@@ -21,7 +25,7 @@ export function EventModal(): JSX.Element {
   const [date, setDate] = useState(newEventDate ?? todayIso())
   const [start, setStart] = useState('14:00')
   const [end, setEnd] = useState('14:30')
-  const [provider, setProvider] = useState<MeetingProvider>('teams')
+  const [provider, setProvider] = useState<MeetingProvider>('inperson')
   const [customLink, setCustomLink] = useState('')
   const [guests, setGuests] = useState('')
   const [notes, setNotes] = useState('')
