@@ -198,7 +198,10 @@ describe('folder tree management', () => {
     const moved = deleteFolder(db, custom)
     expect(moved).toBe(1)
     expect(listFolders(db, acc).find((f) => f.id === custom)).toBeUndefined()
-    expect(listFolders(db, acc).find((f) => f.role === 'inbox')?.totalCount).toBe(1)
+    // Its message goes to Deleted Items (Trash), not the Inbox — consistent with
+    // "delete = move to Trash; only Empty Trash removes it from the server".
+    expect(listFolders(db, acc).find((f) => f.role === 'trash')?.totalCount).toBe(1)
+    expect(listFolders(db, acc).find((f) => f.role === 'inbox')?.totalCount).toBe(0)
 
     const inbox = listFolders(db, acc).find((f) => f.role === 'inbox')!
     expect(() => deleteFolder(db, inbox.id)).toThrow() // standard folder protected

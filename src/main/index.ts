@@ -9,8 +9,8 @@ import { getAppSetting, loadLayoutPrefs, saveLayoutPrefs, seedLayoutIfEmpty, set
 import { mergeKeymap, type Keymap } from '@shared/shortcuts'
 import { parseMailto } from '@shared/mailto'
 import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/accounts'
-import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
-import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
+import { createFolder, deleteFolder, ensureStandardFolders, findFolderByRole, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
+import { imapCreateFolder, imapDeleteFolder, imapMoveToTrashAndDelete, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
 import { allKnownDomains, countDuplicateMessages, countFromSender, dedupeMessages, getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned, topSenderDomains } from '../db/messages'
 import { buildEml, saveMessageFile } from './mail/messageExport'
@@ -625,8 +625,14 @@ function registerIpc(): void {
   })
   ipcMain.handle('mail:delete-folder', (_e, id: number) => {
     const f = getFolder(db, id)
-    const moved = deleteFolder(db, id)
-    if (f) void imapDeleteFolder(db, f.account_id, f.remote_path ?? f.name).finally(broadcastMailChanged)
+    const trash = f ? findFolderByRole(db, f.account_id, 'trash') : null
+    const moved = deleteFolder(db, id) // locally moves its mail to Trash
+    if (f && trash?.remote_path) {
+      // Server-side: move the folder's mail into Trash, then delete the empty folder.
+      void imapMoveToTrashAndDelete(db, f.account_id, f.remote_path ?? f.name, trash.remote_path).finally(broadcastMailChanged)
+    } else if (f) {
+      void imapDeleteFolder(db, f.account_id, f.remote_path ?? f.name).finally(broadcastMailChanged)
+    }
     broadcastMailChanged()
     return { moved }
   })

@@ -153,17 +153,19 @@ export function renameFolder(db: DB, id: number, name: string): void {
   db.run('UPDATE folders SET name = ?, remote_path = ? WHERE id = ?', [trimmed, trimmed, id])
 }
 
-// Delete a custom folder, moving any messages it holds back to the inbox so
-// nothing is lost. Returns how many were moved. Standard folders are protected.
+// Delete a custom folder, moving any messages it holds into Deleted Items (Trash)
+// so nothing is lost — and, like deleting a single message, they aren't gone from
+// the server until Trash is emptied. Falls back to the Inbox if there's no Trash.
+// Returns how many were moved. Standard folders are protected.
 export function deleteFolder(db: DB, id: number): number {
   const f = getFolder(db, id)
   if (!f) return 0
   if (f.role) throw new Error('The standard folders can’t be deleted.')
-  const inbox = findFolderByRole(db, f.account_id, 'inbox')
+  const dest = findFolderByRole(db, f.account_id, 'trash') ?? findFolderByRole(db, f.account_id, 'inbox')
   const moved = (db.get('SELECT COUNT(*) c FROM messages WHERE folder_id = ?', [id]) as { c: number }).c
-  if (inbox) db.run('UPDATE messages SET folder_id = ? WHERE folder_id = ?', [inbox.id, id])
+  if (dest) db.run('UPDATE messages SET folder_id = ? WHERE folder_id = ?', [dest.id, id])
   db.run('DELETE FROM folders WHERE id = ?', [id])
-  if (inbox) refreshFolderCounts(db, inbox.id)
+  if (dest) refreshFolderCounts(db, dest.id)
   return moved
 }
 

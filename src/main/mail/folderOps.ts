@@ -42,3 +42,24 @@ export function imapRenameFolder(db: DB, accountId: number, from: string, to: st
 export function imapDeleteFolder(db: DB, accountId: number, path: string): Promise<void> {
   return withImap(db, accountId, (c) => c.mailboxDelete(path).catch(() => undefined))
 }
+
+// Delete a folder server-side but first MOVE any mail it holds into Trash, so the
+// mail survives on the server (recoverable from Deleted Items) rather than being
+// destroyed with the mailbox. Order matters: move out, then delete the now-empty
+// folder. Best-effort like the rest of this file.
+export function imapMoveToTrashAndDelete(db: DB, accountId: number, path: string, trashPath: string): Promise<void> {
+  return withImap(db, accountId, async (c) => {
+    const lock = await c.getMailboxLock(path)
+    try {
+      const mb = c.mailbox
+      if (mb && typeof mb !== 'boolean' && mb.exists > 0) {
+        await c.messageMove('1:*', trashPath, { uid: true }).catch(() => undefined)
+      }
+    } finally {
+      lock.release()
+    }
+    // Can't delete a selected mailbox — close it first, then remove it.
+    await c.mailboxClose().catch(() => undefined)
+    await c.mailboxDelete(path).catch(() => undefined)
+  })
+}
