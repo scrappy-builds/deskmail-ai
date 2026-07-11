@@ -27,7 +27,7 @@ export const PLATFORMS: SocialPlatform[] = [
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14 4v9a3 3 0 11-2-2.8V4h2c.5 2 2 3.5 4 3.7" fill="none" stroke="${G}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>` },
   { id: 'youtube', label: 'YouTube', placeholder: 'https://www.youtube.com/@you',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="4" fill="${G}"/><path d="M10 9l5 3-5 3z" fill="#fff"/></svg>` },
-  { id: 'website', label: 'Website', placeholder: 'https://functional3duk.co.uk',
+  { id: 'website', label: 'Website', placeholder: 'https://example.com',
     svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="${G}" stroke-width="2"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" fill="none" stroke="${G}" stroke-width="1.5"/></svg>` }
 ]
 

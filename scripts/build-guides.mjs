@@ -139,11 +139,11 @@ async function captureAll() {
 
   // Account wizard (fill example values), top half
   await win.getByRole('button', { name: 'Add account' }).click()
-  await win.getByLabel('Display name').fill('Jamie Bell')
-  await win.getByLabel('Email address').fill('jamie@functional3duk.co.uk')
+  await win.getByLabel('Display name').fill('Alex Doe')
+  await win.getByLabel('Email address').fill('you@example.com')
   await win.getByPlaceholder('imap.example.com').fill('imap.fastmail.com')
   await win.getByPlaceholder('smtp.example.com').fill('smtp.fastmail.com')
-  await win.getByLabel('Username').fill('jamie@functional3duk.co.uk')
+  await win.getByLabel('Username').fill('you@example.com')
   await win.getByLabel('Password').fill('••••••••••••')
   // Scroll the modal back to the top so the name/email/incoming fields are shown.
   await win.getByLabel('Display name').scrollIntoViewIfNeeded()
@@ -199,7 +199,7 @@ async function captureAll() {
 
 // ---- PDF assembly -------------------------------------------------------------
 function newDoc(path) {
-  const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: 'DeskMail AI', Author: 'Functional 3D UK' } })
+  const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: 'DeskMail AI', Author: 'DeskMail AI' } })
   doc.pipe(createWriteStream(path))
   return doc
 }
@@ -212,7 +212,7 @@ function cover(doc, title, subtitle) {
   doc.fontSize(16).fillColor(ACCENT).font('Helvetica-Bold').text(title, { align: 'center' })
   doc.moveDown(0.6)
   doc.fontSize(11).fillColor(MUTE).font('Helvetica').text(subtitle, { align: 'center' })
-  doc.fontSize(9).fillColor(MUTE).text('Functional 3D UK · functional3duk.co.uk', 48, doc.page.height - 70, { align: 'center', width: doc.page.width - 96 })
+  doc.fontSize(9).fillColor(MUTE).text('DeskMail AI', 48, doc.page.height - 70, { align: 'center', width: doc.page.width - 96 })
 }
 function h(doc, text) {
   if (doc.y > doc.page.height - 220) doc.addPage()

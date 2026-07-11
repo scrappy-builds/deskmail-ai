@@ -9,3 +9,6 @@ Thumbs.db
 playwright-report/
 test-results/
 coverage/
+
+# build caches
+*.tsbuildinfo
