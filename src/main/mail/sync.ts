@@ -55,8 +55,12 @@ function mailboxStatus(client: ImapFlow): MailboxStatus | null {
   return { uidValidity: Number(mb.uidValidity), uidNext: Number(mb.uidNext), exists: mb.exists }
 }
 
-// Ingest one fetched message, then — inbox only — run the junk/rules/focus
-// pipeline (Sent must never be junk-filtered). Returns the stored id, or null.
+// Ingest one fetched message. When `triage` is set — only for genuinely new mail
+// arriving above the cursor, never for the first-sync seed or historical
+// back-fill — run the inbox junk/rules/focus pipeline (Sent is never triaged).
+// Importing existing history must not retroactively junk/move old mail, and
+// skipping the pipeline there also keeps bulk back-fill fast. Returns the stored
+// id, or null.
 async function ingestOne(
   db: DB,
   accountId: number,
@@ -64,7 +68,8 @@ async function ingestOne(
   role: string | null,
   msg: FetchMessageObject,
   myEmails: string[],
-  junkEnabled: boolean
+  junkEnabled: boolean,
+  triage: boolean
 ): Promise<number | null> {
   if (!msg.source) return null
   const id = await ingestRaw(
@@ -78,7 +83,7 @@ async function ingestOne(
     },
     msg.source
   )
-  if (role === 'inbox') {
+  if (triage && role === 'inbox') {
     applyJunkIfSpam(db, id, junkEnabled)
     applyRulesToMessage(db, id)
     applyFocusClassification(db, id, myEmails)
@@ -164,7 +169,7 @@ async function syncFolder(
         let maxUid = 0
         let minUid = Number.POSITIVE_INFINITY
         for await (const msg of client.fetch(`${start}:*`, { uid: true, flags: true, source: true })) {
-          const id = await ingestOne(db, accountId, folderId, role, msg, myEmails, junkEnabled)
+          const id = await ingestOne(db, accountId, folderId, role, msg, myEmails, junkEnabled, false) // seed = import, no triage
           if (id == null) continue
           if (msg.uid > maxUid) maxUid = msg.uid
           if (msg.uid < minUid) minUid = msg.uid
@@ -180,7 +185,7 @@ async function syncFolder(
       let maxUid = cursor.lastSeenUid
       for await (const msg of client.fetch(`${cursor.lastSeenUid + 1}:*`, { uid: true, flags: true, source: true }, { uid: true })) {
         if (msg.uid <= cursor.lastSeenUid) continue // guard the N:* quirk (an old message when none are newer)
-        const id = await ingestOne(db, accountId, folderId, role, msg, myEmails, junkEnabled)
+        const id = await ingestOne(db, accountId, folderId, role, msg, myEmails, junkEnabled, true) // new mail = triage it
         if (id == null) continue
         if (msg.uid > maxUid) maxUid = msg.uid
       }
@@ -265,7 +270,7 @@ export async function backfillFolder(db: DB, accountId: number, folderId: number
           reachedDepth = true
           continue
         }
-        const id = await ingestOne(db, accountId, folderId, folder.role, msg, myEmails, junkEnabled)
+        const id = await ingestOne(db, accountId, folderId, folder.role, msg, myEmails, junkEnabled, false) // back-fill = historical import, no triage
         if (id != null) added++
       }
       // Lower the floor to this page's bottom, or to 1 (done) if depth is hit.
