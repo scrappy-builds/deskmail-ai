@@ -133,6 +133,16 @@ async function syncFolder(
   myEmails: string[],
   junkEnabled: boolean
 ): Promise<void> {
+  // The pooled connection is kept alive between cycles, and imapflow won't
+  // re-SELECT a mailbox it already thinks is current — so its cached view
+  // (uidNext/exists, and how a `*` range resolves) can be stale and hide mail
+  // that arrived since it was last selected. Force a fresh SELECT by closing it
+  // first if it's the currently-open mailbox, so incremental sync always sees
+  // new mail. Cheap: one extra SELECT only when this mailbox was already open.
+  const open = client.mailbox
+  if (open && typeof open !== 'boolean' && open.path === remotePath) {
+    await client.mailboxClose()
+  }
   const lock = await client.getMailboxLock(remotePath)
   try {
     const status = mailboxStatus(client)
@@ -164,17 +174,17 @@ async function syncFolder(
         // Empty folder — still record the cursor so we don't seed it every run.
         setCursorHigh(db, folderId, status.uidValidity, 0, null)
       }
-    } else {
-      // Incremental: fetch new mail above the high-water mark (by UID).
-      if (status.uidNext - 1 > cursor.lastSeenUid) {
-        let maxUid = cursor.lastSeenUid
-        for await (const msg of client.fetch(`${cursor.lastSeenUid + 1}:*`, { uid: true, flags: true, source: true }, { uid: true })) {
-          const id = await ingestOne(db, accountId, folderId, role, msg, myEmails, junkEnabled)
-          if (id == null) continue
-          if (msg.uid > maxUid) maxUid = msg.uid
-        }
-        setCursorHigh(db, folderId, status.uidValidity, maxUid)
+    } else if (status.uidNext - 1 > cursor.lastSeenUid) {
+      // Incremental: fetch mail newer than the high-water mark (by UID). uidNext
+      // is trustworthy here because of the forced fresh SELECT above.
+      let maxUid = cursor.lastSeenUid
+      for await (const msg of client.fetch(`${cursor.lastSeenUid + 1}:*`, { uid: true, flags: true, source: true }, { uid: true })) {
+        if (msg.uid <= cursor.lastSeenUid) continue // guard the N:* quirk (an old message when none are newer)
+        const id = await ingestOne(db, accountId, folderId, role, msg, myEmails, junkEnabled)
+        if (id == null) continue
+        if (msg.uid > maxUid) maxUid = msg.uid
       }
+      if (maxUid > cursor.lastSeenUid) setCursorHigh(db, folderId, status.uidValidity, maxUid)
     }
 
     // Reconcile flags/deletions on established folders (skip the fresh seed —

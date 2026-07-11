@@ -12,7 +12,7 @@ import { getAccount, insertAccount, listAccounts, updateAccount } from '../db/ac
 import { createFolder, deleteFolder, ensureStandardFolders, getFolder, moveFolder, refreshFolderCounts, renameFolder, reorderFolders } from '../db/folders'
 import { imapCreateFolder, imapDeleteFolder, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
-import { allKnownDomains, countDuplicateMessages, countFromSender, dedupeMessages, getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, markFolderRead, markRead, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned, topSenderDomains } from '../db/messages'
+import { allKnownDomains, countDuplicateMessages, countFromSender, dedupeMessages, getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned, topSenderDomains } from '../db/messages'
 import { buildEml, saveMessageFile } from './mail/messageExport'
 import { exportMbox, importMailFile } from './mail/mbox'
 import { buildVcf, parseVcf } from './contacts/vcard'
@@ -240,8 +240,9 @@ function handleProtocolUrl(url: string): boolean {
     openMessageWindow(messageId)
     showMainWindow()
   } else if (op === 'read') {
-    markRead(db, messageId, true)
+    applyAction(db, messageId, 'read') // local + queue the \Seen push to IMAP
     broadcastMailChanged()
+    void drainMailActions(db)
   } else {
     applyAction(db, messageId, op) // archive | trash — queued to IMAP as usual
     broadcastMailChanged()
@@ -525,8 +526,9 @@ function registerIpc(): void {
   ipcMain.handle('mail:search', (_e, query: string) => searchMessages(db, query))
   ipcMain.handle('mail:get-message', (_e, id: number) => getMessage(db, id))
   ipcMain.handle('mail:mark-read', (_e, id: number, read: boolean) => {
-    markRead(db, id, read)
+    applyAction(db, id, read ? 'read' : 'unread') // local + queue the \Seen change for IMAP
     broadcastMailChanged() // so the main list refreshes even when marked from a pop-out window
+    void drainMailActions(db) // push to the server in the background
   })
   ipcMain.handle('mail:action', (_e, messageId: number, op: MailOp, targetFolderId?: number) => {
     // Capture the source folder role before the move, so "not junk" (junk→inbox)
@@ -560,10 +562,14 @@ function registerIpc(): void {
   ipcMain.handle('mail:sync-depth-get', () => Number(getAppSetting(db, 'sync-depth-days') ?? '365'))
   ipcMain.handle('mail:sync-depth-set', (_e, days: number) => setAppSetting(db, 'sync-depth-days', String(Math.max(0, Math.round(days)))))
   ipcMain.handle('mail:mark-folder-read', (_e, folderId: number) => {
-    const n = markFolderRead(db, folderId)
+    // Push \Seen for each unread message (via the action queue) so the read
+    // state reaches the server, not just the local cache.
+    const ids = db.all('SELECT id FROM messages WHERE folder_id = ? AND is_read = 0', [folderId]) as unknown as { id: number }[]
+    for (const { id } of ids) applyAction(db, id, 'read')
     refreshFolderCounts(db, folderId)
     broadcastMailChanged()
-    return { count: n }
+    void drainMailActions(db) // push to the server in the background
+    return { count: ids.length }
   })
   ipcMain.handle('mail:set-followup', (_e, messageId: number, option: SnoozeOption | 'clear') => {
     setFollowup(db, messageId, option === 'clear' ? null : computeSnoozeTime(option))
