@@ -2,9 +2,8 @@
   "name": "deskmail-ai",
   "version": "0.1.0",
   "description": "Local single-user desktop email client with a safe Claude MCP connector.",
-  "author": "Jamie Bell <jamie@functional3duk.co.uk>",
-  "license": "UNLICENSED",
-  "private": true,
+  "author": "Jamie Bell",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
