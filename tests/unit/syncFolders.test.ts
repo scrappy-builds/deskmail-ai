@@ -122,7 +122,7 @@ describe('full mail sync — all folders, incremental, back-fill', () => {
     sentId = findFolderByRole(db, 1, 'sent')!.id
   }
 
-  it('seeds the newest page per folder, then back-fills older mail on demand', { timeout: 20000 }, async () => {
+  it('seeds the newest page per folder, then back-fills older mail on demand', async () => {
     server.add(makeMailbox('INBOX', 'Inbox', 60))
     server.add(makeMailbox('Sent', 'Sent', 4, 10, '\\Sent'))
 
@@ -147,7 +147,7 @@ describe('full mail sync — all folders, incremental, back-fill', () => {
     expect(await backfillFolder(db, 1, inboxId)).toBe(0)
   })
 
-  it('pulls only new mail above the cursor on a later sync', { timeout: 20000 }, async () => {
+  it('pulls only new mail above the cursor on a later sync', async () => {
     const box = makeMailbox('INBOX', 'Inbox', 5)
     server.add(box)
     await syncAccount(db, 1)
@@ -162,7 +162,7 @@ describe('full mail sync — all folders, incremental, back-fill', () => {
     expect(getFolderCursor(db, inboxId)!.lastSeenUid).toBe(7)
   })
 
-  it('wipes and re-seeds a folder when UIDVALIDITY changes', { timeout: 20000 }, async () => {
+  it('wipes and re-seeds a folder when UIDVALIDITY changes', async () => {
     const box = makeMailbox('INBOX', 'Inbox', 5, 10)
     server.add(box)
     await syncAccount(db, 1)
@@ -176,7 +176,7 @@ describe('full mail sync — all folders, incremental, back-fill', () => {
     expect(getFolderCursor(db, inboxId)!.uidValidity).toBe(999)
   })
 
-  it('reconciles read/starred flags and moves server-deleted mail to Trash', { timeout: 20000 }, async () => {
+  it('reconciles read/starred flags and moves server-deleted mail to Trash', async () => {
     const box = makeMailbox('INBOX', 'Inbox', 5)
     server.add(box)
     await syncAccount(db, 1)
@@ -199,7 +199,7 @@ describe('full mail sync — all folders, incremental, back-fill', () => {
     expect(inbox.find((m) => m.subject === 'Message 4')!.isStarred).toBe(true)
   })
 
-  it('dedupes a locally-appended Sent copy once the server copy syncs', { timeout: 20000 }, async () => {
+  it('dedupes a locally-appended Sent copy once the server copy syncs', async () => {
     server.add(makeMailbox('INBOX', 'Inbox', 1))
     // One server-side Sent message with a known Message-ID.
     const sent = makeMailbox('Sent', 'Sent', 0, 10, '\\Sent')
