@@ -6,6 +6,8 @@ local database on your PC; your password is encrypted by Windows. Nothing leaves
 your machine except the connection to your own mail server and — only if you
 choose — your own Claude.
 
+![DeskMail AI main window](docs/img/app-main.png)
+
 > ### 👋 New to coding, Claude, or AI in general?
 > This README is written for people who are comfortable with a terminal. **If that's
 > not you, don't worry** — scroll down to **[For people new to all this](#for-people-new-to-all-this)**
@@ -32,7 +34,14 @@ limitations are in **[TESTING_AND_LIMITATIONS.md](TESTING_AND_LIMITATIONS.md)**.
 
 ---
 
-## Quick start (development)
+## Quick start
+
+**The easy way (no coding):** download the Windows installer from the
+[Releases](../../releases) page, run it, and click **"More info" → "Run anyway"** past
+the "unknown publisher" warning (it's unsigned — normal for a free app). Then open
+DeskMail and add your email account.
+
+**From source (developers):**
 
 **Prerequisites:** Windows 10/11, [Node.js](https://nodejs.org/) 20+ and Git.
 
@@ -54,13 +63,90 @@ npm run package      # build the Windows installer into release/
 
 > **Install note:** this project avoids native compilation — `electron` is a plain
 > download and the database is WebAssembly SQLite (`node-sqlite3-wasm`), so no build
-> tools are required. If `node_modules/electron/dist` is empty after `npm install`,
-> extract the cached zip from `%LOCALAPPDATA%\electron\Cache` into it.
+> tools are required.
 
-**Prefer not to build it yourself?** Grab the ready-made Windows installer from the
-[Releases](../../releases) page. (Because it isn't code-signed, Windows SmartScreen
-shows an "unknown publisher" warning on first run — that's normal for apps without a
-paid certificate.)
+---
+
+## Connect Claude Desktop (the local MCP connector)
+
+This is the headline feature: connect DeskMail to the **Claude Desktop** app so Claude
+can help with your email — read it, search it, summarise it, draft replies, tidy it,
+and even set up accounts. It runs through a **local server on your PC** and is
+deliberately **read-and-draft only**: it can **never send mail, permanently delete
+anything, read your password, change settings, or touch files outside DeskMail**. Any
+draft it writes waits in your Drafts for you to review and send.
+
+> **New to this?** DeskMail has a built-in, plain-English walkthrough — open
+> **Settings → Claude connector** and click **"✨ New to Claude? Show me the simple,
+> step-by-step guide"**:
+>
+> ![The in-app step-by-step guide](docs/img/claude-guide.png)
+
+### What you need first
+The free **Claude Desktop** app installed on the same PC — download it from
+[claude.ai/download](https://claude.ai/download). And run DeskMail at least once so its
+local database exists.
+
+### Step by step
+
+**1. In DeskMail, open Settings → Claude connector** and click **Copy**. This copies a
+small configuration block with the exact paths for your machine.
+
+![Settings → Claude connector](docs/img/claude-connector.png)
+
+**2. In Claude Desktop, open the config file.** Go to **Settings → Developer → Edit
+Config**. That opens a file called `claude_desktop_config.json` in your text editor.
+
+**3. Paste in the DeskMail block.** The block you copied looks like this (your paths
+will differ — always copy the real one from the app rather than typing it):
+
+```json
+{
+  "mcpServers": {
+    "deskmail-ai": {
+      "command": "C:\\Program Files\\DeskMail AI\\DeskMail AI.exe",
+      "args": ["C:\\Program Files\\DeskMail AI\\resources\\app\\out\\main\\mcp-server.js"],
+      "env": {
+        "ELECTRON_RUN_AS_NODE": "1",
+        "DESKMAIL_DB": "C:\\Users\\you\\AppData\\Roaming\\deskmail-ai\\deskmail.db"
+      }
+    }
+  }
+}
+```
+
+> **If the file already has other servers:** it will already contain an `"mcpServers"`
+> section. Don't paste a second one — just add the `"deskmail-ai": { … }` entry
+> *inside* the existing `mcpServers` object, and make sure the commas and braces still
+> line up (it must stay valid JSON).
+
+**4. Save the file.**
+
+**5. Fully quit and reopen Claude Desktop** (quit it completely, not just close the
+window, then start it again).
+
+**6. Check it worked.** In a Claude Desktop chat you should now be able to use DeskMail's
+tools. Try asking: *"Using DeskMail, summarise my unread emails."* Claude will read your
+mail through the connector and answer.
+
+### It launches via DeskMail itself
+The config runs DeskMail's own binary in Node mode (`ELECTRON_RUN_AS_NODE=1`) so you
+**don't need a separate Node.js install**, and points it at your local `deskmail.db`
+via `DESKMAIL_DB`. Nothing about your mail leaves your PC.
+
+### Have Claude set up an email account for you
+Once connected, you can ask Claude Desktop, e.g. *"set up my iCloud email in DeskMail."*
+Claude looks up the right server settings, fills in the Add-account form in the app for
+you, and tells you to type your password, run the connection test, and save. **Claude
+never asks for or sees your password** — you enter only that.
+
+### Troubleshooting
+- **Tools don't show up in Claude Desktop?** Check the config is valid JSON (a missing
+  comma or brace will stop it loading), then fully quit and reopen Claude Desktop.
+- **Make sure DeskMail has been run at least once** so its database exists at the path
+  in `DESKMAIL_DB`.
+- Re-copy the config from **Settings → Claude connector → Copy** if you moved or
+  reinstalled DeskMail (the paths change).
 
 ---
 
@@ -76,41 +162,6 @@ Claude how the app is put together and the rules to follow.
 
 ---
 
-## Connect Claude Desktop (local MCP server)
-
-DeskMail ships a **local MCP server** so Claude Desktop (or Claude Code) can safely
-**search, read, summarise, draft, and organise** your mail, and **set up accounts**.
-It exposes only these tools:
-
-- Read/draft: `list_accounts`, `list_folders`, `search_emails`, `read_email`,
-  `create_draft`, `find_related_emails`, `find_unanswered_emails`,
-  `extract_dates_and_deadlines`, `summarise_thread_data`.
-- Organise (all reversible): `move_email`, `archive_email`, `delete_email` (to Trash),
-  `flag_email`, `mark_email_read`, `label_email`, `snooze_email`, `set_followup`.
-- Overview & insight: `inbox_overview`, `triage_priority`, `get_daily_digest`,
-  `suggest_rules`, `get_unsubscribe_info`, `get_sent_context`.
-- **Account setup:** `suggest_mail_config` (look up a provider's settings),
-  `stage_account_setup` (fill in the Add-account form for you — never the password),
-  `check_account_setup` (confirm it connected).
-- Export: `export_for_notebooklm`.
-
-**It can never** send email, **permanently** delete anything, read your credentials,
-or touch files outside DeskMail's own storage. `delete_email` only moves to Trash;
-drafts are stored locally in the **Drafts** view for you to review and send yourself.
-
-**To connect:** open **Settings → Claude connector** in DeskMail and copy the
-generated config into Claude Desktop's `claude_desktop_config.json` (Claude Desktop →
-Settings → Developer → Edit Config), then restart Claude Desktop.
-
-### Have Claude set up an account for you
-
-Ask Claude Desktop something like *"set up my iCloud email in DeskMail."* Claude looks
-up the right server settings, fills in the Add-account form in the app for you, and
-tells you to type your password, run the connection test, and save. **Claude never
-asks for or sees your password** — you enter only that.
-
----
-
 ## Licence
 
 **Apache License 2.0** — see [LICENSE](LICENSE).
@@ -121,8 +172,7 @@ notice and the licence with it. You're welcome to keep the "DeskMail AI" name or
 your fork, whichever you prefer. If you improve it, please do share what you did — that's
 the whole idea.
 
-Third-party dependency licences are listed in
-[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+Third-party dependency licences are in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 **No warranty.** This software touches your mail and passwords. It comes **as-is, with
 no warranty**, and the author is **not liable** for any loss or damage from using it.
@@ -168,10 +218,9 @@ The easiest way, if you don't code:
 3. Run it. Windows may warn that the publisher is unknown — that's expected for a free
    app like this; choose "More info" → "Run anyway" if you're comfortable.
 4. Open DeskMail, and either add your email by hand or ask Claude to set it up for you.
-
-If you *do* want to run it from the source code, follow **[Quick start](#quick-start-development)**
-above — and if a step is confusing, paste it into Claude and ask it to walk you through
-it on your computer.
+5. To let Claude help with your mail, follow **[Connect Claude Desktop](#connect-claude-desktop-the-local-mcp-connector)**
+   above — and if a step is confusing, the app's own **"New to Claude?"** guide walks
+   you through it, or paste the step into Claude and ask it to help.
 
 **Is it safe?**
 Your mail and password stay on your PC. The one honest caveat: the local copy of your
