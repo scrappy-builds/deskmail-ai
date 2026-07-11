@@ -1278,7 +1278,7 @@ app.whenReady().then(async () => {
   // Windows attributes desktop notifications (and their icon) to this AppUserModelID;
   // it must match the installer's appId so the toast reads "DeskMail AI" with our
   // logo, not the default "electron.app.DeskMail AI".
-  app.setAppUserModelId('uk.co.functional3d.deskmail')
+  app.setAppUserModelId('com.deskmail.ai')
   // Toast quick actions come back to us as deskmail:// activations.
   app.setAsDefaultProtocolClient('deskmail')
   // British English spellcheck for compose (falls back gracefully if unavailable).

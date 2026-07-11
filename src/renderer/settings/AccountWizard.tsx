@@ -157,10 +157,10 @@ export function AccountWizard({
 
       <div className="grid grid-cols-2 gap-3">
         <Field label="Display name">
-          <input className={inputCls} value={a.displayName} onChange={(e) => set('displayName', e.target.value)} placeholder="Jamie Bell" />
+          <input className={inputCls} value={a.displayName} onChange={(e) => set('displayName', e.target.value)} placeholder="Example User" />
         </Field>
         <Field label="Email address">
-          <input className={inputCls} value={a.emailAddress} onChange={(e) => set('emailAddress', e.target.value)} placeholder="jamie@example.com" />
+          <input className={inputCls} value={a.emailAddress} onChange={(e) => set('emailAddress', e.target.value)} placeholder="user@example.com" />
         </Field>
       </div>
 

@@ -218,15 +218,8 @@ function CustomFolderRow({
           </div>
         )}
       </button>
-      {showLabels && (
-        <button
-          onClick={(e) => setMenu({ x: e.clientX, y: e.clientY })}
-          title="Folder options"
-          className="absolute right-1 top-1.5 hidden rounded p-1 text-text-3 hover:bg-raised group-hover:block"
-        >
-          <Icon name="sliders" size={14} />
-        </button>
-      )}
+      {/* Folder options are on right-click (onContextMenu above) — no hover button,
+          so it never covers the unread/total counts. */}
       {menu && (
         <div className="absolute right-1 top-8 z-20 w-[160px] rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
           <button onClick={() => { setMenu(null); void window.deskmail.mail.markFolderRead(f.id).then(({ count }) => showToast({ text: count > 0 ? `Marked ${count} as read` : 'Nothing unread here' })) }} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
@@ -557,15 +550,8 @@ export function Sidebar({
                   </div>
                 )}
               </button>
-              {showLabels && (
-                <button
-                  onClick={() => setMenuFolderId(f.id)}
-                  title="Folder options"
-                  className="absolute right-1 top-1.5 hidden rounded p-1 text-text-3 hover:bg-raised group-hover:block"
-                >
-                  <Icon name="sliders" size={14} />
-                </button>
-              )}
+              {/* Folder options are on right-click (onContextMenu above) — no hover
+                  button, so it never covers the unread/total counts. */}
               {menuFolderId === f.id && (
                 <div ref={menuRef} className="absolute right-1 top-8 z-20 w-[180px] rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
                   <button onClick={() => void markAllRead(f.id)} className="block w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
