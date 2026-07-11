@@ -37,14 +37,14 @@ export const BUILTIN_TOKENS: Record<ThemeBase, Record<ThemeTokenKey, string>> = 
     bg: '#f5f5f5', 'bg-2': '#ffffff', 'bg-3': '#efefef', 'bg-inset': '#eaeaea', 'bg-hover': '#f0f0f0',
     border: '#e4e4e4', 'border-2': '#d2d2d2',
     text: '#111111', 'text-2': '#4d4d4d', 'text-3': '#8a8a8a',
-    accent: '#1e7a38', 'accent-2': '#1a5c28', 'accent-fg': '#ffffff',
+    accent: '#2f80ed', 'accent-2': '#1f66cc', 'accent-fg': '#ffffff',
     claude: '#bf8420', star: '#e0a72b', green: '#1a9e5e', red: '#dc2f42'
   },
   dark: {
     bg: '#111111', 'bg-2': '#181818', 'bg-3': '#202020', 'bg-inset': '#0b0b0b', 'bg-hover': '#252525',
     border: '#2a2a2a', 'border-2': '#393939',
     text: '#ffffff', 'text-2': '#cccccc', 'text-3': '#7d7d7d',
-    accent: '#2fae4f', 'accent-2': '#38bd59', 'accent-fg': '#ffffff',
+    accent: '#4a90e2', 'accent-2': '#5b9ff0', 'accent-fg': '#ffffff',
     claude: '#e0a13a', star: '#f2c14e', green: '#54d18a', red: '#f0787a'
   }
 }

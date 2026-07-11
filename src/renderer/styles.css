@@ -16,8 +16,8 @@
   --text: #111111;
   --text-2: #4d4d4d;
   --text-3: #8a8a8a;
-  --accent: #1e7a38;
-  --accent-2: #1a5c28;
+  --accent: #2f80ed;
+  --accent-2: #1f66cc;
   --accent-fg: #ffffff;
   --claude: #bf8420;
   --claude-soft: color-mix(in srgb, var(--claude) 16%, transparent);
@@ -39,8 +39,8 @@
   --text: #ffffff;
   --text-2: #cccccc;
   --text-3: #7d7d7d;
-  --accent: #2fae4f;
-  --accent-2: #38bd59;
+  --accent: #4a90e2;
+  --accent-2: #5b9ff0;
   --accent-fg: #ffffff;
   --claude: #e0a13a;
   --star: #f2c14e;
