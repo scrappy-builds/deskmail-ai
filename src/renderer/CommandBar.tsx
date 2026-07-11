@@ -42,7 +42,7 @@ function ThemeMenu(): JSX.Element {
   )
 
   return (
-    <div className="relative">
+    <div className="relative flex-none">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex h-[38px] items-center gap-1.5 rounded-md border border-border px-3 text-[13px] font-semibold text-text-2 hover:bg-raised"
@@ -116,7 +116,7 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
       <div className="min-w-0 flex-1" />
 
       {/* Compact search, kept on the right; grows when focused (no separate box). */}
-      <div className="relative flex w-[210px] items-center transition-[width] duration-200 focus-within:w-[380px]">
+      <div className="relative flex w-[210px] flex-none items-center transition-[width] duration-200 focus-within:w-[380px]">
         <span className="pointer-events-none absolute left-3 flex text-text-3">
           <Icon name="search" size={16} />
         </span>
@@ -133,7 +133,7 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
       <button
         onClick={() => void sync()}
         disabled={syncing}
-        className="flex items-center gap-2 rounded-md border border-border px-3 py-[9px] text-[13px] font-semibold text-text-2 hover:bg-raised disabled:opacity-50"
+        className="flex flex-none items-center gap-2 whitespace-nowrap rounded-md border border-border px-3 py-[9px] text-[13px] font-semibold text-text-2 hover:bg-raised disabled:opacity-50"
         title="Send queued mail and check for new mail"
       >
         <Icon name="sync" size={16} className={syncing ? 'animate-spin' : undefined} />
@@ -142,7 +142,7 @@ export function CommandBar({ mode, onMode, onOpenViewSettings, onCompose }: Comm
 
       <button
         onClick={onOpenViewSettings}
-        className="flex h-[38px] w-[38px] items-center justify-center rounded-md border border-border text-text-2 hover:bg-raised"
+        className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-md border border-border text-text-2 hover:bg-raised"
         title="View settings"
       >
         <Icon name="sliders" size={18} />
