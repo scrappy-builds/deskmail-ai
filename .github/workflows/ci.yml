@@ -1,0 +1,48 @@
+name: CI
+
+# Proves DeskMail builds, tests, and packages from a clean checkout on a fresh
+# Windows machine — the "does it work on someone else's PC" gate. Runs on every
+# push/PR and can be triggered by hand.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # Clean, reproducible install from the lockfile. This is the real test:
+      # a fresh machine with no hand-placed Electron binary or WASM SQLite.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      # Build the Windows installer. Skip code-signing (no certificate on CI).
+      - name: Build Windows installer
+        run: npm run package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeskMail-AI-Windows-installer
+          path: release/*.exe
+          if-no-files-found: error
