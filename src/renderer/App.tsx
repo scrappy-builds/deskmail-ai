@@ -6,7 +6,7 @@ import { installShortcuts } from './shortcuts'
 import { ShortcutHelp } from './ShortcutHelp'
 import { buildReplyDraft } from './mail/reply'
 import { DEFAULT_KEYMAP, type Keymap } from '@shared/shortcuts'
-import type { MailOp } from '@shared/db'
+import type { AccountInput, MailOp } from '@shared/db'
 import { CommandBar, type Mode } from './CommandBar'
 import { Workspace } from './regions/Workspace'
 import { ViewSettings } from './ViewSettings'
@@ -43,6 +43,9 @@ export function App(): JSX.Element {
   const [mode, setMode] = useState<Mode>('mail')
   const [viewSettingsOpen, setViewSettingsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // When the MCP connector stages an account, open Settings → Accounts with the
+  // wizard pre-filled (password blank) for the user to finish.
+  const [setupPrefill, setSetupPrefill] = useState<AccountInput | null>(null)
   const [draftsOpen, setDraftsOpen] = useState(false)
   const [outboxOpen, setOutboxOpen] = useState(false)
   const [smartBuilderOpen, setSmartBuilderOpen] = useState(false)
@@ -54,6 +57,12 @@ export function App(): JSX.Element {
 
   const reloadShortcuts = (): void => void window.deskmail.shortcuts.get().then(setShortcutCfg)
   useEffect(reloadShortcuts, [])
+
+  // The MCP connector staged an account for the user → pop Settings with it.
+  useEffect(() => window.deskmail.onOpenAccountSetup((input) => {
+    setSetupPrefill(input)
+    setSettingsOpen(true)
+  }), [])
 
   // Global keyboard shortcuts. The listener mounts once and reads the live config
   // through a ref each keypress, so remaps and the master toggle apply instantly
@@ -142,7 +151,7 @@ export function App(): JSX.Element {
       {mode === 'today' && <Today />}
 
       {viewSettingsOpen && <ViewSettings onClose={() => setViewSettingsOpen(false)} />}
-      {settingsOpen && <Settings onClose={() => { setSettingsOpen(false); reloadShortcuts() }} />}
+      {settingsOpen && <Settings initialAccountSetup={setupPrefill} onClose={() => { setSettingsOpen(false); setSetupPrefill(null); reloadShortcuts() }} />}
       {draftsOpen && (
         <DraftsModal
           onClose={() => setDraftsOpen(false)}

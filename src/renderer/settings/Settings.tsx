@@ -24,15 +24,25 @@ const SECTIONS = [
 ] as const
 type Section = (typeof SECTIONS)[number]
 
-function AccountsPane(): JSX.Element {
+function AccountsPane({ initialSetup }: { initialSetup?: AccountInput | null }): JSX.Element {
   const [accounts, setAccounts] = useState<AccountSummary[]>([])
   const [adding, setAdding] = useState(false)
+  const [prefill, setPrefill] = useState<AccountInput | undefined>(undefined)
   const [editing, setEditing] = useState<{ id: number; initial: AccountInput } | null>(null)
 
   const refresh = (): void => {
     void window.deskmail.listAccounts().then(setAccounts)
   }
   useEffect(refresh, [])
+
+  // Opened via the MCP connector's staged setup: jump straight into the wizard
+  // pre-filled with everything but the password.
+  useEffect(() => {
+    if (initialSetup) {
+      setPrefill(initialSetup)
+      setAdding(true)
+    }
+  }, [initialSetup])
 
   const openEdit = (id: number): void => {
     void window.deskmail.getAccount(id).then((initial) => {
@@ -44,15 +54,17 @@ function AccountsPane(): JSX.Element {
     return (
       <AccountWizard
         editId={editing?.id}
-        initial={editing?.initial}
+        initial={editing?.initial ?? prefill}
         onSaved={() => {
           setAdding(false)
           setEditing(null)
+          setPrefill(undefined)
           refresh()
         }}
         onCancel={() => {
           setAdding(false)
           setEditing(null)
+          setPrefill(undefined)
         }}
       />
     )
@@ -138,7 +150,7 @@ function Placeholder({ name }: { name: Section }): JSX.Element {
   )
 }
 
-export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
+export function Settings({ onClose, initialAccountSetup }: { onClose: () => void; initialAccountSetup?: AccountInput | null }): JSX.Element {
   const [section, setSection] = useState<Section>('Accounts')
 
   return (
@@ -179,7 +191,7 @@ export function Settings({ onClose }: { onClose: () => void }): JSX.Element {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-5">
-            {section === 'Accounts' && <AccountsPane />}
+            {section === 'Accounts' && <AccountsPane initialSetup={initialAccountSetup} />}
             {section === 'Rules' && <RulesPane />}
             {section === 'Notifications' && <NotificationsPane />}
             {section === 'Signatures' && <SignaturesPane />}

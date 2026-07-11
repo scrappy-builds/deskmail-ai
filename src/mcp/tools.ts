@@ -10,8 +10,18 @@ import { createEvent } from '../db/events'
 import { suggestRules } from '../db/rules'
 import { computeSnoozeTime, snoozeMessage } from '../db/snoozes'
 import { getDigestData } from '../db/today'
-import type { MailOp, SnoozeOption } from '@shared/db'
+import { getAppSetting, setAppSetting } from '../db/settings'
+import type { AccountInput, MailOp, SnoozeOption } from '@shared/db'
+import { suggestSettings } from '@shared/providerPresets'
 import { exportForNotebookLM } from './export'
+
+// Where stage_account_setup parks the half-filled account for the running app to
+// pick up (form fields only — never a password).
+export const PENDING_SETUP_KEY = 'pending-account-setup'
+
+function asSecurity(v: unknown): 'ssl' | 'starttls' | 'none' {
+  return v === 'starttls' || v === 'none' ? v : 'ssl'
+}
 
 // A tool definition kept independent of the MCP SDK so it's directly testable.
 export interface ToolDef {
@@ -61,6 +71,91 @@ export function buildTools(db: DB, opts?: { exportDir?: string }): ToolDef[] {
             status: st?.sync_status ?? 'ok'
           }
         })
+      }
+    },
+    {
+      name: 'suggest_mail_config',
+      description:
+        'Given an email address, return the IMAP/SMTP host, port and security to use, plus any note the user needs (e.g. an app-specific password is required). Known providers come back confirmed; unknown/custom domains come back as a best guess to confirm. Read-only.',
+      inputSchema: { email: z.string() },
+      handler: (args) => suggestSettings(String(args.email ?? ''))
+    },
+    {
+      name: 'stage_account_setup',
+      description:
+        "Fill in DeskMail's Add-account form for the user with everything except the password, so they only have to type the password, run the connection test and save. Never send or ask for a password here. After calling this, tell the user to open DeskMail, enter their password on the pre-filled form, run the test and save — then call check_account_setup to confirm. Use suggest_mail_settings first to get the host/port/security.",
+      inputSchema: {
+        email: z.string(),
+        display_name: z.string().optional(),
+        username: z.string().optional(),
+        incoming_type: z.enum(['imap', 'pop3']).optional(),
+        incoming_host: z.string(),
+        incoming_port: z.number(),
+        incoming_security: z.enum(['ssl', 'starttls', 'none']),
+        outgoing_host: z.string(),
+        outgoing_port: z.number(),
+        outgoing_security: z.enum(['ssl', 'starttls', 'none'])
+      },
+      handler: (args) => {
+        const email = String(args.email ?? '').trim()
+        if (!email.includes('@')) return { ok: false, error: 'A valid email address is required.' }
+        const incomingHost = String(args.incoming_host ?? '').trim()
+        const outgoingHost = String(args.outgoing_host ?? '').trim()
+        if (!incomingHost || !outgoingHost) return { ok: false, error: 'Both incoming_host and outgoing_host are required.' }
+        const input: AccountInput = {
+          displayName: String(args.display_name ?? email),
+          emailAddress: email,
+          incomingType: args.incoming_type === 'pop3' ? 'pop3' : 'imap',
+          incomingHost,
+          incomingPort: Number(args.incoming_port ?? 993),
+          incomingSecurity: asSecurity(args.incoming_security),
+          outgoingHost,
+          outgoingPort: Number(args.outgoing_port ?? 465),
+          outgoingSecurity: asSecurity(args.outgoing_security),
+          username: String(args.username ?? email),
+          password: '' // never staged — the user types it into the app
+        }
+        setAppSetting(db, PENDING_SETUP_KEY, JSON.stringify(input))
+        return {
+          ok: true,
+          staged: { ...input, password: undefined },
+          message:
+            'Done — open DeskMail and the Add-account form will be filled in for you with everything except the password. Type your password, run the connection test and save. Then tell me and I’ll confirm it’s connected.'
+        }
+      }
+    },
+    {
+      name: 'check_account_setup',
+      description:
+        'Check whether an account (optionally by email) has been added and is receiving mail, or whether a staged setup is still waiting for the user to enter their password. Use this to confirm setup finished. Read-only.',
+      inputSchema: { email: z.string().optional() },
+      handler: (args) => {
+        const email = args.email ? String(args.email).toLowerCase() : null
+        const accounts = listAccounts(db)
+        const match = email ? accounts.find((a) => a.emailAddress.toLowerCase() === email) : undefined
+        if (match) {
+          const st = db.get(
+            'SELECT sync_status, sync_error FROM sync_state WHERE account_id = ? ORDER BY id DESC LIMIT 1',
+            [match.id]
+          ) as { sync_status: string | null; sync_error: string | null } | undefined
+          return {
+            set_up: true,
+            account: { id: match.id, email: match.emailAddress },
+            receiving: st?.sync_status ?? 'pending',
+            error: st?.sync_error ?? null
+          }
+        }
+        const pending = getAppSetting(db, PENDING_SETUP_KEY)
+        if (pending) {
+          const staged = JSON.parse(pending) as AccountInput
+          return {
+            set_up: false,
+            pending: true,
+            staged_email: staged.emailAddress,
+            message: 'The form is filled in and waiting in DeskMail for the user to enter their password and save.'
+          }
+        }
+        return { set_up: false, pending: false, message: 'No matching account and nothing staged — call stage_account_setup first.' }
       }
     },
     {

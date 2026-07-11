@@ -25,7 +25,8 @@ const EXPECTED_TOOLS = [
   'export_for_notebooklm',
   'list_labels', 'label_email', 'inbox_overview', 'triage_priority', 'batch_apply',
   'suggest_rules', 'get_unsubscribe_info', 'create_calendar_event',
-  'get_sent_context', 'snooze_email', 'set_followup', 'get_daily_digest', 'get_rule_suggestions'
+  'get_sent_context', 'snooze_email', 'set_followup', 'get_daily_digest', 'get_rule_suggestions',
+  'suggest_mail_config', 'stage_account_setup', 'check_account_setup'
 ].sort()
 
 describe('MCP tool surface', () => {
@@ -79,6 +80,38 @@ describe('MCP tool surface', () => {
     const [acc] = tool('list_accounts').handler({}) as Record<string, unknown>[]
     expect(Object.keys(acc).sort()).toEqual(['colour', 'display_name', 'email_address', 'id', 'status'])
     expect(JSON.stringify(acc)).not.toMatch(/password|secret/i)
+  })
+
+  it('suggest_mail_config knows providers and guesses custom domains', () => {
+    const gmail = tool('suggest_mail_config').handler({ email: 'x@gmail.com' }) as { imapHost: string; confirmed: boolean }
+    expect(gmail.imapHost).toBe('imap.gmail.com')
+    expect(gmail.confirmed).toBe(true)
+    const custom = tool('suggest_mail_config').handler({ email: 'me@acme.co' }) as { imapHost: string; confirmed: boolean }
+    expect(custom.imapHost).toBe('mail.acme.co')
+    expect(custom.confirmed).toBe(false)
+  })
+
+  it('stage_account_setup parks a password-free form the app can pick up', () => {
+    const res = tool('stage_account_setup').handler({
+      email: 'new@acme.co', incoming_host: 'mail.acme.co', incoming_port: 993, incoming_security: 'ssl',
+      outgoing_host: 'mail.acme.co', outgoing_port: 465, outgoing_security: 'ssl'
+    }) as { ok: boolean }
+    expect(res.ok).toBe(true)
+    const staged = JSON.parse((db.get("SELECT value FROM app_settings WHERE key='pending-account-setup'") as { value: string }).value)
+    expect(staged.emailAddress).toBe('new@acme.co')
+    expect(staged.password).toBe('') // never staged
+    // Before the account exists, check reports it's pending.
+    const chk = tool('check_account_setup').handler({ email: 'new@acme.co' }) as { set_up: boolean; pending?: boolean }
+    expect(chk.set_up).toBe(false)
+    expect(chk.pending).toBe(true)
+  })
+
+  it('stage_account_setup rejects a missing host', () => {
+    const res = tool('stage_account_setup').handler({
+      email: 'x@acme.co', incoming_host: '', incoming_port: 993, incoming_security: 'ssl',
+      outgoing_host: 'mail.acme.co', outgoing_port: 465, outgoing_security: 'ssl'
+    }) as { ok: boolean; error?: string }
+    expect(res.ok).toBe(false)
   })
 
   it('list_folders returns account/name/counts', () => {

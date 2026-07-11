@@ -167,6 +167,24 @@ function showMainWindow(): void {
   }
 }
 
+// The MCP connector's stage_account_setup parks a half-filled account (no
+// password) under this key; here we hand it to the window's Add-account form and
+// clear the staged copy so it's shown once. Key mirrors PENDING_SETUP_KEY in
+// src/mcp/tools.ts.
+function checkPendingAccountSetup(): void {
+  const raw = getAppSetting(db, 'pending-account-setup')
+  if (!raw) return
+  db.run('DELETE FROM app_settings WHERE key = ?', ['pending-account-setup'])
+  let input: unknown
+  try {
+    input = JSON.parse(raw)
+  } catch {
+    return // corrupt staged blob — drop it
+  }
+  showMainWindow()
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('account:open-setup', input)
+}
+
 function unreadInboxCount(): number {
   return (db.get("SELECT COUNT(*) c FROM messages WHERE is_read = 0 AND is_muted = 0 AND folder_id IN (SELECT id FROM folders WHERE role = 'inbox')") as { c: number }).c
 }
@@ -1334,6 +1352,12 @@ app.whenReady().then(async () => {
       if (n > 0) broadcastMailChanged()
     })
   }, 20000)
+  // Pick up an account the MCP connector staged for the user (stage_account_setup):
+  // on launch, whenever the window regains focus (snappy when they switch back
+  // after asking Claude), and a slow poll as a backstop.
+  checkPendingAccountSetup()
+  app.on('browser-window-focus', () => checkPendingAccountSetup())
+  setInterval(checkPendingAccountSetup, 15000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()

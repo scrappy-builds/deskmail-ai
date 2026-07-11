@@ -17,6 +17,13 @@ const api: DeskMailApi = {
   saveAccount: (input: AccountInput) => ipcRenderer.invoke('account:save', input),
   getAccount: (id: number) => ipcRenderer.invoke('account:get', id),
   updateAccount: (id: number, input: AccountInput) => ipcRenderer.invoke('account:update', id, input),
+  // Fired when the MCP connector staged an account for the user to finish — the
+  // renderer opens the Add-account form pre-filled (everything but the password).
+  onOpenAccountSetup: (cb: (input: AccountInput) => void) => {
+    const listener = (_e: unknown, input: AccountInput): void => cb(input)
+    ipcRenderer.on('account:open-setup', listener)
+    return () => ipcRenderer.removeListener('account:open-setup', listener)
+  },
   mail: {
     listFolders: (accountId?: number) => ipcRenderer.invoke('mail:list-folders', accountId),
     listMessages: (folderId: number) => ipcRenderer.invoke('mail:list-messages', folderId),

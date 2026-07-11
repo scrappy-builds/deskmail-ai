@@ -65,6 +65,9 @@ export interface DeskMailApi {
   // Full account details for editing (password included, decrypted for prefill).
   getAccount(id: number): Promise<AccountInput | null>
   updateAccount(id: number, input: AccountInput): Promise<{ id: number }>
+  // Subscribe to "the MCP connector staged an account" — open the Add-account
+  // form pre-filled (password blank). Returns an unsubscribe fn.
+  onOpenAccountSetup(cb: (input: AccountInput) => void): () => void
   // Mail data (DB-backed; reads work offline) + background sync (Stage 5).
   mail: {
     listFolders(accountId?: number): Promise<FolderSummary[]>
