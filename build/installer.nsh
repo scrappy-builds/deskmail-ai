@@ -11,12 +11,20 @@
 ; These defines are picked up before electron-builder inserts MUI_PAGE_FINISH,
 ; so they attach a second checkbox alongside the standard "run app" one. Not
 ; defining *_NOTCHECKED means it starts ticked.
+;
+; Guarded to the installer build pass: electron-builder builds the uninstaller in
+; a separate makensis run (with BUILD_UNINSTALLER defined) that reuses these same
+; MUI_FINISHPAGE_SHOWREADME_* defines for MUI_UNPAGE_FINISH. In the uninstall
+; section a Call must target an "un."-prefixed function, so letting the define
+; leak there makes makensis abort. We don't want this checkbox on the uninstaller
+; finish page anyway, so only define it when NOT building the uninstaller.
+!ifndef BUILD_UNINSTALLER
+  !define MUI_FINISHPAGE_SHOWREADME ""
+  !define MUI_FINISHPAGE_SHOWREADME_TEXT "Set DeskMail AI as my default email app"
+  !define MUI_FINISHPAGE_SHOWREADME_FUNCTION OpenDefaultAppsSettings
 
-!define MUI_FINISHPAGE_SHOWREADME ""
-!define MUI_FINISHPAGE_SHOWREADME_TEXT "Set DeskMail AI as my default email app"
-!define MUI_FINISHPAGE_SHOWREADME_FUNCTION OpenDefaultAppsSettings
-
-Function OpenDefaultAppsSettings
-  ; Open Windows' Default-apps page; the user confirms the change there.
-  ExecShell "open" "ms-settings:defaultapps"
-FunctionEnd
+  Function OpenDefaultAppsSettings
+    ; Open Windows' Default-apps page; the user confirms the change there.
+    ExecShell "open" "ms-settings:defaultapps"
+  FunctionEnd
+!endif
