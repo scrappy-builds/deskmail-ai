@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="app">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  /* Base surfaces: brand near-black + true-neutral greys (DeskMail AI) */
+  .dm-root {
+    --bg:#111111; --bg-2:#181818; --bg-3:#202020; --bg-inset:#0b0b0b; --bg-hover:#252525;
+    --border:#2a2a2a; --border-2:#393939;
+    --text:#ffffff; --text-2:#cccccc; --text-3:#7d7d7d;
+    --accent:#2fae4f; --accent-2:#38bd59; --accent-fg:#ffffff; --claude:#e0a13a;
+    --accent-soft:color-mix(in srgb, var(--accent) 18%, transparent);
+    --sel:color-mix(in srgb, var(--accent) 16%, transparent);
+    --sel-bar:var(--accent);
+    --claude-soft:color-mix(in srgb, var(--claude) 16%, transparent);
+    --star:#f2c14e; --green:#54d18a; --red:#f0787a;
+    --shadow:0 24px 60px -12px rgba(0,0,0,0.7),0 8px 20px -8px rgba(0,0,0,0.6);
+  }
+  .dm-root[data-theme="light"] {
+    --bg:#f5f5f5; --bg-2:#ffffff; --bg-3:#efefef; --bg-inset:#eaeaea; --bg-hover:#f0f0f0;
+    --border:#e4e4e4; --border-2:#d2d2d2;
+    --text:#111111; --text-2:#4d4d4d; --text-3:#8a8a8a;
+    --accent:#1e7a38; --accent-2:#1a5c28; --accent-fg:#ffffff; --claude:#bf8420;
+    --star:#e0a72b; --green:#1a9e5e; --red:#dc2f42;
+    --shadow:0 24px 60px -14px rgba(20,20,20,0.24),0 6px 18px -8px rgba(20,20,20,0.16);
+  }
+  /* --- curated palettes (accent + Claude accent; softs derive via color-mix) --- */
+  .dm-root[data-palette="brand"]  { --accent:#2fae4f; --accent-2:#38bd59; --claude:#e0a13a; }
+  .dm-root[data-theme="light"][data-palette="brand"]  { --accent:#1e7a38; --accent-2:#1a5c28; --claude:#bf8420; }
+  .dm-root[data-palette="teal"]   { --accent:#18b3aa; --accent-2:#2ac6bc; --claude:#e0a13a; }
+  .dm-root[data-theme="light"][data-palette="teal"]   { --accent:#0e8a82; --accent-2:#0b756e; --claude:#bf8420; }
+  .dm-root[data-palette="indigo"] { --accent:#8b7cf6; --accent-2:#a394f8; --claude:#e08a63; }
+  .dm-root[data-theme="light"][data-palette="indigo"] { --accent:#6a56de; --accent-2:#5a45d4; --claude:#c65f38; }
+  .dm-root[data-palette="emerald"]{ --accent:#2fb877; --accent-2:#3fc888; --claude:#e0729c; }
+  .dm-root[data-theme="light"][data-palette="emerald"]{ --accent:#12915b; --accent-2:#0f7d4e; --claude:#c9527a; }
+  .dm-root[data-palette="sunset"] { --accent:#ec6a45; --accent-2:#f27a57; --claude:#e0b04a; }
+  .dm-root[data-theme="light"][data-palette="sunset"] { --accent:#d1512c; --accent-2:#b8461f; --claude:#bf8f28; }
+  .dm-root[data-palette="plum"]   { --accent:#b56ad6; --accent-2:#c17de0; --claude:#5fb0e0; }
+  .dm-root[data-theme="light"][data-palette="plum"]   { --accent:#9b4fc0; --accent-2:#8a3fb0; --claude:#2f7fc4; }
+  .dm-root[data-palette="cobalt"] { --accent:#4d7ff0; --accent-2:#6390f5; --claude:#e0925e; }
+  .dm-root[data-theme="light"][data-palette="cobalt"] { --accent:#2b5fd4; --accent-2:#234fbf; --claude:#c0662f; }
+  @keyframes dmFade { from { opacity:0 } to { opacity:1 } }
+  @keyframes dmPop { from { opacity:0; transform:translateY(10px) scale(.985) } to { opacity:1; transform:none } }
+  @keyframes dmSlideR { from { transform:translateX(102%) } to { transform:none } }
+  @keyframes dmSlideL { from { transform:translateX(-102%) } to { transform:none } }
+  @keyframes dmSpin { to { transform:rotate(360deg) } }
+  .dm-root ::-webkit-scrollbar { width:10px; height:10px; }
+  .dm-root ::-webkit-scrollbar-thumb { background:var(--border-2); border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+  .dm-root ::-webkit-scrollbar-thumb:hover { background:var(--text-3); background-clip:padding-box; }
+  .dm-root ::-webkit-scrollbar-track { background:transparent; }
+  .dm-root input, .dm-root textarea, .dm-root select { font-family:inherit; }
+  .dm-root input:focus, .dm-root textarea:focus { outline:none; }
+  .dm-root a { color:var(--accent); text-decoration:none; }
+  .dm-root a:hover { color:var(--accent-2); }
+</style>
+</helmet>
+<div class="dm-root" data-theme="{{ theme }}" data-palette="{{ palette }}" style="height:100vh;width:100%;display:flex;flex-direction:column;background:var(--bg);color:var(--text);font-family:'Hanken Grotesk',system-ui,sans-serif;overflow:hidden;font-size:14px;-webkit-font-smoothing:antialiased">
+
+  <!-- TITLE BAR -->
+  <div style="height:38px;flex:0 0 auto;display:flex;align-items:center;padding:0 6px 0 12px;background:var(--bg-2);border-bottom:1px solid var(--border);gap:4px;user-select:none">
+    <div style="width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,var(--accent),var(--claude));display:flex;align-items:center;justify-content:center;flex:0 0 auto"></div>
+    <span style="font-weight:700;font-size:12.5px;letter-spacing:.2px;margin-right:14px">DeskMail <span style="color:var(--claude)">AI</span></span>
+    <div style="display:flex;gap:2px;color:var(--text-2);font-size:12.5px">
+      <div style="position:relative">
+        <span onClick="{{ toggleFile }}" style="display:block;padding:3px 8px;border-radius:6px;cursor:pointer;background:{{ fileMenuBg }}" style-hover="background:var(--bg-3)">File</span>
+        <sc-if value="{{ fileMenuOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:100%;left:0;margin-top:4px;min-width:230px;background:var(--bg-2);border:1px solid var(--border-2);border-radius:10px;box-shadow:var(--shadow);padding:6px;z-index:90;animation:dmPop .12s ease">
+            <sc-for list="{{ fileItems }}" as="mi" hint-placeholder-count="8">
+              <sc-if value="{{ mi.sep }}" hint-placeholder-val="{{ false }}"><div style="height:1px;background:var(--border);margin:5px 8px"></div></sc-if>
+              <sc-if value="{{ mi.isItem }}" hint-placeholder-val="{{ true }}">
+                <div onClick="{{ mi.on }}" style="display:flex;align-items:center;gap:14px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:12.5px" style-hover="background:var(--accent-soft);color:var(--accent)">
+                  <span style="flex:1">{{ mi.label }}</span><span style="color:var(--text-3);font-family:'JetBrains Mono',monospace;font-size:10.5px">{{ mi.kbd }}</span>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+      <div style="position:relative">
+        <span onClick="{{ toggleView }}" style="display:block;padding:3px 8px;border-radius:6px;cursor:pointer;background:{{ viewMenuBg }}" style-hover="background:var(--bg-3)">View</span>
+        <sc-if value="{{ viewMenuOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:100%;left:0;margin-top:4px;min-width:230px;background:var(--bg-2);border:1px solid var(--border-2);border-radius:10px;box-shadow:var(--shadow);padding:6px;z-index:90;animation:dmPop .12s ease">
+            <sc-for list="{{ viewItems }}" as="mi" hint-placeholder-count="10">
+              <sc-if value="{{ mi.sep }}" hint-placeholder-val="{{ false }}"><div style="height:1px;background:var(--border);margin:5px 8px"></div></sc-if>
+              <sc-if value="{{ mi.isItem }}" hint-placeholder-val="{{ true }}">
+                <div onClick="{{ mi.on }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:12.5px" style-hover="background:var(--accent-soft);color:var(--accent)">
+                  <span style="width:14px;display:flex;color:var(--accent)">{{ mi.checkIcon }}</span><span style="flex:1">{{ mi.label }}</span>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+      <div style="position:relative">
+        <span onClick="{{ toggleHelp }}" style="display:block;padding:3px 8px;border-radius:6px;cursor:pointer;background:{{ helpMenuBg }}" style-hover="background:var(--bg-3)">Help</span>
+        <sc-if value="{{ helpMenuOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:100%;left:0;margin-top:4px;min-width:210px;background:var(--bg-2);border:1px solid var(--border-2);border-radius:10px;box-shadow:var(--shadow);padding:6px;z-index:90;animation:dmPop .12s ease">
+            <sc-for list="{{ helpItems }}" as="mi" hint-placeholder-count="4">
+              <sc-if value="{{ mi.sep }}" hint-placeholder-val="{{ false }}"><div style="height:1px;background:var(--border);margin:5px 8px"></div></sc-if>
+              <sc-if value="{{ mi.isItem }}" hint-placeholder-val="{{ true }}">
+                <div onClick="{{ mi.on }}" style="display:flex;align-items:center;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:12.5px" style-hover="background:var(--accent-soft);color:var(--accent)">{{ mi.label }}</div>
+              </sc-if>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:1px">
+      <div style="width:44px;height:30px;display:flex;align-items:center;justify-content:center;color:var(--text-2);border-radius:6px" style-hover="background:var(--bg-3)">{{ I.min }}</div>
+      <div style="width:44px;height:30px;display:flex;align-items:center;justify-content:center;color:var(--text-2);border-radius:6px" style-hover="background:var(--bg-3)">{{ I.max }}</div>
+      <div style="width:44px;height:30px;display:flex;align-items:center;justify-content:center;color:var(--text-2);border-radius:6px" style-hover="background:var(--red);color:#fff">{{ I.close }}</div>
+    </div>
+  </div>
+
+  <!-- COMMAND BAR -->
+  <div style="height:56px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--bg-2);border-bottom:1px solid var(--border)">
+    <div style="display:flex;gap:2px;background:var(--bg-inset);border:1px solid var(--border);border-radius:9px;padding:3px">
+      <sc-for list="{{ modeTabs }}" as="mt" hint-placeholder-count="2">
+        <div onClick="{{ mt.onClick }}" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;color:{{ mt.fg }};background:{{ mt.bg }}">{{ mt.icon }}<span>{{ mt.label }}</span></div>
+      </sc-for>
+    </div>
+    <div onClick="{{ openViewSettings }}" style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:9px;border:1px solid var(--border);cursor:pointer;background:var(--bg)" style-hover="border-color:var(--border-2)">
+      <span style="color:var(--accent);display:flex">{{ I.layout }}</span>
+      <span style="font-size:13px;font-weight:600">{{ presetLabel }}</span>
+      <span style="color:var(--text-3);display:flex">{{ I.chevronD }}</span>
+    </div>
+    <div style="flex:1;max-width:640px;position:relative;display:flex;align-items:center">
+      <span style="position:absolute;left:13px;color:var(--text-3);display:flex;pointer-events:none">{{ I.search }}</span>
+      <input value="{{ search }}" onInput="{{ onSearch }}" placeholder="{{ searchPlaceholder }}" style="width:100%;height:38px;padding:0 90px 0 40px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13.5px" style-focus="border-color:var(--accent)">
+      <span style="position:absolute;right:12px;display:flex;gap:5px;pointer-events:none">
+        <kbd style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-3);background:var(--bg-3);border:1px solid var(--border);border-radius:5px;padding:2px 6px">Ctrl</kbd>
+        <kbd style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-3);background:var(--bg-3);border:1px solid var(--border);border-radius:5px;padding:2px 6px">K</kbd>
+      </span>
+    </div>
+    <div style="flex:1"></div>
+    <div onClick="{{ primaryOn }}" style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:10px;background:var(--accent);color:var(--accent-fg);font-weight:600;font-size:13px;cursor:pointer;box-shadow:0 2px 8px -2px var(--accent-soft)" style-hover="background:var(--accent-2)">
+      {{ primaryIcon }}<span>{{ primaryLabel }}</span>
+    </div>
+    <div onClick="{{ toggleClaude }}" title="Claude assistant" style="display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:10px;border:1px solid var(--claude);color:var(--claude);background:var(--claude-soft);font-weight:600;font-size:13px;cursor:pointer">
+      {{ I.sparkles }}<span>Claude</span>
+    </div>
+    <div onClick="{{ openViewSettings }}" title="View settings" style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid var(--border);color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.sliders }}</div>
+    <div onClick="{{ toggleTheme }}" title="Switch light / dark" style="display:flex;align-items:center;gap:7px;height:38px;padding:0 13px;border-radius:10px;border:1px solid var(--border);color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer" style-hover="background:var(--bg-3)">{{ themeIcon }}<span>{{ themeLabel }}</span></div>
+  </div>
+
+  <!-- WORKSPACE -->
+  <div style="flex:1;min-height:0;position:relative;display:flex">
+    <sc-if value="{{ mailMode }}" hint-placeholder-val="{{ true }}">
+    <div style="{{ outerStyle }}">
+
+      <!-- SIDEBAR -->
+      <div style="{{ sidebarStyle }}">
+        <div style="flex:1;overflow-y:auto;padding:12px 10px">
+          <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:10.5px;font-weight:700;letter-spacing:.7px;color:var(--text-3);padding:4px 8px 8px;text-transform:uppercase">Accounts</div>
+          </sc-if>
+          <sc-for list="{{ accounts }}" as="a" hint-placeholder-count="2">
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;cursor:pointer" style-hover="background:var(--bg-3)">
+              <span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:{{ a.color }}"></span>
+              <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.name }}</div>
+                  <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.email }}</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ a.hasUnread }}" hint-placeholder-val="{{ true }}">
+                <span style="font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:20px;padding:1px 7px">{{ a.unread }}</span>
+              </sc-if>
+            </div>
+          </sc-for>
+
+          <div style="height:14px"></div>
+          <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:10.5px;font-weight:700;letter-spacing:.7px;color:var(--text-3);padding:4px 8px 8px;text-transform:uppercase">Folders</div>
+          </sc-if>
+          <sc-for list="{{ folders }}" as="f" hint-placeholder-count="7">
+            <div onClick="{{ f.onClick }}" title="{{ f.name }}" style="display:flex;align-items:center;gap:11px;padding:8px 9px;border-radius:8px;cursor:pointer;margin-bottom:1px;color:{{ f.fg }};background:{{ f.bg }};justify-content:{{ iconJustify }}" style-hover="background:var(--bg-hover)">
+              <span style="display:flex;flex:0 0 auto">{{ f.icon }}</span>
+              <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0">
+                  <span style="font-size:13.5px;font-weight:{{ f.weight }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.name }}</span>
+                  <span style="font-size:11.5px;font-weight:600;color:{{ f.countColor }}">{{ f.count }}</span>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+
+          <div style="height:14px"></div>
+          <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px 8px">
+              <span style="font-size:10.5px;font-weight:700;letter-spacing:.7px;color:var(--text-3);text-transform:uppercase">Custom Views</span>
+              <span style="color:var(--text-3);display:flex;cursor:pointer" style-hover="color:var(--accent)">{{ I.plus }}</span>
+            </div>
+          </sc-if>
+          <sc-for list="{{ views }}" as="v" hint-placeholder-count="4">
+            <div onClick="{{ v.onClick }}" title="{{ v.name }}" style="display:flex;align-items:center;gap:11px;padding:8px 9px;border-radius:8px;cursor:pointer;margin-bottom:1px;color:{{ v.fg }};background:{{ v.bg }};justify-content:{{ iconJustify }}" style-hover="background:var(--bg-hover)">
+              <span style="display:flex;flex:0 0 auto;color:{{ v.iconColor }}">{{ v.icon }}</span>
+              <sc-if value="{{ showLabels }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0">
+                  <span style="font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ v.name }}</span>
+                  <span style="font-size:11.5px;font-weight:600;color:var(--text-3)">{{ v.count }}</span>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- MAIN (list + reading) -->
+      <div style="{{ mainStyle }}">
+        <!-- MESSAGE LIST -->
+        <div style="{{ listStyle }}">
+          <div style="height:48px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--border)">
+            <span style="font-weight:700;font-size:15px">{{ activeTitle }}</span>
+            <span style="font-size:12px;color:var(--text-3);font-weight:600">{{ msgCount }}</span>
+            <div style="flex:1"></div>
+            <span style="color:var(--text-2);display:flex;cursor:pointer;padding:6px;border-radius:7px" style-hover="background:var(--bg-3)">{{ I.filter }}</span>
+            <span style="color:var(--text-2);display:flex;cursor:pointer;padding:6px;border-radius:7px" style-hover="background:var(--bg-3)">{{ I.check }}</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;--rowpy:{{ rowpy }};--clamp:{{ clamp }}">
+            <sc-for list="{{ msgs }}" as="m" hint-placeholder-count="9">
+              <div onClick="{{ m.onSelect }}" onDoubleClick="{{ m.onOpen }}" style="display:flex;gap:10px;padding:var(--rowpy) 14px var(--rowpy) 11px;cursor:pointer;border-bottom:1px solid var(--border);background:{{ m.bg }};border-left:3px solid {{ m.bar }}" style-hover="background:var(--bg-hover)">
+                <div style="width:7px;flex:0 0 auto;display:flex;justify-content:center;padding-top:15px">
+                  <sc-if value="{{ m.unread }}" hint-placeholder-val="{{ true }}"><span style="width:7px;height:7px;border-radius:50%;background:var(--accent);display:block"></span></sc-if>
+                </div>
+                <div style="width:36px;height:36px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;background:{{ m.avBg }};color:{{ m.avFg }}">{{ m.initials }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:7px">
+                    <span style="flex:1;font-size:13.5px;font-weight:{{ m.weight }};color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.from_name }}</span>
+                    <sc-if value="{{ m.hasAttach }}" hint-placeholder-val="{{ true }}"><span style="color:var(--text-3);display:flex">{{ I.clipSm }}</span></sc-if>
+                    <sc-if value="{{ m.starred }}" hint-placeholder-val="{{ true }}"><span style="color:var(--star);display:flex">{{ I.starSm }}</span></sc-if>
+                    <span style="font-size:11.5px;color:var(--text-3);white-space:nowrap;flex:0 0 auto">{{ m.time }}</span>
+                  </div>
+                  <div style="font-size:13px;font-weight:{{ m.weight }};color:var(--text);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.subject }}</div>
+                  <sc-if value="{{ showSnippet }}" hint-placeholder-val="{{ true }}">
+                    <div style="font-size:12.5px;color:var(--text-2);margin-top:2px;line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:var(--clamp)">{{ m.snippet }}</div>
+                  </sc-if>
+                  <sc-if value="{{ m.hasLabel }}" hint-placeholder-val="{{ true }}">
+                    <div style="margin-top:6px"><span style="font-size:10.5px;font-weight:700;color:{{ m.labelColor }};background:{{ m.labelBg }};border-radius:5px;padding:2px 7px;letter-spacing:.2px">{{ m.label }}</span></div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+            <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:60px 24px;text-align:center;color:var(--text-3)">
+                <div style="display:flex;justify-content:center;margin-bottom:12px">{{ I.searchBig }}</div>
+                <div style="font-weight:600;color:var(--text-2)">No messages match “{{ search }}”</div>
+                <div style="font-size:12.5px;margin-top:4px">Try a different term or clear the search.</div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+
+        <!-- READING PANE -->
+        <div style="{{ readingStyle }}">
+          <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ true }}">
+            <div style="height:100%;display:flex;flex-direction:column;min-height:0">
+              <!-- toolbar -->
+              <div style="flex:0 0 auto;display:flex;align-items:center;gap:2px;row-gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--bg-2);flex-wrap:wrap">
+                <div onClick="{{ replyBtn }}" title="Reply" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.reply }}</div>
+                <div onClick="{{ replyAllBtn }}" title="Reply all" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.replyAll }}</div>
+                <div onClick="{{ forwardBtn }}" title="Forward" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.forward }}</div>
+                <div style="width:1px;height:20px;background:var(--border);margin:0 6px"></div>
+                <div title="Archive" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.archive }}</div>
+                <div title="Delete" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3);color:var(--red)">{{ I.trash }}</div>
+                <div onClick="{{ toggleStar }}" title="Star" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:{{ selStarColor }};cursor:pointer" style-hover="background:var(--bg-3)">{{ selStarIcon }}</div>
+                <div title="Mark unread" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.unread }}</div>
+                <div style="flex:1"></div>
+                <div onClick="{{ openSelFull }}" title="Open in window" style="display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:8px;border:1px solid var(--border);color:var(--text-2);font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:var(--bg-3)">{{ I.maximize }}<span>Open</span></div>
+                <div onClick="{{ claudeOnSel }}" title="Ask Claude" style="display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:8px;background:var(--claude-soft);border:1px solid var(--claude);color:var(--claude);font-size:12.5px;font-weight:600;cursor:pointer">{{ I.sparkles }}<span>Claude</span></div>
+              </div>
+              <!-- body -->
+              <div style="flex:1;min-height:0;overflow-y:auto;padding:22px 30px 40px">
+                <div style="max-width:760px;margin:0 auto">
+                  <h1 style="font-size:22px;font-weight:700;line-height:1.25;margin:0 0 16px;text-wrap:pretty">{{ selMsg.subject }}</h1>
+                  <div style="display:flex;align-items:center;gap:13px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+                    <div style="width:44px;height:44px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;background:{{ selMsg.avBg }};color:{{ selMsg.avFg }}">{{ selMsg.initials }}</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="display:flex;align-items:baseline;gap:8px">
+                        <span style="font-weight:700;font-size:14.5px">{{ selMsg.from_name }}</span>
+                        <span style="font-size:12.5px;color:var(--text-3)">&lt;{{ selMsg.from_email }}&gt;</span>
+                      </div>
+                      <div style="font-size:12.5px;color:var(--text-3);margin-top:2px">to {{ selMsg.to }}</div>
+                    </div>
+                    <div style="font-size:12.5px;color:var(--text-3);white-space:nowrap">{{ selMsg.date_full }}</div>
+                  </div>
+                  <!-- invite card -->
+                  <sc-if value="{{ selMsg.isInvite }}" hint-placeholder-val="{{ false }}">
+                    <div style="margin:18px 0;border:1px solid var(--border-2);border-radius:14px;overflow:hidden;background:var(--bg-2)">
+                      <div style="display:flex;gap:14px;padding:16px 18px">
+                        <div style="width:52px;flex:0 0 auto;border-radius:10px;background:var(--accent-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--accent)">
+                          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Jul</span>
+                          <span style="font-size:20px;font-weight:800;line-height:1">9</span>
+                        </div>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-weight:700;font-size:15px">{{ selMsg.invite.title }}</div>
+                          <div style="font-size:12.5px;color:var(--text-2);margin-top:3px">{{ selMsg.invite.when }}</div>
+                          <div style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;color:var(--text-2)">
+                            <span style="color:{{ selMsg.invite.providerColor }};display:flex">{{ selMsg.invite.icon }}</span>
+                            <span style="font-weight:600;color:{{ selMsg.invite.providerColor }}">{{ selMsg.invite.provider }}</span>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:7px;margin-top:5px;font-size:12px;color:var(--text-3)"><span style="display:flex">{{ I.usersSm }}</span><span>{{ selMsg.invite.guests }}</span></div>
+                        </div>
+                      </div>
+                      <sc-if value="{{ selMsg.invite.decided }}" hint-placeholder-val="{{ false }}">
+                        <div style="display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--border);background:var(--accent-soft);color:var(--accent);font-size:12.5px;font-weight:700"><span style="display:flex">{{ I.checkSm }}</span>{{ selMsg.invite.statusLabel }}</div>
+                      </sc-if>
+                      <sc-if value="{{ selMsg.invite.undecided }}" hint-placeholder-val="{{ true }}">
+                        <div style="display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border)">
+                          <div onClick="{{ selMsg.invite.onAccept }}" style="flex:1;text-align:center;padding:9px;border-radius:9px;background:var(--accent);color:var(--accent-fg);font-weight:700;font-size:12.5px;cursor:pointer" style-hover="background:var(--accent-2)">Accept</div>
+                          <div onClick="{{ selMsg.invite.onTentative }}" style="flex:1;text-align:center;padding:9px;border-radius:9px;border:1px solid var(--border);color:var(--text-2);font-weight:600;font-size:12.5px;cursor:pointer" style-hover="background:var(--bg-3)">Tentative</div>
+                          <div onClick="{{ selMsg.invite.onDecline }}" style="flex:1;text-align:center;padding:9px;border-radius:9px;border:1px solid var(--border);color:var(--red);font-weight:600;font-size:12.5px;cursor:pointer" style-hover="background:var(--bg-3)">Decline</div>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-if>
+                  <!-- remote images banner -->
+                  <div style="display:flex;align-items:center;gap:10px;margin:16px 0;padding:9px 13px;border-radius:9px;background:var(--bg-3);border:1px solid var(--border);font-size:12.5px;color:var(--text-2)">
+                    <span style="color:var(--text-3);display:flex">{{ I.shield }}</span>
+                    <span style="flex:1">Remote images are blocked to protect your privacy.</span>
+                    <span style="font-weight:700;color:var(--accent);cursor:pointer">Load images</span>
+                  </div>
+                  <div style="font-size:14.5px;line-height:1.65;color:var(--text)">
+                    <sc-for list="{{ selMsg.body }}" as="p" hint-placeholder-count="4">
+                      <p style="margin:0 0 15px;white-space:pre-line">{{ p }}</p>
+                    </sc-for>
+                  </div>
+                  <sc-if value="{{ selMsg.hasAttach }}" hint-placeholder-val="{{ false }}">
+                    <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+                      <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:11px">{{ selMsg.attachLabel }}</div>
+                      <div style="display:flex;flex-wrap:wrap;gap:10px">
+                        <sc-for list="{{ selMsg.attachments }}" as="at" hint-placeholder-count="2">
+                          <div style="display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:10px;border:1px solid var(--border);background:var(--bg-2);cursor:pointer;min-width:210px" style-hover="border-color:var(--border-2)">
+                            <div style="width:34px;height:34px;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;background:{{ at.color }}">{{ at.ext }}</div>
+                            <div style="flex:1;min-width:0">
+                              <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ at.name }}</div>
+                              <div style="font-size:11px;color:var(--text-3)">{{ at.size }}</div>
+                            </div>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noSel }}" hint-placeholder-val="{{ false }}">
+            <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-3);gap:14px;text-align:center;padding:30px">
+              <div style="width:60px;height:60px;border-radius:16px;background:var(--bg-3);display:flex;align-items:center;justify-content:center;color:var(--text-3)">{{ I.mailBig }}</div>
+              <div><div style="font-weight:600;color:var(--text-2);font-size:15px">Select a message to read</div>
+              <div style="font-size:12.5px;margin-top:3px">Double-click any message to open it in its own window.</div></div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <!-- CLAUDE DOCK -->
+      <div style="{{ claudeDockStyle }}">
+        <sc-if value="{{ claudeDockOn }}" hint-placeholder-val="{{ false }}">
+          <dc-import name="Claude Panel" hint-size="100%,100%"></dc-import>
+        </sc-if>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- CALENDAR -->
+    <sc-if value="{{ calendarMode }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;display:flex;min-height:0;min-width:0">
+        <div style="width:252px;flex:0 0 auto;background:var(--bg-2);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0">
+          <div style="padding:14px 14px 10px">
+            <div onClick="{{ openEventBtn }}" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;border-radius:10px;background:var(--accent);color:var(--accent-fg);font-weight:700;font-size:13px;cursor:pointer" style-hover="background:var(--accent-2)">{{ I.plus }}<span>New event</span></div>
+          </div>
+          <div style="flex:1;overflow-y:auto;padding:6px 12px 14px">
+            <div style="font-size:10.5px;font-weight:700;letter-spacing:.7px;color:var(--text-3);padding:6px 4px 8px;text-transform:uppercase">My calendars</div>
+            <sc-for list="{{ myCalendars }}" as="mc" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:8px;cursor:pointer" style-hover="background:var(--bg-3)">
+                <span style="width:14px;height:14px;border-radius:4px;flex:0 0 auto;background:{{ mc.color }}"></span>
+                <span style="font-size:13px;flex:1">{{ mc.name }}</span>
+                <span style="color:var(--accent);display:flex">{{ I.checkSm }}</span>
+              </div>
+            </sc-for>
+            <div style="font-size:10.5px;font-weight:700;letter-spacing:.7px;color:var(--text-3);padding:16px 4px 8px;text-transform:uppercase">Upcoming</div>
+            <sc-for list="{{ calUpcoming }}" as="u" hint-placeholder-count="5">
+              <div style="display:flex;gap:10px;padding:7px 6px;border-radius:8px" style-hover="background:var(--bg-3)">
+                <span style="width:4px;border-radius:3px;flex:0 0 auto;background:{{ u.color }}"></span>
+                <div style="min-width:0"><div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ u.title }}</div><div style="font-size:11px;color:var(--text-3)">{{ u.when }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)">
+          <div style="height:52px;flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid var(--border)">
+            <span style="font-weight:700;font-size:17px">{{ calTitle }}</span>
+            <div style="display:flex;gap:2px">
+              <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.chevronL }}</div>
+              <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.chevronR }}</div>
+            </div>
+            <div style="padding:6px 12px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:var(--bg-3)">Today</div>
+            <div style="flex:1"></div>
+            <div style="display:flex;gap:2px;background:var(--bg-inset);border:1px solid var(--border);border-radius:8px;padding:3px;font-size:12px;font-weight:600">
+              <span style="padding:5px 12px;border-radius:6px;color:var(--accent-fg);background:var(--accent)">Month</span>
+              <span style="padding:5px 12px;border-radius:6px;color:var(--text-2);cursor:pointer">Week</span>
+              <span style="padding:5px 12px;border-radius:6px;color:var(--text-2);cursor:pointer">Day</span>
+            </div>
+          </div>
+          <div style="flex:0 0 auto;display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border)">
+            <sc-for list="{{ calWeekdays }}" as="wd" hint-placeholder-count="7">
+              <div style="padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--text-3);text-transform:uppercase">{{ wd }}</div>
+            </sc-for>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(98px,1fr);gap:1px;background:var(--border)">
+            <sc-for list="{{ calCells }}" as="cd" hint-placeholder-count="42">
+              <div onClick="{{ cd.onClick }}" style="background:{{ cd.cellBg }};padding:6px;display:flex;flex-direction:column;gap:3px;cursor:pointer;min-height:0" style-hover="background:var(--bg-3)">
+                <div style="display:flex;justify-content:flex-end">
+                  <span style="min-width:22px;height:22px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;border-radius:20px;font-size:12px;font-weight:700;color:{{ cd.dayColor }};background:{{ cd.dayBg }}">{{ cd.day }}</span>
+                </div>
+                <sc-for list="{{ cd.events }}" as="ce" hint-placeholder-count="0">
+                  <div style="font-size:10.5px;font-weight:600;color:#fff;background:{{ ce.color }};border-radius:5px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ce.label }}</div>
+                </sc-for>
+                <sc-if value="{{ cd.more }}" hint-placeholder-val="{{ false }}"><div style="font-size:10.5px;color:var(--text-3);padding:0 4px">{{ cd.more }}</div></sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- CLAUDE OVERLAY -->
+    <sc-if value="{{ claudeOverlayOn }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ claudeOverlayWrap }}">
+        <div style="{{ claudeOverlayStyle }}">
+          <dc-import name="Claude Panel" hint-size="100%,100%"></dc-import>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <!-- VIEW SETTINGS MODAL -->
+  <sc-if value="{{ viewSettingsOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeModals }}" style="position:absolute;inset:0;background:rgba(5,6,10,0.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:60;animation:dmFade .15s ease">
+      <div onClick="{{ stop }}" style="width:min(920px,92vw);max-height:90vh;overflow:hidden;background:var(--bg-2);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;animation:dmPop .2s ease">
+        <div style="flex:0 0 auto;display:flex;align-items:center;padding:18px 22px;border-bottom:1px solid var(--border)">
+          <div><div style="font-weight:700;font-size:17px">View Settings</div>
+          <div style="font-size:12.5px;color:var(--text-3);margin-top:1px">Choose a preset or fine-tune every panel.</div></div>
+          <div style="flex:1"></div>
+          <div onClick="{{ closeModals }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.close }}</div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:22px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--text-3);text-transform:uppercase;margin-bottom:12px">Layout Presets</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:26px">
+            <sc-for list="{{ presetCards }}" as="pc" hint-placeholder-count="6">
+              <div onClick="{{ pc.onClick }}" style="border:1.5px solid {{ pc.border }};background:{{ pc.bg }};border-radius:12px;padding:12px;cursor:pointer" style-hover="border-color:var(--accent)">
+                <div style="height:64px;border-radius:8px;background:var(--bg-inset);padding:5px;display:flex;gap:4px;margin-bottom:10px">{{ pc.schematic }}</div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span style="font-size:13px;font-weight:700">{{ pc.name }}</span>
+                  <sc-if value="{{ pc.active }}" hint-placeholder-val="{{ false }}"><span style="color:var(--accent);display:flex">{{ I.checkSm }}</span></sc-if>
+                </div>
+                <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;line-height:1.4">{{ pc.desc }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--text-3);text-transform:uppercase;margin-bottom:14px">Fine-tune</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px 28px">
+            <sc-for list="{{ controls }}" as="c" hint-placeholder-count="6">
+              <div>
+                <div style="font-size:12.5px;font-weight:600;margin-bottom:7px">{{ c.label }}</div>
+                <div style="display:flex;gap:4px;background:var(--bg-inset);border:1px solid var(--border);border-radius:9px;padding:3px">
+                  <sc-for list="{{ c.opts }}" as="o" hint-placeholder-count="3">
+                    <div onClick="{{ o.onClick }}" style="flex:1;text-align:center;padding:6px 8px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;color:{{ o.fg }};background:{{ o.bg }}">{{ o.label }}</div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+            <div>
+              <div style="font-size:12.5px;font-weight:600;margin-bottom:7px">Preview lines · <span style="color:var(--accent)">{{ previewLines }}</span></div>
+              <input type="range" min="0" max="3" step="1" value="{{ previewLines }}" onInput="{{ onPreviewLines }}" style="width:100%;accent-color:var(--accent)">
+            </div>
+          </div>
+        </div>
+        <div style="flex:0 0 auto;display:flex;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid var(--border)">
+          <div onClick="{{ closeModals }}" style="padding:9px 20px;border-radius:9px;background:var(--accent);color:var(--accent-fg);font-weight:600;font-size:13px;cursor:pointer" style-hover="background:var(--accent-2)">Done</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- COMPOSE -->
+  <sc-if value="{{ composeOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:rgba(5,6,10,0.5);backdrop-filter:blur(2px);display:flex;align-items:flex-end;justify-content:center;padding-bottom:0;z-index:65;animation:dmFade .15s ease">
+      <div key="{{ composeKey }}" style="width:min(760px,94vw);height:min(620px,88vh);background:var(--bg-2);border:1px solid var(--border);border-radius:14px 14px 0 0;box-shadow:var(--shadow);display:flex;flex-direction:column;animation:dmPop .2s ease">
+        <div style="flex:0 0 auto;display:flex;align-items:center;padding:12px 16px;background:var(--bg-3);border-radius:13px 13px 0 0;border-bottom:1px solid var(--border)">
+          <span style="font-weight:700;font-size:13.5px">{{ composeTitle }}</span>
+          <div style="flex:1"></div>
+          <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:7px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-hover)">{{ I.min }}</div>
+          <div onClick="{{ closeModals }}" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:7px;color:var(--text-2);cursor:pointer" style-hover="background:var(--red);color:#fff">{{ I.close }}</div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border)"><span style="font-size:12.5px;color:var(--text-3);width:46px">From</span><span style="font-size:13px;font-weight:600">Jordan Ellis</span><span style="font-size:12px;color:var(--text-3)">&lt;jordan@fastmail.com&gt;</span><span style="color:var(--text-3);display:flex;margin-left:auto">{{ I.chevronD }}</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border)"><span style="font-size:12.5px;color:var(--text-3);width:46px">To</span><input placeholder="Recipients" defaultValue="{{ composeTo }}" style="flex:1;background:transparent;border:none;color:var(--text);font-size:13.5px"><span style="font-size:12px;font-weight:600;color:var(--text-3);cursor:pointer">Cc Bcc</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border)"><span style="font-size:12.5px;color:var(--text-3);width:46px">Subject</span><input placeholder="Subject" defaultValue="{{ composeSubject }}" style="flex:1;background:transparent;border:none;color:var(--text);font-size:13.5px;font-weight:600"></div>
+          <!-- claude rewrite bar -->
+          <div style="display:flex;align-items:center;gap:7px;padding:10px 16px;flex-wrap:wrap;background:var(--claude-soft);border-bottom:1px solid var(--border)">
+            <span style="display:flex;align-items:center;gap:6px;color:var(--claude);font-weight:700;font-size:12px">{{ I.sparkles }}Rewrite</span>
+            <sc-for list="{{ rewriteOpts }}" as="r" hint-placeholder-count="6">
+              <span style="font-size:12px;font-weight:600;color:var(--claude);border:1px solid var(--claude);border-radius:20px;padding:4px 11px;cursor:pointer;background:var(--bg-2)">{{ r }}</span>
+            </sc-for>
+          </div>
+          <textarea placeholder="Write your message…" style="flex:1;min-height:120px;resize:none;border:none;background:transparent;color:var(--text);font-size:14px;line-height:1.6;padding:16px"></textarea>
+          <sc-if value="{{ signatureOn }}" hint-placeholder-val="{{ true }}">
+            <div style="margin:0 16px 14px;padding-top:12px;border-top:1px dashed var(--border)">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--text-3);text-transform:uppercase">Signature</span><span onClick="{{ openSig }}" style="font-size:11.5px;font-weight:600;color:var(--accent);cursor:pointer">Edit</span></div>
+              <div style="font-size:12.5px;color:var(--text-3);line-height:1.5;white-space:pre-line">{{ signature }}</div>
+            </div>
+          </sc-if>
+        </div>
+        <sc-if value="{{ hasAttachments }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:0 0 auto;display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px;border-top:1px solid var(--border)">
+            <sc-for list="{{ composeAttachments }}" as="at" hint-placeholder-count="1">
+              <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:9px;border:1px solid var(--border);background:var(--bg)">
+                <div style="width:26px;height:26px;border-radius:6px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#fff;background:{{ at.color }}">{{ at.ext }}</div>
+                <div style="min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis">{{ at.name }}</div><div style="font-size:10.5px;color:var(--text-3)">{{ at.size }}</div></div>
+                <span onClick="{{ at.onRemove }}" style="color:var(--text-3);display:flex;cursor:pointer;padding:2px" style-hover="color:var(--red)">{{ I.close }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <div style="flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border)">
+          <div onClick="{{ onSend }}" style="display:flex;align-items:center;gap:8px;padding:9px 18px;border-radius:9px;background:var(--accent);color:var(--accent-fg);font-weight:700;font-size:13px;cursor:pointer" style-hover="background:var(--accent-2)">{{ I.send }}<span>Send</span></div>
+          <div onClick="{{ onSaveDraft }}" style="display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:9px;border:1px solid var(--border);color:var(--text-2);font-weight:600;font-size:13px;cursor:pointer" style-hover="background:var(--bg-3)">{{ I.draft }}<span>Save draft</span></div>
+          <div onClick="{{ addAttachment }}" title="Attach a file" style="display:flex;align-items:center;gap:7px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);color:var(--text-2);font-weight:600;font-size:13px;cursor:pointer" style-hover="background:var(--bg-3)">{{ I.paperclip }}<span>Attach</span></div>
+          <div style="flex:1"></div>
+          <div onClick="{{ closeModals }}" style="padding:9px;border-radius:9px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3);color:var(--red)">{{ I.trash }}</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- FULL EMAIL WINDOWS -->
+  <sc-for list="{{ fullWins }}" as="w" hint-placeholder-count="0">
+    <div style="position:absolute;inset:0;z-index:70;background:{{ w.backdrop }}">
+      <div style="position:absolute;top:{{ w.top }};left:{{ w.left }};width:min(860px,90vw);height:min(680px,88vh);background:var(--bg-2);border:1px solid var(--border-2);border-radius:12px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;animation:dmPop .18s ease">
+        <!-- window chrome -->
+        <div style="flex:0 0 auto;display:flex;align-items:center;padding:0 6px 0 14px;height:38px;background:var(--bg-3);border-bottom:1px solid var(--border)">
+          <span style="font-size:12.5px;font-weight:600;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ w.subject }} — DeskMail AI</span>
+          <div style="flex:1"></div>
+          <div style="width:42px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--text-2)" style-hover="background:var(--bg-hover)">{{ I.min }}</div>
+          <div style="width:42px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--text-2)" style-hover="background:var(--bg-hover)">{{ I.max }}</div>
+          <div onClick="{{ w.onClose }}" style="width:42px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--text-2);cursor:pointer" style-hover="background:var(--red);color:#fff">{{ I.close }}</div>
+        </div>
+        <!-- action toolbar -->
+        <div style="flex:0 0 auto;display:flex;align-items:center;gap:2px;padding:8px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+          <sc-for list="{{ w.actions }}" as="ac" hint-placeholder-count="8">
+            <div onClick="{{ ac.on }}" title="{{ ac.label }}" style="display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:8px;color:{{ ac.color }};cursor:pointer;font-size:12.5px;font-weight:600" style-hover="background:var(--bg-3)">{{ ac.icon }}<span>{{ ac.label }}</span></div>
+          </sc-for>
+        </div>
+        <!-- claude actions -->
+        <div style="flex:0 0 auto;display:flex;align-items:center;gap:7px;padding:9px 14px;flex-wrap:wrap;background:var(--claude-soft);border-bottom:1px solid var(--border)">
+          <span style="display:flex;align-items:center;gap:6px;color:var(--claude);font-weight:700;font-size:12px">{{ I.sparkles }}Claude</span>
+          <sc-for list="{{ claudeActions }}" as="ca" hint-placeholder-count="7">
+            <span style="font-size:12px;font-weight:600;color:var(--claude);border:1px solid var(--claude);border-radius:20px;padding:4px 11px;cursor:pointer;background:var(--bg-2)">{{ ca.label }}</span>
+          </sc-for>
+        </div>
+        <!-- body -->
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:24px 32px 40px">
+          <div style="max-width:720px;margin:0 auto">
+            <h1 style="font-size:22px;font-weight:700;line-height:1.25;margin:0 0 16px">{{ w.subject }}</h1>
+            <div style="display:flex;align-items:center;gap:13px;padding-bottom:18px;border-bottom:1px solid var(--border)">
+              <div style="width:44px;height:44px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;background:{{ w.avBg }};color:{{ w.avFg }}">{{ w.initials }}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:14.5px">{{ w.from_name }} <span style="font-weight:400;font-size:12.5px;color:var(--text-3)">&lt;{{ w.from_email }}&gt;</span></div>
+                <div style="font-size:12.5px;color:var(--text-3);margin-top:2px">to {{ w.to }}</div>
+              </div>
+              <div style="font-size:12.5px;color:var(--text-3)">{{ w.date_full }}</div>
+            </div>
+            <div style="font-size:14.5px;line-height:1.65;margin-top:18px">
+              <sc-for list="{{ w.body }}" as="p" hint-placeholder-count="4"><p style="margin:0 0 15px;white-space:pre-line">{{ p }}</p></sc-for>
+            </div>
+            <sc-if value="{{ w.hasAttach }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:10px">
+                <sc-for list="{{ w.attachments }}" as="at" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:10px;border:1px solid var(--border);min-width:200px"><div style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;background:{{ at.color }}">{{ at.ext }}</div><div><div style="font-size:12.5px;font-weight:600">{{ at.name }}</div><div style="font-size:11px;color:var(--text-3)">{{ at.size }}</div></div></div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-for>
+
+  <!-- MENU BACKDROP -->
+  <sc-if value="{{ anyMenuOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeMenu }}" style="position:absolute;inset:0;z-index:85"></div>
+  </sc-if>
+
+  <!-- SETTINGS -->
+  <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeSettings }}" style="position:absolute;inset:0;background:rgba(5,6,10,0.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:62;animation:dmFade .15s ease">
+      <div onClick="{{ stop }}" style="width:min(900px,93vw);height:min(620px,90vh);background:var(--bg-2);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);display:flex;overflow:hidden;animation:dmPop .2s ease">
+        <div style="width:222px;flex:0 0 auto;border-right:1px solid var(--border);background:var(--bg);display:flex;flex-direction:column;padding:16px 10px">
+          <div style="font-weight:700;font-size:16px;padding:4px 10px 14px">Settings</div>
+          <sc-for list="{{ settingsSections }}" as="ss" hint-placeholder-count="7">
+            <div onClick="{{ ss.onClick }}" style="display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;margin-bottom:1px;color:{{ ss.fg }};background:{{ ss.bg }}" style-hover="background:var(--bg-3)"><span style="display:flex">{{ ss.icon }}</span><span>{{ ss.name }}</span></div>
+          </sc-for>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+          <div style="flex:0 0 auto;display:flex;align-items:center;padding:16px 22px;border-bottom:1px solid var(--border)">
+            <span style="font-weight:700;font-size:16px">{{ settingsTitle }}</span>
+            <div style="flex:1"></div>
+            <div onClick="{{ closeSettings }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.close }}</div>
+          </div>
+          <div style="flex:1;overflow-y:auto;padding:22px;max-width:640px">
+            <sc-if value="{{ secSignatures }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:13px;color:var(--text-2);margin-bottom:14px;line-height:1.5">Your signature is appended to the bottom of new messages. Written in first person — matches the DeskMail voice.</div>
+              <textarea value="{{ signature }}" onInput="{{ onSignature }}" style="width:100%;min-height:130px;resize:vertical;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:13.5px;line-height:1.6;padding:13px" style-focus="border-color:var(--accent)"></textarea>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
+                <div onClick="{{ toggleSigOn }}" style="width:38px;height:22px;border-radius:20px;background:{{ sigToggleBg }};position:relative;cursor:pointer;flex:0 0 auto"><span style="position:absolute;top:2px;left:{{ sigKnobX }};width:18px;height:18px;border-radius:50%;background:#fff"></span></div>
+                <span style="font-size:13px;font-weight:600">Append to new messages</span>
+              </div>
+              <div style="margin-top:20px;padding:13px 15px;border-radius:10px;background:var(--bg-3);font-size:12.5px;color:var(--text-3);line-height:1.5">Tip: per-account signatures are a good next step — a different sign-off for eBay enquiries vs. commission work.</div>
+            </sc-if>
+            <sc-if value="{{ secMeetings }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:10px">Default meeting provider</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+                <sc-for list="{{ settingsProviderOpts }}" as="sp" hint-placeholder-count="3">
+                  <div onClick="{{ sp.onClick }}" style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:9px;border:1px solid {{ sp.border }};color:{{ sp.fg }};background:{{ sp.bg }};font-size:13px;font-weight:600;cursor:pointer">{{ sp.icon }}<span>{{ sp.label }}</span></div>
+                </sc-for>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                <div onClick="{{ toggleLaunch }}" style="width:38px;height:22px;border-radius:20px;background:{{ launchBg }};position:relative;cursor:pointer;flex:0 0 auto"><span style="position:absolute;top:2px;left:{{ launchKnobX }};width:18px;height:18px;border-radius:50%;background:#fff"></span></div>
+                <span style="font-size:13px;font-weight:600">Launch the desktop app automatically when joining</span>
+              </div>
+              <div style="padding:13px 15px;border-radius:10px;background:var(--bg-3);font-size:12.5px;color:var(--text-3);line-height:1.55">When you add a meeting, DeskMail generates a join link and opens Teams, Google Meet, or Zoom in the installed desktop app. If it isn't installed, the browser link opens instead. You can also paste a custom link for any other tool.</div>
+            </sc-if>
+            <sc-if value="{{ secClaude }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px"><span style="width:8px;height:8px;border-radius:50%;background:var(--green)"></span><span style="flex:1">Connector status</span><span style="font-weight:700;color:var(--green)">Connected</span></div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px"><span style="width:8px;height:8px;border-radius:50%;background:var(--green)"></span><span style="flex:1">Local MCP server</span><span style="font-weight:700;color:var(--green)">Running · port 7420</span></div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px"><span style="width:8px;height:8px;border-radius:50%;background:var(--claude)"></span><span style="flex:1">Mode</span><span style="font-weight:700;color:var(--claude)">Read &amp; draft only</span></div>
+              </div>
+              <div style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:10px">Available tools</div>
+              <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px">
+                <sc-for list="{{ claudeTools }}" as="ct" hint-placeholder-count="8">
+                  <span style="font-size:11.5px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--text-2);background:var(--bg-3);border:1px solid var(--border);border-radius:6px;padding:4px 9px">{{ ct }}</span>
+                </sc-for>
+              </div>
+              <div style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:10px">Permissions</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <sc-for list="{{ claudePerms }}" as="cp" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:8px 11px;border-radius:8px;background:var(--bg-3)"><span style="color:{{ cp.color }};display:flex">{{ cp.icon }}</span><span>{{ cp.label }}</span></div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ secAppearance }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:10px">Theme</div>
+              <div style="display:flex;gap:8px;margin-bottom:20px">
+                <div onClick="{{ setLight }}" style="flex:1;text-align:center;padding:12px;border-radius:10px;border:1px solid {{ lightBorder }};background:{{ lightBg }};font-size:13px;font-weight:700;cursor:pointer">Light</div>
+                <div onClick="{{ setDark }}" style="flex:1;text-align:center;padding:12px;border-radius:10px;border:1px solid {{ darkBorder }};background:{{ darkBg }};font-size:13px;font-weight:700;cursor:pointer">Dark</div>
+              </div>
+              <div style="padding:13px 15px;border-radius:10px;background:var(--bg-3);font-size:12.5px;color:var(--text-3);line-height:1.55">The accent palette (brand green, plus alternates) is set from the Tweaks panel and applies to both themes.</div>
+            </sc-if>
+            <sc-if value="{{ secAccounts }}" hint-placeholder-val="{{ false }}">
+              <sc-for list="{{ accounts }}" as="a" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;gap:12px;padding:13px 15px;border:1px solid var(--border);border-radius:11px;margin-bottom:10px">
+                  <span style="width:12px;height:12px;border-radius:50%;flex:0 0 auto;background:{{ a.color }}"></span>
+                  <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700">{{ a.name }}</div><div style="font-size:12px;color:var(--text-3)">{{ a.email }} · IMAP / SMTP</div></div>
+                  <span style="font-size:12px;font-weight:600;color:var(--accent);cursor:pointer">Edit</span>
+                </div>
+              </sc-for>
+              <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border:1px dashed var(--border-2);border-radius:11px;font-size:13px;font-weight:600;color:var(--text-2);cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">{{ I.plus }}<span>Add account</span></div>
+            </sc-if>
+            <sc-if value="{{ secSending }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:13px;color:var(--text-2);line-height:1.6">Sending is always a manual action — nothing leaves your outbox until you press Send. Undo-send delay, send-later scheduling, and read receipts belong here.</div>
+            </sc-if>
+            <sc-if value="{{ secSecurity }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ securityPoints }}" as="sp2" hint-placeholder-count="5">
+                  <div style="display:flex;gap:10px;font-size:13px;line-height:1.5"><span style="color:var(--green);display:flex;flex:0 0 auto;padding-top:1px">{{ I.checkSm }}</span><span>{{ sp2 }}</span></div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- EVENT MODAL -->
+  <sc-if value="{{ eventModalOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeEvent }}" style="position:absolute;inset:0;background:rgba(5,6,10,0.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:66;animation:dmFade .15s ease">
+      <div onClick="{{ stop }}" style="width:min(560px,93vw);max-height:90vh;overflow:hidden;background:var(--bg-2);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;animation:dmPop .2s ease">
+        <div style="flex:0 0 auto;display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)">
+          <span style="font-weight:700;font-size:16px">New event</span>
+          <div style="flex:1"></div>
+          <div onClick="{{ closeEvent }}" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-2);cursor:pointer" style-hover="background:var(--bg-3)">{{ I.close }}</div>
+        </div>
+        <div style="flex:1;overflow-y:auto;overflow-x:hidden;padding:18px 20px;display:flex;flex-direction:column;gap:16px">
+          <input value="{{ newEvent.title }}" onInput="{{ onEvTitle }}" placeholder="Add a title" style="width:100%;border:none;border-bottom:2px solid var(--border);background:transparent;color:var(--text);font-size:17px;font-weight:600;padding:4px 2px 8px" style-focus="border-color:var(--accent)">
+          <div style="display:flex;gap:10px">
+            <div style="flex:1"><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Day (July)</div><input type="number" min="1" max="31" value="{{ newEvent.day }}" onInput="{{ onEvDay }}" style="width:100%;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--text);font-size:13.5px;padding:9px 11px" style-focus="border-color:var(--accent)"></div>
+            <div style="flex:1"><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Start</div><input value="{{ newEvent.start }}" onInput="{{ onEvStart }}" placeholder="14:00" style="width:100%;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--text);font-size:13.5px;padding:9px 11px" style-focus="border-color:var(--accent)"></div>
+            <div style="flex:1"><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">End</div><input value="{{ newEvent.end }}" onInput="{{ onEvEnd }}" placeholder="14:30" style="width:100%;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--text);font-size:13.5px;padding:9px 11px" style-focus="border-color:var(--accent)"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Meeting</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <sc-for list="{{ providerOpts }}" as="po" hint-placeholder-count="5">
+                <div onClick="{{ po.onClick }}" style="display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:9px;border:1px solid {{ po.border }};color:{{ po.fg }};background:{{ po.bg }};font-size:12.5px;font-weight:600;cursor:pointer">{{ po.icon }}<span>{{ po.label }}</span></div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ neIsVideo }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:9px;margin-top:11px;padding:10px 13px;border-radius:9px;background:var(--accent-soft);color:var(--text-2);font-size:12px;line-height:1.45"><span style="color:var(--accent);display:flex;flex:0 0 auto">{{ I.external }}</span><span>{{ neJoinNote }}</span></div>
+            </sc-if>
+            <sc-if value="{{ neIsLink }}" hint-placeholder-val="{{ false }}">
+              <input value="{{ newEvent.location }}" onInput="{{ onEvLocation }}" placeholder="Paste meeting link (https://…)" style="width:100%;margin-top:11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--text);font-size:13px;padding:9px 11px" style-focus="border-color:var(--accent)">
+            </sc-if>
+          </div>
+          <div><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Guests</div><input value="{{ newEvent.guests }}" onInput="{{ onEvGuests }}" placeholder="Add guests, comma separated" style="width:100%;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--text);font-size:13.5px;padding:9px 11px" style-focus="border-color:var(--accent)"></div>
+          <div><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Notes</div><textarea value="{{ newEvent.notes }}" onInput="{{ onEvNotes }}" placeholder="Agenda, links, anything useful…" style="width:100%;min-height:70px;resize:vertical;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--text);font-size:13.5px;line-height:1.5;padding:10px 11px" style-focus="border-color:var(--accent)"></textarea></div>
+        </div>
+        <div style="flex:0 0 auto;display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border)">
+          <div onClick="{{ closeEvent }}" style="padding:9px 18px;border-radius:9px;border:1px solid var(--border);color:var(--text-2);font-weight:600;font-size:13px;cursor:pointer" style-hover="background:var(--bg-3)">Cancel</div>
+          <div onClick="{{ saveEvent }}" style="padding:9px 20px;border-radius:9px;background:var(--accent);color:var(--accent-fg);font-weight:700;font-size:13px;cursor:pointer" style-hover="background:var(--accent-2)">Save event</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- TOAST -->
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;bottom:26px;left:50%;transform:translateX(-50%);z-index:100;background:var(--text);color:var(--bg);padding:11px 20px;border-radius:11px;font-size:13px;font-weight:700;box-shadow:var(--shadow);display:flex;align-items:center;gap:9px;animation:dmPop .18s ease"><span style="display:flex;color:var(--accent)">{{ I.checkSm }}</span>{{ toast }}</div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;palette&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;brand&quot;,&quot;teal&quot;,&quot;indigo&quot;,&quot;emerald&quot;,&quot;sunset&quot;,&quot;plum&quot;,&quot;cobalt&quot;],&quot;default&quot;:&quot;brand&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Appearance&quot;}}">
+class Component extends DCLogic {
+  state = {
+    theme: 'light',
+    preset: 'classic',
+    sidebarMode: 'expanded',   // expanded | compact | icons | hidden
+    sidebarPosition: 'left',   // left | right
+    readingPaneVisible: true,
+    readingPanePosition: 'right', // right | bottom | left | hidden
+    claudeDock: false,
+    claudePos: 'right',        // right | left | float
+    claudeOpen: false,
+    density: 'cozy',           // comfortable | cozy | compact
+    previewLines: 2,
+    openBehaviour: 'reading',
+    activeFolder: 'inbox',
+    selId: 1,
+    search: '',
+    composeOpen: false,
+    viewSettingsOpen: false,
+    fullWins: [],
+    mode: 'mail',              // mail | calendar
+    openMenu: null,            // file | view | help | null
+    settingsOpen: false,
+    settingsSection: 'signatures',
+    eventModalOpen: false,
+    signatureOn: true,
+    signature: 'Alex Doe\nDeskMail AI\nexample.com',
+    defaultProvider: 'teams',
+    launchDesktop: true,
+    composeMode: 'new',        // new | reply | replyall | forward
+    composeCtx: { to:'', subject:'' },
+    attachments: [],
+    acceptedInvites: {},
+    selDay: 9,
+    toast: null,
+    newEvent: { title:'', day:9, start:'14:00', end:'14:30', provider:'teams', location:'', guests:'', notes:'' },
+    events: [
+      { day:9,  title:'1:1 with Alex',        start:'10:30', provider:'meet' },
+      { day:10, title:'Design review',        start:'15:00', provider:'zoom' },
+      { day:11, title:'Vendor contract due',  start:'17:00', provider:'deadline' },
+      { day:14, title:'Coffee with Daniel',   start:'10:00', provider:'inperson' },
+      { day:16, title:'Dentist',              start:'09:00', provider:'inperson' },
+      { day:22, title:'Offsite planning',     start:'13:00', provider:'teams' },
+      { day:23, title:'Filament reorder',     start:'11:00', provider:'deadline' },
+    ],
+    _composeKey: 0,
+  };
+
+  ICONS = {
+    min:'M5 12h14', max:'M5 5h14v14H5z', close:'M18 6L6 18 M6 6l12 12',
+    search:'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3',
+    compose:'M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
+    sparkles:'M12 3l1.8 5L19 10l-5.2 1.9L12 17l-1.8-5.1L5 10l5.2-2z M18.5 14.5l.9 2.4 2.6 1-2.6 1-.9 2.4-.9-2.4-2.6-1 2.6-1z',
+    layout:'M3 4h7v16H3z M14 4h7v7h-7z M14 15h7v5h-7z',
+    sliders:'M4 21v-6 M4 11V3 M12 21v-8 M12 9V3 M20 21v-4 M20 13V3 M1 15h6 M9 9h6 M17 17h6',
+    sun:'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z M12 1v2 M12 21v2 M4.2 4.2l1.4 1.4 M18.4 18.4l1.4 1.4 M1 12h2 M21 12h2 M4.2 19.8l1.4-1.4 M18.4 5.6l1.4-1.4',
+    moon:'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+    chevronD:'M6 9l6 6 6-6', plus:'M12 5v14 M5 12h14',
+    filter:'M22 3H2l8 9.5V19l4 2v-8.5z', check:'M20 6L9 17l-5-5',
+    reply:'M9 17l-6-5 6-5 M3 12h9a7 7 0 0 1 7 7v1',
+    replyAll:'M13 17l-5-5 5-5 M7 17l-5-5 5-5 M11 12h6a5 5 0 0 1 5 5v1',
+    forward:'M15 17l6-5-6-5 M21 12h-9a7 7 0 0 0-7 7v1',
+    archive:'M21 8v13H3V8 M1 3h22v5H1z M10 12h4',
+    trash:'M3 6h18 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2 M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6',
+    unread:'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M22 6l-10 7L2 6',
+    print:'M6 9V2h12v7 M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2 M6 14h12v8H6z',
+    maximize:'M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7',
+    send:'M22 2L11 13 M22 2l-7 20-4-9-9-4z',
+    draft:'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6',
+    paperclip:'M21 12l-9 9a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8',
+    inbox:'M22 12h-6l-2 3h-4l-2-3H2 M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z',
+    star:'M12 2.5l2.9 6.1 6.6.7-4.9 4.5 1.4 6.5L12 17.5 6 20.8l1.4-6.5L2.5 9.3l6.6-.7z',
+    spam:'M12 2L2 7v6c0 5 3.5 8 10 11 6.5-3 10-6 10-11V7z M12 8v4 M12 16h.01',
+    shield:'M12 2L4 6v6c0 4.4 3 7 8 8.5 5-1.5 8-4.1 8-8.5V6z',
+    folder:'M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+    clock:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7v5l3 2',
+    calendar:'M3 4h18v18H3z M3 10h18 M8 2v4 M16 2v4',
+    task:'M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
+    link:'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1 M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1',
+    doc:'M13 2H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9z M13 2v7h7',
+    info:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 8h.01',
+    cog:'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.2A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z',
+    video:'M23 7l-7 5 7 5V7z M14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z',
+    pin:'M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+    users:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.9 M16 3.1a4 4 0 0 1 0 7.8',
+    bell:'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.7 21a2 2 0 0 1-3.4 0',
+    external:'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6 M15 3h6v6 M10 14L21 3',
+    chevronL:'M15 6l-6 6 6 6', chevronR:'M9 6l6 6-6 6',
+    calCheck:'M3 4h18v18H3z M3 10h18 M8 2v4 M16 2v4 M9 15l2 2 4-4',
+    cal:'M3 4h18v18H3z M3 10h18 M8 2v4 M16 2v4',
+    mail:'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M22 6l-10 7L2 6',
+  };
+  PROVIDERS = {
+    teams:{label:'Microsoft Teams', color:'#5b5fc7', video:true},
+    meet:{label:'Google Meet', color:'#2aa775', video:true},
+    zoom:{label:'Zoom', color:'#3b82e0', video:true},
+    inperson:{label:'In person', color:'#d9932f', video:false},
+    link:{label:'Custom link', color:'#8a8a8a', video:false},
+    deadline:{label:'Deadline', color:'#e0575b', video:false},
+  };
+
+  svg(name, size, sw) {
+    return React.createElement('svg', {width:size||16,height:size||16,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:sw||1.7,strokeLinecap:'round',strokeLinejoin:'round'}, React.createElement('path',{d:this.ICONS[name]}));
+  }
+  svgFill(name, size) {
+    return React.createElement('svg', {width:size||16,height:size||16,viewBox:'0 0 24 24',fill:'currentColor',stroke:'none'}, React.createElement('path',{d:this.ICONS[name]}));
+  }
+
+  AV = ['#8b7cf6','#3bb6a6','#e08a63','#5b8def','#d16ba5','#5cae6f','#e0a72b','#7d8bff'];
+
+  data() {
+    if (this._store) return this._store;
+    const msgs = [
+      {id:1,fn:'Maya Chen',fe:'maya@northwind.co',subj:'Q3 launch timeline — need your sign-off',snip:'Sharing the updated launch plan — the dates shifted after the infra review and I need your sign-off before Friday.',time:'9:41 AM',unread:true,star:true,attach:true,label:'Work',folder:'inbox',
+        body:['Hi Jordan,','Sharing the updated Q3 launch plan — the dates shifted slightly after the infra review, and I need your sign-off on the timeline before we lock it with the vendor on Friday.','Key changes: beta moves to Aug 12, GA to Sep 9. The attached deck has the full breakdown plus the revised staffing plan.','Could you review and reply by Thursday EOD? Happy to jump on a quick call if that is easier.','Thanks,\nMaya'],
+        att:[{name:'Q3-Launch-Plan.pdf',size:'2.4 MB',ext:'PDF',color:'#e0575b'},{name:'Staffing-v3.xlsx',size:'88 KB',ext:'XLS',color:'#1a9e5e'}]},
+      {id:2,fn:'Stripe',fe:'receipts@stripe.com',subj:'Your invoice for June is ready',snip:'Invoice #INV-2041 for $1,290.00 has been issued. View or download the PDF from your dashboard.',time:'8:12 AM',unread:true,star:false,attach:true,label:'Invoices',folder:'inbox',
+        body:['Hi Jordan,','Invoice #INV-2041 for $1,290.00 has been issued for your Northwind subscription.','You can view or download the invoice anytime from your billing dashboard. No action is required — the card on file will be charged on Jul 12.'],
+        att:[{name:'INV-2041.pdf',size:'64 KB',ext:'PDF',color:'#e0575b'}]},
+      {id:3,fn:'Daniel Okafor',fe:'daniel@mailbox.org',subj:'Re: Coffee next week?',snip:'Tuesday works great for me — 10am at the usual place? Looking forward to catching up properly.',time:'7:55 AM',unread:false,star:false,attach:false,label:'',folder:'inbox'},
+      {id:4,fn:'GitHub',fe:'noreply@github.com',subj:'[northwind/desk-mail] 3 new pull requests',snip:'PR #418 Fix IMAP reconnect loop, PR #419 Sanitise inline styles, PR #420 Layout preset persistence.',time:'7:03 AM',unread:true,star:false,attach:false,label:'',folder:'inbox'},
+      {id:5,fn:'Priya Nair',fe:'priya@lawfirm.com',subj:'Deadline reminder: contract signature by Friday',snip:'Just a reminder that the vendor contract needs to be signed and returned by Friday, Jul 11 at 5pm.',time:'Yesterday',unread:true,star:false,attach:true,label:'Needs Reply',folder:'inbox',
+        body:['Hi Jordan,','A quick reminder that the vendor contract needs to be signed and returned by Friday, Jul 11 at 5:00pm. After that the quoted rates expire.','The signature page is on page 7. Let me know if you have any questions before signing.','Best,\nPriya'],
+        att:[{name:'Vendor-Contract.pdf',size:'410 KB',ext:'PDF',color:'#e0575b'}]},
+      {id:6,fn:'Figma',fe:'updates@figma.com',subj:'Maya shared “DeskMail — Layouts” with you',snip:'You now have edit access to the file. Open it in Figma to start collaborating.',time:'Yesterday',unread:false,star:false,attach:false,label:'',folder:'inbox'},
+      {id:7,fn:'Tom Bradley',fe:'tom@fitout.co',subj:'Quote for office fit-out',snip:'Please find attached our quote for the fit-out. Prices hold for 30 days. Happy to walk through it.',time:'Yesterday',unread:false,star:false,attach:true,label:'Invoices',folder:'inbox'},
+      {id:8,fn:'LinkedIn',fe:'news@linkedin.com',subj:'You appeared in 9 searches this week',snip:'See who is looking at your profile and grow your network.',time:'Mon',unread:false,star:false,attach:false,label:'',folder:'inbox'},
+      {id:9,fn:'Sarah Lin',fe:'sarah@studio.design',subj:'Re: Onboarding docs',snip:'Thanks for sending these over — really clear. One small note on the account wizard copy.',time:'Mon',unread:false,star:false,attach:false,label:'',folder:'inbox'},
+      {id:10,fn:'AWS',fe:'billing@aws.amazon.com',subj:'Your monthly cost report',snip:'Total spend for June was $412.55, up 4% from May. See the breakdown by service.',time:'Sun',unread:false,star:false,attach:true,label:'',folder:'inbox'},
+      {id:11,fn:'The Browser',fe:'hi@thebrowser.com',subj:'The best of the week — 5 essays worth your time',snip:'This week: attention, the economics of trust, and a history of the filing cabinet.',time:'Sun',unread:false,star:false,attach:false,label:'',folder:'inbox'},
+      {id:12,fn:'Alex Reed',fe:'alex@northwind.co',subj:'Can we move standup?',snip:'Would 10:30 work instead of 9:30 tomorrow? Something came up on my end.',time:'Sat',unread:true,star:false,attach:false,label:'',folder:'inbox'},
+      {id:13,fn:'Maya Chen',fe:'maya@northwind.co',subj:'Invitation: Q3 launch sync (Thu 9 Jul, 14:00)',snip:'You are invited to “Q3 launch sync”. Thursday 9 July, 14:00–14:30. Microsoft Teams.',time:'9:20 AM',unread:true,star:false,attach:false,label:'Invite',folder:'inbox',
+        invite:{title:'Q3 launch sync', day:9, dateLabel:'Thursday 9 July 2026', start:'14:00', end:'14:30', provider:'teams', location:'Microsoft Teams meeting', organiser:'Maya Chen', guests:['Jordan Ellis','Alex Reed','Priya Nair']},
+        body:['Hi Jordan,','Sending a calendar invite for a short sync on the Q3 launch timeline so we can confirm sign-off before the vendor call.','Agenda: confirm beta/GA dates, walk through the staffing changes, agree owners. Should take 20 minutes.','Thanks,\nMaya']},
+    ];
+    this._store = { msgs };
+    return this._store;
+  }
+
+  fmtDate(){ return 'Wed, Jul 9, 2026, 9:41 AM'; }
+
+  setTheme(t){ this.setState({theme:t}); }
+  toggleTheme = () => this.setState(s=>({theme:s.theme==='dark'?'light':'dark'}));
+
+  applyPreset(name){
+    const P = {
+      classic:{sidebarMode:'expanded',sidebarPosition:'left',readingPaneVisible:true,readingPanePosition:'right',claudeDock:false,claudePos:'right'},
+      bottom:{sidebarMode:'expanded',sidebarPosition:'left',readingPaneVisible:true,readingPanePosition:'bottom',claudeDock:false,claudePos:'right'},
+      focus:{sidebarMode:'icons',sidebarPosition:'left',readingPaneVisible:true,readingPanePosition:'right',claudeDock:false,claudePos:'float'},
+      wide:{sidebarMode:'expanded',sidebarPosition:'left',readingPaneVisible:true,readingPanePosition:'right',claudeDock:true,claudePos:'right'},
+      right:{sidebarMode:'expanded',sidebarPosition:'right',readingPaneVisible:true,readingPanePosition:'right',claudeDock:false,claudePos:'right'},
+      noreading:{sidebarMode:'expanded',sidebarPosition:'left',readingPaneVisible:false,readingPanePosition:'hidden',claudeDock:false,claudePos:'right'},
+    };
+    this.setState(Object.assign({preset:name}, P[name]));
+  }
+  setPref(k,v){ this.setState({[k]:v, preset:'custom'}); }
+
+  select = (id) => this.setState({selId:id});
+  openFull = (id) => this.setState(s=> s.fullWins.includes(id)?s:{fullWins:[...s.fullWins, id]});
+  closeFull = (id) => this.setState(s=>({fullWins:s.fullWins.filter(x=>x!==id)}));
+  toggleClaude = () => this.setState(s=> s.claudeDock ? {claudeDock:false, preset:'custom'} : {claudeOpen:!s.claudeOpen});
+  openCompose = () => this.setState({composeOpen:true});
+  openViewSettings = () => this.setState({viewSettingsOpen:true});
+  closeModals = () => this.setState({composeOpen:false, viewSettingsOpen:false});
+  onSearch = (e) => this.setState({search:e.target.value});
+  onPreviewLines = (e) => this.setState({previewLines:parseInt(e.target.value,10), preset:'custom'});
+  toggleStar = () => { const id=this.state.selId; const m=this.data().msgs.find(x=>x.id===id); if(m){ m.star=!m.star; this.forceUpdate(); } };
+
+  // --- mode, menus, toast ---
+  setMode = (m) => this.setState({mode:m, openMenu:null});
+  toggleMenu = (n) => this.setState(s=>({openMenu: s.openMenu===n?null:n}));
+  closeMenu = () => this.setState({openMenu:null});
+  showToast(msg){ this.setState({toast:msg}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:null}), 2600); }
+
+  // --- settings ---
+  openSettings = (sec) => this.setState({settingsOpen:true, settingsSection:sec||'signatures', openMenu:null});
+  closeSettings = () => this.setState({settingsOpen:false});
+
+  // --- calendar / events ---
+  openEvent = (prefill) => this.setState(s=>({eventModalOpen:true, mode:'calendar', openMenu:null,
+    newEvent: Object.assign({title:'', day:9, start:'14:00', end:'14:30', provider:s.defaultProvider, location:'', guests:'', notes:''}, prefill||{})}));
+  closeEvent = () => this.setState({eventModalOpen:false});
+  setEventField = (k,v) => this.setState(s=>({newEvent: Object.assign({}, s.newEvent, {[k]:v})}));
+  addEventToCal(e){ this.setState(s=>({events:[...s.events, {day:Number(e.day)||9, title:e.title||'(Untitled event)', start:e.start||'', provider:e.provider||'inperson'}]})); }
+  saveEvent = () => { this.addEventToCal(this.state.newEvent); this.setState({eventModalOpen:false}); this.showToast('Event added to your calendar'); };
+
+  // --- compose / reply ---
+  openComposeNew = () => this.setState(s=>({composeOpen:true, composeMode:'new', composeCtx:{to:'',subject:''}, attachments:[], openMenu:null, _composeKey:s._composeKey+1}));
+  openReply = (kind) => { const m=this.data().msgs.find(x=>x.id===this.state.selId); if(!m) return;
+    const clean = m.subj.replace(/^(re|fwd):\s*/i,'');
+    const subject = (kind==='forward'?'Fwd: ':'Re: ') + clean;
+    const to = kind==='forward' ? '' : m.fe;
+    this.setState(s=>({composeOpen:true, composeMode:kind, composeCtx:{to, subject}, attachments:[], _composeKey:s._composeKey+1})); };
+  addAttachment = () => { const samples=[{name:'Radiator-Clip-v2.stl',size:'1.8 MB',ext:'STL',color:'#2fae4f'},{name:'test-fit-photo.jpg',size:'640 KB',ext:'JPG',color:'#3b82e0'},{name:'print-settings.txt',size:'2 KB',ext:'TXT',color:'#8a8a8a'}];
+    this.setState(s=>({attachments:[...s.attachments, samples[s.attachments.length % samples.length]]})); };
+  removeAttachment = (i) => this.setState(s=>({attachments: s.attachments.filter((_,j)=>j!==i)}));
+  sendMail = () => { this.setState({composeOpen:false}); this.showToast('Message sent'); };
+  saveDraft = () => { this.setState({composeOpen:false}); this.showToast('Draft saved'); };
+
+  // --- invites ---
+  acceptInvite = (status) => { const m=this.data().msgs.find(x=>x.id===this.state.selId); if(!m||!m.invite) return;
+    if(status==='accepted'){ this.addEventToCal({day:m.invite.day, title:m.invite.title, start:m.invite.start, provider:m.invite.provider}); }
+    this.setState(s=>({acceptedInvites: Object.assign({}, s.acceptedInvites, {[m.id]:status})}));
+    this.showToast(status==='accepted'?'Added to your calendar':status==='tentative'?'Marked as tentative':'Invite declined'); };
+
+  seg(label, active, on){ return {label, onClick:on, fg: active?'#fff':'var(--text-2)', bg: active?'var(--accent)':'transparent'}; }
+
+  schematic(kind){
+    const box=(bg,flex,extra)=>React.createElement('div',{style:Object.assign({background:bg,borderRadius:3,flex:flex||1},extra||{})});
+    const side='var(--accent)', list='var(--text-3)', read='var(--border-2)', cl='var(--claude)';
+    const S={display:'flex',gap:4,flex:1};
+    if(kind==='classic') return React.createElement('div',{style:S}, box(side,'0 0 12px'), box(list,'0 0 26px'), box(read,2));
+    if(kind==='bottom') return React.createElement('div',{style:S}, box(side,'0 0 12px'), React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:4,flex:2}}, box(list,1), box(read,1)));
+    if(kind==='focus') return React.createElement('div',{style:S}, box(side,'0 0 6px'), box(list,'0 0 18px'), box(read,3));
+    if(kind==='wide') return React.createElement('div',{style:S}, box(side,'0 0 10px'), box(list,'0 0 20px'), box(read,2), box(cl,'0 0 14px'));
+    if(kind==='right') return React.createElement('div',{style:S}, box(list,'0 0 26px'), box(read,2), box(side,'0 0 12px'));
+    if(kind==='noreading') return React.createElement('div',{style:S}, box(side,'0 0 14px'), box(list,3));
+    return null;
+  }
+
+  renderVals(){
+    const s = this.state;
+    const I = {
+      min:this.svg('min'), max:this.svg('max',14), close:this.svg('close',15),
+      search:this.svg('search'), searchBig:this.svg('search',32,1.4), compose:this.svg('compose',15),
+      sparkles:this.svgFill('sparkles',15), layout:this.svg('layout'), sliders:this.svg('sliders'),
+      chevronD:this.svg('chevronD',15), plus:this.svg('plus',15), filter:this.svg('filter',15), check:this.svg('check',15), checkSm:this.svg('check',14,2.2),
+      reply:this.svg('reply',17), replyAll:this.svg('replyAll',17), forward:this.svg('forward',17),
+      archive:this.svg('archive',17), trash:this.svg('trash',16), unread:this.svg('unread',17),
+      maximize:this.svg('maximize',15), send:this.svg('send',15), draft:this.svg('draft',15), print:this.svg('print',17),
+      paperclip:this.svg('paperclip',16), clipSm:this.svg('paperclip',13), starSm:this.svgFill('star',13),
+      shield:this.svg('shield',16), mailBig:this.svg('unread',28,1.4),
+      usersSm:this.svg('users',13), chevronL:this.svg('chevronL',18), chevronR:this.svg('chevronR',18),
+      cog:this.svg('cog',16), external:this.svg('external',14),
+    };
+    const themeIcon = s.theme==='dark' ? this.svg('moon') : this.svg('sun');
+    const themeLabel = s.theme==='dark' ? 'Dark' : 'Light';
+
+    // ---- layout engine ----
+    const sw = s.sidebarMode==='hidden'?0 : s.sidebarMode==='icons'?64 : s.sidebarMode==='compact'?204:252;
+    const showLabels = s.sidebarMode!=='icons' && s.sidebarMode!=='hidden';
+    const iconJustify = showLabels?'flex-start':'center';
+    const outerStyle = css({display:'flex',height:'100%',width:'100%',minHeight:0});
+    const sidebarStyle = css({width:sw+'px',flex:'0 0 auto',order:s.sidebarPosition==='right'?3:0,display:s.sidebarMode==='hidden'?'none':'flex',flexDirection:'column',background:'var(--bg-2)',borderRight:s.sidebarPosition==='left'?'1px solid var(--border)':'none',borderLeft:s.sidebarPosition==='right'?'1px solid var(--border)':'none',minHeight:0});
+    const rp = s.readingPaneVisible ? s.readingPanePosition : 'hidden';
+    const mainStyle = css({flex:'1 1 auto',order:1,display:'flex',minWidth:0,minHeight:0,flexDirection: rp==='bottom'?'column':'row'});
+    let listStyle, readingStyle;
+    if(rp==='hidden'){
+      listStyle = css({flex:'1 1 auto',display:'flex',flexDirection:'column',minWidth:0,minHeight:0,background:'var(--bg)',order:0});
+      readingStyle = css({display:'none'});
+    } else if(rp==='bottom'){
+      listStyle = css({flex:'1 1 auto',display:'flex',flexDirection:'column',minWidth:0,minHeight:0,background:'var(--bg)',order:0,borderBottom:'1px solid var(--border)'});
+      readingStyle = css({flex:'0 0 46%',display:'flex',flexDirection:'column',minHeight:0,background:'var(--bg)',order:1});
+    } else {
+      const listW = s.sidebarMode==='icons'?320:376;
+      listStyle = css({flex:'0 1 '+listW+'px',display:'flex',flexDirection:'column',minWidth:'262px',minHeight:0,background:'var(--bg)',order:rp==='left'?1:0,borderRight:rp==='right'?'1px solid var(--border)':'none',borderLeft:rp==='left'?'1px solid var(--border)':'none'});
+      readingStyle = css({flex:'1 1 380px',display:'flex',flexDirection:'column',minWidth:0,minHeight:0,background:'var(--bg)',order:rp==='left'?0:1});
+    }
+    const claudeDockStyle = css({width:'360px',flex:'0 0 auto',order:4,display:s.claudeDock?'flex':'none',flexDirection:'column',background:'var(--bg-2)',borderLeft:'1px solid var(--border)',minHeight:0});
+    const claudeDockOn = s.claudeDock;
+
+    // claude overlay
+    const claudeOverlayOn = !s.claudeDock && s.claudeOpen;
+    let claudeOverlayWrap, claudeOverlayStyle;
+    if(s.claudePos==='float'){
+      claudeOverlayWrap = css({position:'absolute',inset:0,pointerEvents:'none'});
+      claudeOverlayStyle = css({position:'absolute',right:'22px',bottom:'22px',width:'380px',height:'560px',borderRadius:'16px',boxShadow:'var(--shadow)',border:'1px solid var(--border-2)',pointerEvents:'auto',overflow:'hidden',animation:'dmPop .2s ease'});
+    } else {
+      const rightSide = s.claudePos==='right';
+      claudeOverlayWrap = css({position:'absolute',inset:0,pointerEvents:'none'});
+      claudeOverlayStyle = css({position:'absolute',top:0,bottom:0,[rightSide?'right':'left']:0,width:'380px',boxShadow:'var(--shadow)',border:'1px solid var(--border)',pointerEvents:'auto',overflow:'hidden',animation:(rightSide?'dmSlideR':'dmSlideL')+' .22s ease'});
+    }
+
+    // density
+    const rowpy = s.density==='comfortable'?'14px':s.density==='compact'?'8px':'11px';
+    const clamp = String(Math.max(1, s.previewLines));
+    const showSnippet = s.previewLines>0;
+
+    // ---- data ----
+    const all = this.data().msgs;
+    const q = s.search.trim().toLowerCase();
+    let list = all.filter(m=>m.folder===s.activeFolder || s.activeFolder!=='inbox' ? true : m.folder==='inbox');
+    list = all.slice();
+    if(q) list = list.filter(m=> (m.fn+' '+m.subj+' '+m.snip+' '+m.fe).toLowerCase().includes(q));
+    const msgs = list.map((m,i)=>{
+      const sel = m.id===s.selId;
+      const av = this.AV[m.id % this.AV.length];
+      const labelColors = {Work:'#8b7cf6','Invoices':'#e08a63','Needs Reply':'#e0575b'};
+      const lc = labelColors[m.label] || 'var(--text-3)';
+      return {
+        id:m.id, from_name:m.fn, subject:m.subj, snippet:m.snip, time:m.time,
+        unread:m.unread, starred:m.star, hasAttach:m.attach,
+        weight: m.unread?'700':'500',
+        bg: sel?'var(--sel)':'transparent', bar: sel?'var(--sel-bar)':'transparent',
+        avBg: hexA(av,0.16), avFg: av, initials: initials(m.fn),
+        hasLabel: !!m.label, label: m.label, labelColor: lc, labelBg: hexA(lc,0.15),
+        onSelect: ()=>this.select(m.id), onOpen: ()=>this.openFull(m.id),
+      };
+    });
+    const noResults = q && msgs.length===0;
+
+    const selRaw = all.find(m=>m.id===s.selId);
+    const hasSel = s.readingPaneVisible && !!selRaw;
+    const noSel = s.readingPaneVisible && !selRaw;
+    let selMsg=null, selStarIcon=I.starSm, selStarColor='var(--text-2)';
+    if(selRaw){
+      const av=this.AV[selRaw.id%this.AV.length];
+      selMsg = {
+        subject:selRaw.subj, from_name:selRaw.fn, from_email:selRaw.fe, to:'jordan@fastmail.com',
+        date_full:this.fmtDate(), initials:initials(selRaw.fn), avBg:hexA(av,0.16), avFg:av,
+        body: selRaw.body || [selRaw.snip, '(Full message body would appear here.)'],
+        hasAttach: selRaw.attach, attachments: selRaw.att || [{name:'attachment.pdf',size:'—',ext:'PDF',color:'#e0575b'}],
+        attachLabel: (selRaw.att?selRaw.att.length:1)+' Attachment' + ((selRaw.att&&selRaw.att.length>1)?'s':''),
+      };
+      selStarColor = selRaw.star?'var(--star)':'var(--text-2)';
+      selStarIcon = selRaw.star?this.svgFill('star',18):this.svg('star',18);
+      selMsg.isInvite = !!selRaw.invite;
+      if(selRaw.invite){
+        const iv = selRaw.invite; const pv = this.PROVIDERS[iv.provider]||{};
+        const st = s.acceptedInvites[selRaw.id] || null;
+        selMsg.invite = {
+          title: iv.title, when: iv.dateLabel + ' · ' + iv.start + '–' + iv.end,
+          location: iv.location, provider: pv.label, providerColor: pv.color||'var(--accent)',
+          guests: iv.guests.join(', '), organiser: iv.organiser,
+          icon: this.svg(pv.video?'video':'pin',18),
+          status: st, decided: !!st, undecided: !st,
+          statusLabel: st==='accepted'?'You accepted — added to calendar':st==='tentative'?'You replied tentative':st==='declined'?'You declined':'',
+          onAccept: ()=>this.acceptInvite('accepted'), onTentative: ()=>this.acceptInvite('tentative'), onDecline: ()=>this.acceptInvite('declined'),
+        };
+      }
+    }
+
+    // accounts / folders / views
+    const accounts = [
+      {name:'Jordan Ellis',email:'jordan@fastmail.com',color:'#8b7cf6',unread:'6',hasUnread:true},
+      {name:'Northwind Work',email:'j.ellis@northwind.co',color:'#3bb6a6',unread:'3',hasUnread:true},
+    ];
+    const fdef = [
+      {key:'inbox',name:'Inbox',icon:'inbox',count:'9'},
+      {key:'starred',name:'Starred',icon:'star',count:'2'},
+      {key:'drafts',name:'Drafts',icon:'draft',count:'1'},
+      {key:'sent',name:'Sent',icon:'send',count:''},
+      {key:'archive',name:'Archive',icon:'archive',count:''},
+      {key:'spam',name:'Spam',icon:'spam',count:''},
+      {key:'trash',name:'Trash',icon:'trash',count:''},
+    ];
+    const folders = fdef.map(f=>{
+      const active=s.activeFolder===f.key;
+      return {name:f.name, count:f.count, icon:this.svg(f.icon,17), onClick:()=>this.setState({activeFolder:f.key,selId:s.selId}),
+        fg:active?'var(--accent)':'var(--text)', bg:active?'var(--accent-soft)':'transparent', weight:active?'700':'500',
+        countColor: (active?'var(--accent)': (f.key==='inbox'?'var(--text-2)':'var(--text-3)'))};
+    });
+    const vdef = [
+      {key:'needs',name:'Needs Reply',icon:'reply',count:'3',color:'#e0575b'},
+      {key:'attach',name:'Has Attachments',icon:'paperclip',count:'5',color:'#e08a63'},
+      {key:'last7',name:'Last 7 Days',icon:'clock',count:'12',color:'#5b8def'},
+      {key:'invoices',name:'Invoices & Quotes',icon:'calendar',count:'3',color:'#3bb6a6'},
+    ];
+    const views = vdef.map(v=>{
+      const active=s.activeFolder===v.key;
+      return {name:v.name, count:v.count, icon:this.svg(v.icon,16), iconColor:v.color, onClick:()=>this.setState({activeFolder:v.key}),
+        fg:active?'var(--accent)':'var(--text)', bg:active?'var(--accent-soft)':'transparent'};
+    });
+    const activeTitle = ([].concat(fdef,vdef).find(x=>x.key===s.activeFolder)||{name:'Inbox'}).name;
+    const msgCount = msgs.length + (msgs.length===1?' message':' messages');
+
+    // preset cards
+    const pc = [
+      ['classic','Classic','Sidebar · list · reading pane right'],
+      ['bottom','Bottom Preview','List on top, reading pane below'],
+      ['focus','Focus Mode','Collapsed sidebar, large reader'],
+      ['wide','Wide Monitor','Four columns incl. docked Claude'],
+      ['right','Right Sidebar','Folders & accounts on the right'],
+      ['noreading','No Reading Pane','List only — open in windows'],
+    ];
+    const presetCards = pc.map(([k,name,desc])=>{
+      const active=s.preset===k;
+      return {name,desc,active, onClick:()=>this.applyPreset(k), schematic:this.schematic(k),
+        border:active?'var(--accent)':'var(--border)', bg:active?'var(--accent-soft)':'var(--bg-2)'};
+    });
+
+    // controls (segmented)
+    const controls = [
+      {label:'Reading pane', opts:[
+        this.seg('Right',s.readingPaneVisible&&s.readingPanePosition==='right',()=>this.setState({readingPaneVisible:true,readingPanePosition:'right',preset:'custom'})),
+        this.seg('Bottom',s.readingPaneVisible&&s.readingPanePosition==='bottom',()=>this.setState({readingPaneVisible:true,readingPanePosition:'bottom',preset:'custom'})),
+        this.seg('Left',s.readingPaneVisible&&s.readingPanePosition==='left',()=>this.setState({readingPaneVisible:true,readingPanePosition:'left',preset:'custom'})),
+        this.seg('Hidden',!s.readingPaneVisible,()=>this.setState({readingPaneVisible:false,preset:'custom'})),
+      ]},
+      {label:'Sidebar mode', opts:[
+        this.seg('Full',s.sidebarMode==='expanded',()=>this.setPref('sidebarMode','expanded')),
+        this.seg('Compact',s.sidebarMode==='compact',()=>this.setPref('sidebarMode','compact')),
+        this.seg('Icons',s.sidebarMode==='icons',()=>this.setPref('sidebarMode','icons')),
+        this.seg('Hidden',s.sidebarMode==='hidden',()=>this.setPref('sidebarMode','hidden')),
+      ]},
+      {label:'Sidebar side', opts:[
+        this.seg('Left',s.sidebarPosition==='left',()=>this.setPref('sidebarPosition','left')),
+        this.seg('Right',s.sidebarPosition==='right',()=>this.setPref('sidebarPosition','right')),
+      ]},
+      {label:'Density', opts:[
+        this.seg('Comfortable',s.density==='comfortable',()=>this.setPref('density','comfortable')),
+        this.seg('Cozy',s.density==='cozy',()=>this.setPref('density','cozy')),
+        this.seg('Compact',s.density==='compact',()=>this.setPref('density','compact')),
+      ]},
+      {label:'Claude panel', opts:[
+        this.seg('Right',!s.claudeDock&&s.claudePos==='right',()=>this.setState({claudeDock:false,claudePos:'right',preset:'custom'})),
+        this.seg('Left',!s.claudeDock&&s.claudePos==='left',()=>this.setState({claudeDock:false,claudePos:'left',preset:'custom'})),
+        this.seg('Float',!s.claudeDock&&s.claudePos==='float',()=>this.setState({claudeDock:false,claudePos:'float',preset:'custom'})),
+        this.seg('Docked',s.claudeDock,()=>this.setState({claudeDock:true,preset:'custom'})),
+      ]},
+      {label:'Open behaviour', opts:[
+        this.seg('Reading pane',s.openBehaviour==='reading',()=>this.setPref('openBehaviour','reading')),
+        this.seg('Full window',s.openBehaviour==='full',()=>this.setPref('openBehaviour','full')),
+        this.seg('Ask',s.openBehaviour==='ask',()=>this.setPref('openBehaviour','ask')),
+      ]},
+      {label:'Theme', opts:[
+        this.seg('Light',s.theme==='light',()=>this.setTheme('light')),
+        this.seg('Dark',s.theme==='dark',()=>this.setTheme('dark')),
+      ]},
+    ];
+
+    const presetLabels = {classic:'Classic',bottom:'Bottom Preview',focus:'Focus Mode',wide:'Wide Monitor',right:'Right Sidebar',noreading:'No Reading Pane',custom:'Custom Layout'};
+    const presetLabel = presetLabels[s.preset]||'Layout';
+
+    // ---- mode + primary action ----
+    const mailMode = s.mode==='mail';
+    const calendarMode = s.mode==='calendar';
+    const modeTabs = [
+      {label:'Mail', icon:this.svg('mail',15), active:mailMode, onClick:()=>this.setMode('mail')},
+      {label:'Calendar', icon:this.svg('cal',15), active:calendarMode, onClick:()=>this.setMode('calendar')},
+    ].map(t=>({...t, fg:t.active?'var(--accent)':'var(--text-2)', bg:t.active?'var(--accent-soft)':'transparent'}));
+    const primaryLabel = mailMode?'Compose':'New event';
+    const primaryIcon = mailMode?this.svg('compose',15):this.svg('plus',15,2);
+    const primaryOn = mailMode?this.openComposeNew:(()=>this.openEvent());
+    const searchPlaceholder = mailMode?'Search mail, or type a command…':'Search events…';
+
+    // ---- title-bar menus ----
+    const mk = (label, on, kbd, check) => ({label, on, kbd:kbd||'', check:!!check, sep:false});
+    const sep = {sep:true};
+    const fileItems = [
+      mk('New email', this.openComposeNew, 'Ctrl N'),
+      mk('New calendar event', ()=>this.openEvent(), 'Ctrl E'),
+      sep,
+      mk('Add account…', this.closeMenu),
+      mk('Print…', ()=>{this.closeMenu();this.showToast('Sent to printer');}, 'Ctrl P'),
+      sep,
+      mk('Settings', ()=>this.openSettings('signatures'), 'Ctrl ,'),
+      sep,
+      mk('Exit', this.closeMenu),
+    ];
+    const viewItems = [
+      mk('Mail', ()=>this.setMode('mail'), '', mailMode),
+      mk('Calendar', ()=>this.setMode('calendar'), '', calendarMode),
+      sep,
+      mk('Classic layout', ()=>{this.applyPreset('classic');this.closeMenu();}),
+      mk('Bottom preview', ()=>{this.applyPreset('bottom');this.closeMenu();}),
+      mk('Focus mode', ()=>{this.applyPreset('focus');this.closeMenu();}),
+      mk('Wide monitor', ()=>{this.applyPreset('wide');this.closeMenu();}),
+      sep,
+      mk('View settings…', ()=>{this.openViewSettings();this.closeMenu();}),
+      mk(s.theme==='dark'?'Switch to light theme':'Switch to dark theme', ()=>{this.toggleTheme();this.closeMenu();}),
+      mk('Show Claude assistant', ()=>this.setState({claudeOpen:true, openMenu:null})),
+    ];
+    const helpItems = [
+      {label:'Open the style guide', on:()=>{ try{window.open('Style Guide.dc.html','_blank');}catch(e){} this.closeMenu(); }, kbd:'', sep:false},
+      mk('Keyboard shortcuts', this.closeMenu),
+      sep,
+      mk('About DeskMail AI', this.closeMenu),
+    ];
+    const fileMenuOpen = s.openMenu==='file';
+    const viewMenuOpen = s.openMenu==='view';
+    const helpMenuOpen = s.openMenu==='help';
+    const anyMenuOpen = !!s.openMenu;
+    const normMenu = (arr) => arr.map(it => it.sep
+      ? {sep:true, isItem:false, label:'', kbd:'', on:this.closeMenu, checkIcon:''}
+      : {sep:false, isItem:true, label:it.label, kbd:it.kbd||'', on:it.on, checkIcon: it.check?this.svg('check',13,2.6):''});
+    const fileItemsN = normMenu(fileItems);
+    const viewItemsN = normMenu(viewItems);
+    const helpItemsN = normMenu(helpItems);
+    const fileMenuBg = fileMenuOpen?'var(--bg-3)':'transparent';
+    const viewMenuBg = viewMenuOpen?'var(--bg-3)':'transparent';
+    const helpMenuBg = helpMenuOpen?'var(--bg-3)':'transparent';
+
+    // ---- calendar grid (July 2026) ----
+    const monthStart = new Date(2026,6,1).getDay();      // 0 Sun..6 Sat
+    const offset = (monthStart+6)%7;                       // Monday-first
+    const daysInMonth = 31;
+    const calWeekdays = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const calCells = [];
+    for(let i=0;i<42;i++){
+      const day = i-offset+1;
+      const valid = day>=1 && day<=daysInMonth;
+      const evs = valid ? s.events.filter(e=>e.day===day).sort((a,b)=>(a.start||'').localeCompare(b.start||'')) : [];
+      calCells.push({
+        day: valid?day:'', valid, isToday: valid&&day===9,
+        dayColor: (valid&&day===9)?'var(--accent-fg)':'var(--text)',
+        dayBg: (valid&&day===9)?'var(--accent)':'transparent',
+        cellBg: valid?'var(--bg-2)':'var(--bg)',
+        onClick: valid?(()=>this.openEvent({day})):(()=>{}),
+        events: evs.slice(0,3).map(e=>({label:(e.start?e.start+' ':'')+e.title, color:(this.PROVIDERS[e.provider]||{}).color||'var(--accent)'})),
+        more: evs.length>3 ? ('+'+(evs.length-3)+' more') : '',
+      });
+    }
+    const calUpcoming = s.events.filter(e=>e.day>=9).sort((a,b)=>a.day-b.day||(a.start||'').localeCompare(b.start||'')).slice(0,6).map(e=>{
+      const pv=this.PROVIDERS[e.provider]||{};
+      return {title:e.title, when:'Jul '+e.day+(e.start?' · '+e.start:''), color:pv.color||'var(--accent)', kind:pv.label||''};
+    });
+    const calLegend = ['teams','meet','zoom','inperson','deadline'].map(k=>({label:this.PROVIDERS[k].label, color:this.PROVIDERS[k].color}));
+    const myCalendars = [
+      {name:'Personal', color:'#2fae4f'}, {name:'Work', color:'#5b5fc7'},
+      {name:'Meetings', color:'#3b82e0'}, {name:'Deadlines', color:'#e0575b'},
+    ];
+
+    // ---- event modal ----
+    const ne = s.newEvent;
+    const providerOpts = ['teams','meet','zoom','inperson','link'].map(k=>{
+      const pv=this.PROVIDERS[k]; const active=ne.provider===k;
+      return {key:k, label:pv.label, icon:this.svg(pv.video?'video':(k==='link'?'link':'pin'),15),
+        active, fg:active?'#fff':'var(--text-2)', bg:active?pv.color:'transparent', border:active?pv.color:'var(--border)',
+        onClick:()=>this.setEventField('provider',k)};
+    });
+    const neProvider = this.PROVIDERS[ne.provider]||{};
+    const neIsVideo = !!neProvider.video;
+    const neIsLink = ne.provider==='link';
+    const neJoinNote = neIsVideo ? ('A '+neProvider.label+' link is generated automatically and the desktop app launches when you join.') : '';
+    const setEv = (k)=>(e)=>this.setEventField(k, e.target.value);
+
+    // ---- settings ----
+    const settingsSections = [
+      {key:'accounts',name:'Accounts',icon:this.svg('user',16)},
+      {key:'signatures',name:'Signatures',icon:this.svg('compose',16)},
+      {key:'sending',name:'Sending',icon:this.svg('send',16)},
+      {key:'meetings',name:'Meetings',icon:this.svg('video',16)},
+      {key:'claude',name:'Claude connector',icon:this.svgFill('sparkles',15)},
+      {key:'appearance',name:'Appearance',icon:this.svg('sun',16)},
+      {key:'security',name:'Security & privacy',icon:this.svg('shield',16)},
+    ].map(x=>({...x, active:s.settingsSection===x.key, fg:s.settingsSection===x.key?'var(--accent)':'var(--text-2)', bg:s.settingsSection===x.key?'var(--accent-soft)':'transparent', onClick:()=>this.setState({settingsSection:x.key})}));
+    const sec = s.settingsSection;
+    const settingsProviderOpts = ['teams','meet','zoom'].map(k=>{
+      const pv=this.PROVIDERS[k]; const active=s.defaultProvider===k;
+      return {label:pv.label, icon:this.svg('video',15), active, fg:active?'#fff':'var(--text-2)', bg:active?pv.color:'transparent', border:active?pv.color:'var(--border)', onClick:()=>this.setState({defaultProvider:k})};
+    });
+    const settingsTitle = (settingsSections.find(x=>x.active)||{name:'Settings'}).name;
+    const claudeTools = ['list_accounts','list_folders','search_emails','read_email','create_draft','find_related_emails','extract_dates_and_deadlines','summarise_thread_data'];
+    const yes = this.svg('check',14,2.6); const no = this.svg('close',14,2.4);
+    const claudePerms = [
+      {label:'Search & read email', icon:yes, color:'var(--green)'},
+      {label:'Create drafts', icon:yes, color:'var(--green)'},
+      {label:'Send email', icon:no, color:'var(--red)'},
+      {label:'Delete email', icon:no, color:'var(--red)'},
+    ];
+    const lightActive = s.theme==='light';
+    const securityPoints = [
+      'Email HTML is sanitised before display — no scripts ever run.',
+      'Remote images are blocked by default to protect your privacy.',
+      'Account credentials are held in the OS secure store, never in plain text.',
+      'Attachments never open automatically — you choose when to open them.',
+      'Claude can read and draft, but can never send or delete without your approval.',
+    ];
+
+    // ---- compose ----
+    const composeTitleMap = {new:'New Message', reply:'Reply', replyall:'Reply all', forward:'Forward'};
+    const composeTitle = composeTitleMap[s.composeMode]||'New Message';
+    const composeAttachments = s.attachments.map((a,i)=>({...a, onRemove:()=>this.removeAttachment(i)}));
+
+    // full windows
+    const claudeActions = [
+      {label:'Summarise'},{label:'Draft reply'},{label:'Explain simply'},{label:'Extract details'},{label:'Extract dates'},{label:'Find related'},{label:'Turn into task'},
+    ];
+    const fullWins = s.fullWins.map((id,i)=>{
+      const m = all.find(x=>x.id===id); if(!m) return null;
+      const av=this.AV[m.id%this.AV.length];
+      const actions = [
+        {label:'Reply',icon:this.svg('reply',16),color:'var(--text-2)',on:()=>this.openReply('reply')},
+        {label:'Reply all',icon:this.svg('replyAll',16),color:'var(--text-2)',on:()=>this.openReply('replyall')},
+        {label:'Forward',icon:this.svg('forward',16),color:'var(--text-2)',on:()=>this.openReply('forward')},
+        {label:'Archive',icon:this.svg('archive',16),color:'var(--text-2)',on:()=>this.showToast('Archived')},
+        {label:'Delete',icon:this.svg('trash',16),color:'var(--red)',on:()=>this.showToast('Moved to Trash')},
+        {label:'Star',icon:this.svgFill('star',15),color:'var(--star)',on:this.toggleStar},
+        {label:'Unread',icon:this.svg('unread',16),color:'var(--text-2)',on:()=>this.showToast('Marked unread')},
+        {label:'Print',icon:this.svg('print',16),color:'var(--text-2)',on:()=>this.showToast('Sent to printer')},
+      ];
+      return {id, subject:m.subj, from_name:m.fn, from_email:m.fe, to:'jordan@fastmail.com', date_full:this.fmtDate(),
+        initials:initials(m.fn), avBg:hexA(av,0.16), avFg:av,
+        body:m.body||[m.snip,'(Full message body would appear here.)'],
+        hasAttach:m.attach, attachments:m.att||[{name:'attachment.pdf',size:'—',ext:'PDF',color:'#e0575b'}],
+        actions, onClose:()=>this.closeFull(id),
+        top:(70+i*26)+'px', left:'calc(50% - min(430px,45vw) + '+(i*26)+'px)',
+        backdrop: i===0?'rgba(5,6,10,0.5)':'transparent'};
+    }).filter(Boolean);
+
+    return {
+      theme:s.theme, palette:(this.props.palette||'brand'), I, themeIcon, themeLabel, search:s.search, onSearch:this.onSearch,
+      openCompose:this.openCompose, toggleClaude:this.toggleClaude, openViewSettings:this.openViewSettings, toggleTheme:this.toggleTheme,
+      presetLabel,
+      outerStyle, sidebarStyle, mainStyle, listStyle, readingStyle, claudeDockStyle, showLabels, iconJustify,
+      claudeOverlayOn, claudeOverlayWrap, claudeOverlayStyle, claudeDockOn,
+      rowpy, clamp, showSnippet,
+      accounts, folders, views, msgs, noResults, activeTitle, msgCount,
+      hasSel, noSel, selMsg, selStarIcon, selStarColor,
+      toggleStar:this.toggleStar, openSelFull:()=>this.openFull(s.selId), claudeOnSel:()=>this.setState({claudeOpen:true}),
+      viewSettingsOpen:s.viewSettingsOpen, closeModals:this.closeModals, stop:(e)=>e.stopPropagation(),
+      presetCards, controls, previewLines:s.previewLines, onPreviewLines:this.onPreviewLines,
+      composeOpen:s.composeOpen, rewriteOpts:['Make clearer','Warmer','More professional','Shorten','Expand','Fix grammar'],
+      fullWins, claudeActions,
+      mailMode, calendarMode, modeTabs, primaryLabel, primaryIcon, primaryOn, searchPlaceholder,
+      fileItems:fileItemsN, viewItems:viewItemsN, helpItems:helpItemsN, fileMenuOpen, viewMenuOpen, helpMenuOpen, anyMenuOpen,
+      fileMenuBg, viewMenuBg, helpMenuBg,
+      toggleFile:()=>this.toggleMenu('file'), toggleView:()=>this.toggleMenu('view'), toggleHelp:()=>this.toggleMenu('help'), closeMenu:this.closeMenu,
+      calWeekdays, calCells, calUpcoming, calLegend, myCalendars, calTitle:'July 2026', openEventBtn:()=>this.openEvent(),
+      eventModalOpen:s.eventModalOpen, closeEvent:this.closeEvent, saveEvent:this.saveEvent, newEvent:ne,
+      providerOpts, neIsVideo, neIsLink, neJoinNote, neProviderLabel:neProvider.label,
+      onEvTitle:setEv('title'), onEvDay:setEv('day'), onEvStart:setEv('start'), onEvEnd:setEv('end'), onEvLocation:setEv('location'), onEvGuests:setEv('guests'), onEvNotes:setEv('notes'),
+      settingsOpen:s.settingsOpen, closeSettings:this.closeSettings, settingsSections, sec,
+      secAccounts:sec==='accounts', secSignatures:sec==='signatures', secSending:sec==='sending', secMeetings:sec==='meetings', secClaude:sec==='claude', secAppearance:sec==='appearance', secSecurity:sec==='security',
+      signature:s.signature, signatureOn:s.signatureOn, onSignature:(e)=>this.setState({signature:e.target.value}),
+      toggleSigOn:()=>this.setState(st=>({signatureOn:!st.signatureOn})), sigToggleBg:s.signatureOn?'var(--accent)':'var(--border-2)', sigKnobX:s.signatureOn?'18px':'2px',
+      settingsProviderOpts, launchDesktop:s.launchDesktop, toggleLaunch:()=>this.setState(st=>({launchDesktop:!st.launchDesktop})), launchBg:s.launchDesktop?'var(--accent)':'var(--border-2)', launchKnobX:s.launchDesktop?'18px':'2px',
+      openSettingsBtn:()=>this.openSettings('signatures'),
+      settingsTitle, claudeTools, claudePerms, securityPoints,
+      setLight:()=>this.setTheme('light'), setDark:()=>this.setTheme('dark'),
+      lightBorder:lightActive?'var(--accent)':'var(--border)', lightBg:lightActive?'var(--accent-soft)':'var(--bg)',
+      darkBorder:!lightActive?'var(--accent)':'var(--border)', darkBg:!lightActive?'var(--accent-soft)':'var(--bg)',
+      composeTitle, composeTo:s.composeCtx.to, composeSubject:s.composeCtx.subject, composeKey:'c'+s._composeKey,
+      composeAttachments, hasAttachments:s.attachments.length>0, addAttachment:this.addAttachment,
+      onSend:this.sendMail, onSaveDraft:this.saveDraft, openSig:()=>this.openSettings('signatures'),
+      replyBtn:()=>this.openReply('reply'), replyAllBtn:()=>this.openReply('replyall'), forwardBtn:()=>this.openReply('forward'),
+      toast:s.toast, hasToast:!!s.toast,
+    };
+  }
+}
+
+function css(o){ return Object.entries(o).map(([k,v])=>toKebab(k)+':'+v).join(';'); }
+function toKebab(k){ return k.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()); }
+function initials(name){ return name.split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+function hexA(hex,a){
+  if(hex.indexOf('var(')===0){ return hex; }
+  const h=hex.replace('#',''); const r=parseInt(h.substring(0,2),16),g=parseInt(h.substring(2,4),16),b=parseInt(h.substring(4,6),16);
+  return 'rgba('+r+','+g+','+b+','+a+')';
+}
+</script>
+</body>
+</html>

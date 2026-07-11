@@ -1,0 +1,259 @@
+import { useEffect, useState } from 'react'
+import { Icon } from '../Icon'
+import type { AccountInput, AccountSummary } from '@shared/db'
+import { AccountWizard } from './AccountWizard'
+import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, MeetingsPane, NotificationsPane, RulesPane, SecurityPane, SendingPane, ShortcutsPane, SignaturesPane, SyncPane, TemplatesPane } from './panes'
+import { AppearancePane } from './ThemeEditor'
+
+const SECTIONS = [
+  'Accounts',
+  'Rules',
+  'Notifications',
+  'Signatures',
+  'Templates',
+  'Contacts',
+  'Sending',
+  'Sync',
+  'Meetings',
+  'Claude connector',
+  'Appearance',
+  'Shortcuts',
+  'Security',
+  'Local storage',
+  'About'
+] as const
+type Section = (typeof SECTIONS)[number]
+
+function AccountsPane({ initialSetup }: { initialSetup?: AccountInput | null }): JSX.Element {
+  const [accounts, setAccounts] = useState<AccountSummary[]>([])
+  const [adding, setAdding] = useState(false)
+  const [prefill, setPrefill] = useState<AccountInput | undefined>(undefined)
+  const [editing, setEditing] = useState<{ id: number; initial: AccountInput } | null>(null)
+
+  const refresh = (): void => {
+    void window.deskmail.listAccounts().then(setAccounts)
+  }
+  useEffect(refresh, [])
+
+  // Opened via the MCP connector's staged setup: jump straight into the wizard
+  // pre-filled with everything but the password.
+  useEffect(() => {
+    if (initialSetup) {
+      setPrefill(initialSetup)
+      setAdding(true)
+    }
+  }, [initialSetup])
+
+  const openEdit = (id: number): void => {
+    void window.deskmail.getAccount(id).then((initial) => {
+      if (initial) setEditing({ id, initial })
+    })
+  }
+
+  if (adding || editing) {
+    return (
+      <AccountWizard
+        editId={editing?.id}
+        initial={editing?.initial ?? prefill}
+        onSaved={() => {
+          setAdding(false)
+          setEditing(null)
+          setPrefill(undefined)
+          refresh()
+        }}
+        onCancel={() => {
+          setAdding(false)
+          setEditing(null)
+          setPrefill(undefined)
+        }}
+      />
+    )
+  }
+
+  return (
+    <div>
+      {accounts.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border-2 p-6 text-center">
+          <div className="text-[14px] font-bold text-text-2">No accounts yet</div>
+          <p className="mx-auto mt-1.5 max-w-[360px] text-[12.5px] leading-relaxed text-text-3">
+            Add your first mailbox to start syncing. I keep everything local — your mail lives on this
+            PC, and your password is encrypted by Windows.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {accounts.map((acc) => (
+            <button
+              key={acc.id}
+              onClick={() => openEdit(acc.id)}
+              className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-3 text-left hover:border-accent"
+            >
+              <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ background: acc.colour ?? 'var(--accent)' }} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13.5px] font-semibold">{acc.displayName}</div>
+                <div className="truncate text-[12px] text-text-3">{acc.emailAddress}</div>
+              </div>
+              <span className="flex-none text-[12px] font-semibold text-text-3">Edit</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={() => setAdding(true)}
+        className="mt-4 flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2"
+      >
+        <Icon name="plus" size={16} /> Add account
+      </button>
+
+      <MailtoToggle />
+    </div>
+  )
+}
+
+// On/off for making DeskMail the handler for email (mailto:) links. The copy is
+// deliberately honest: on Windows 10+ no app can set the default silently — the
+// OS makes you confirm it in its own Default-apps page, which we open for you.
+function MailtoToggle(): JSX.Element {
+  const [on, setOn] = useState<boolean | null>(null)
+  useEffect(() => {
+    void window.deskmail.mailto.enabled().then(setOn)
+  }, [])
+  const toggle = (): void => {
+    const next = !on
+    setOn(next)
+    void window.deskmail.mailto.setEnabled(next)
+  }
+  return (
+    <div className="mt-6 border-t border-border pt-5">
+      <label className="flex items-start gap-3 rounded-md border border-border bg-bg px-3.5 py-3">
+        <input type="checkbox" checked={!!on} onChange={toggle} className="mt-0.5 h-4 w-4 accent-accent" />
+        <div>
+          <div className="text-[13.5px] font-semibold">Use DeskMail for email links</div>
+          <div className="mt-0.5 text-[12.5px] leading-relaxed text-text-3">
+            Opens a new message here when you click a <span className="font-mono">mailto:</span> link on a
+            web page. Windows 10 and 11 won't let any app take this over silently — when you turn it on I'll
+            register DeskMail and open Windows' “Default apps” page, where you confirm the change yourself.
+          </div>
+        </div>
+      </label>
+    </div>
+  )
+}
+
+function AboutPane(): JSX.Element {
+  // ponytail: version string mirrors package.json — bump both at release time.
+  const version = '0.1.0'
+  const items: { label: string; value: string }[] = [
+    { label: 'Private by design', value: 'Your mail is cached on this PC and your password is encrypted by Windows. No accounts, no telemetry — nothing leaves your machine except your own mail server and, if you choose, your own Claude.' },
+    { label: 'Claude connector', value: 'Read and draft only. It can never send mail, permanently delete, or read your password.' },
+    { label: 'Licence', value: 'Apache License 2.0 — free and open source. Use it, change it, share it. See the LICENSE file for the full terms.' }
+  ]
+  return (
+    <div className="max-w-[480px]">
+      <div className="text-[20px] font-bold">DeskMail AI</div>
+      <div className="mt-0.5 text-[12.5px] font-semibold text-text-3">Version {version}</div>
+      <p className="mt-4 text-[13px] leading-relaxed text-text-2">
+        A local, private desktop email client with a safe, built-in Claude connector.
+      </p>
+      <div className="mt-5 flex flex-col gap-3.5">
+        {items.map((it) => (
+          <div key={it.label}>
+            <div className="text-[12px] font-semibold text-accent">{it.label}</div>
+            <div className="mt-0.5 text-[12.5px] leading-relaxed text-text-3">{it.value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-6 border-t border-border pt-4 text-[12px] leading-relaxed text-text-3">
+        No warranty — this software comes as-is. Use at your own risk and keep your own backups.
+      </div>
+    </div>
+  )
+}
+
+function Placeholder({ name }: { name: Section }): JSX.Element {
+  return (
+    <div className="rounded-lg border border-dashed border-border-2 p-6 text-[13px] leading-relaxed text-text-3">
+      <span className="font-semibold text-text-2">{name}</span> settings arrive in a later stage. I'm
+      building DeskMail in stages so each part is solid before I move on.
+    </div>
+  )
+}
+
+export function Settings({ onClose, initialAccountSetup }: { onClose: () => void; initialAccountSetup?: AccountInput | null }): JSX.Element {
+  const [section, setSection] = useState<Section>('Accounts')
+
+  return (
+    <div
+      className="absolute inset-0 z-[62] flex items-center justify-center"
+      style={{ background: 'rgba(5,6,10,0.55)', backdropFilter: 'blur(3px)' }}
+      onClick={onClose}
+    >
+      <div
+        className="flex h-[min(620px,90vh)] w-[min(900px,93vw)] overflow-hidden rounded-lg border border-border bg-panel shadow-raised"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* left nav */}
+        <div className="flex w-[222px] flex-none flex-col border-r border-border bg-bg p-2.5">
+          <div className="px-2.5 pb-3.5 pt-1 text-[16px] font-bold">Settings</div>
+          {SECTIONS.map((s) => {
+            const active = s === section
+            return (
+              <button
+                key={s}
+                onClick={() => setSection(s)}
+                className="mb-px rounded-md px-2.5 py-2 text-left text-[13px] font-semibold hover:bg-raised"
+                style={active ? { color: 'var(--accent)', background: 'var(--accent-soft)' } : { color: 'var(--text-2)' }}
+              >
+                {s}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* right pane */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex flex-none items-center border-b border-border px-5 py-4">
+            <span className="text-[16px] font-bold">{section}</span>
+            <div className="flex-1" />
+            <button onClick={onClose} className="flex rounded-md p-2 text-text-2 hover:bg-raised">
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5">
+            {section === 'Accounts' && <AccountsPane initialSetup={initialAccountSetup} />}
+            {section === 'Rules' && <RulesPane />}
+            {section === 'Notifications' && <NotificationsPane />}
+            {section === 'Signatures' && <SignaturesPane />}
+            {section === 'Templates' && <TemplatesPane />}
+            {section === 'Contacts' && <ContactsPane />}
+            {section === 'Sending' && <SendingPane />}
+            {section === 'Sync' && <SyncPane />}
+            {section === 'Meetings' && <MeetingsPane />}
+            {section === 'Claude connector' && <ClaudeConnectorPane />}
+            {section === 'Appearance' && <AppearancePane />}
+            {section === 'Shortcuts' && <ShortcutsPane />}
+            {section === 'Security' && <SecurityPane />}
+            {section === 'Local storage' && <LocalStoragePane />}
+            {section === 'About' && <AboutPane />}
+            {section !== 'Accounts' &&
+              section !== 'Rules' &&
+              section !== 'Notifications' &&
+              section !== 'Signatures' &&
+              section !== 'Templates' &&
+              section !== 'Contacts' &&
+              section !== 'Sending' &&
+              section !== 'Sync' &&
+              section !== 'Meetings' &&
+              section !== 'Claude connector' &&
+              section !== 'Appearance' &&
+              section !== 'Shortcuts' &&
+              section !== 'Security' &&
+              section !== 'Local storage' &&
+              section !== 'About' && <Placeholder name={section} />}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
