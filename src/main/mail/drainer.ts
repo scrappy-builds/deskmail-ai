@@ -24,6 +24,26 @@ async function applyRemote(client: ImapFlow, a: QueuedAction): Promise<void> {
     }
     return
   }
+  // Empty a folder: expunge every message in the mailbox in one go. Immune to
+  // stale per-message UIDs (a message moved into Trash keeps its old UID locally).
+  if (a.op === 'empty') {
+    if (!a.source_path) return
+    // Force a fresh SELECT so the count reflects mail moved in this same batch and
+    // isn't stale from the kept-alive connection.
+    const open = client.mailbox
+    if (open && typeof open !== 'boolean' && open.path === a.source_path) await client.mailboxClose()
+    const lock = await client.getMailboxLock(a.source_path)
+    try {
+      const mb = client.mailbox
+      if (mb && typeof mb !== 'boolean' && mb.exists > 0) {
+        await client.messageDelete('1:*', { uid: true }) // mark \Deleted + expunge all
+      }
+    } finally {
+      lock.release()
+    }
+    return
+  }
+
   if (!a.source_path || a.remote_uid == null) return // local-only message; nothing to replay
   const uid = String(a.remote_uid)
   const lock = await client.getMailboxLock(a.source_path)

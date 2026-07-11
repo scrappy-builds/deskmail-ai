@@ -20,7 +20,7 @@ export interface QueuedAction {
   id: number
   message_id: number | null
   account_id: number
-  op: MailOp | 'append'
+  op: MailOp | 'append' | 'empty'
   remote_uid: number | null
   source_path: string | null
   target_path: string | null
@@ -101,11 +101,23 @@ export function applyAction(db: DB, messageId: number, op: MailOp, explicitTarge
   return true
 }
 
-// Permanently delete every message in a folder (Empty Trash / Empty Junk).
-// Returns how many were removed.
+// Empty a folder (Empty Trash / Empty Junk). Queues a single server-side expunge
+// of the WHOLE mailbox — robust because it doesn't depend on any per-message UID,
+// which can go stale after a message was moved into the folder (a moved message
+// keeps its old source-folder UID locally until the next sync). Then drops the
+// local rows. Returns how many local messages were removed.
 export function emptyFolder(db: DB, folderId: number): number {
+  const folder = getFolder(db, folderId)
   const ids = folderMessageIds(db, folderId)
-  for (const id of ids) applyAction(db, id, 'delete-forever')
+  if (folder?.remote_path) {
+    db.run(
+      `INSERT INTO mail_actions (message_id, account_id, op, remote_uid, source_path, target_path)
+       VALUES (NULL, ?, 'empty', NULL, ?, NULL)`,
+      [folder.account_id, folder.remote_path]
+    )
+  }
+  for (const id of ids) deleteMessage(db, id)
+  if (folder) refreshFolderCounts(db, folderId)
   return ids.length
 }
 

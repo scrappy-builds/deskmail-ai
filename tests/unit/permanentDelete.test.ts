@@ -51,10 +51,15 @@ describe('mark-all-read + permanent delete', () => {
     expect(queued[0].source_path).toBe('Trash') // so the drainer can expunge after the row is gone
   })
 
-  it('emptyFolder permanently deletes every message in the folder', () => {
+  it('emptyFolder clears locally and queues ONE whole-mailbox expunge (not per-UID)', () => {
     addMsg(db, trashId, 1); addMsg(db, trashId, 2); addMsg(db, trashId, 3)
     expect(emptyFolder(db, trashId)).toBe(3)
     expect(listMessages(db, trashId)).toHaveLength(0)
-    expect(pendingActions(db).filter((a) => a.op === 'delete-forever')).toHaveLength(3)
+    // One folder-level expunge — robust even when a message's local UID is stale
+    // after being moved into Trash (a per-UID delete would miss it on the server).
+    const empties = pendingActions(db).filter((a) => a.op === 'empty')
+    expect(empties).toHaveLength(1)
+    expect(empties[0].source_path).toBe('Trash')
+    expect(empties[0].remote_uid).toBeNull()
   })
 })
