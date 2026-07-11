@@ -1,160 +1,178 @@
-# DeskMail AI — Design Handoff Pack
+# DeskMail AI
 
-A local, single-user Windows desktop email client with a built-in Claude Desktop (MCP) connector.
-This pack is everything a developer (or Claude Code) needs to build the real application.
+A **local, single-user desktop email client for Windows** with a safe, built-in
+Claude connector. Your mail is fetched from your own mail server and cached in a
+local database on your PC; your password is encrypted by Windows. Nothing leaves
+your machine except the connection to your own mail server and — only if you
+choose — your own Claude.
 
----
-
-## What's in this pack
-
-```
-design_handoff_deskmail_ai/
-├── README.md                     ← you are here
-├── CLAUDE_CODE_PROMPT.md         ← the master build brief. Paste into Claude Code to start.
-├── PROGRESS.md                   ← the living build log. Claude Code updates this each stage so
-│                                   work resumes cleanly across sessions.
-├── FEATURE_SPEC.md               ← detailed behaviour for every feature (incl. the 6 additions).
-├── Functional3DUK_Brand_Guide.md ← the brand + voice reference.
-└── design-files/
-    ├── DeskMail AI.dc.html        ← the full interactive UI prototype (open in a browser)
-    ├── Claude Panel.dc.html       ← the Claude assistant panel (used inside the app)
-    ├── Style Guide.dc.html        ← the visual system: colours, type, spacing, components, voice
-    └── support.js                 ← runtime needed for the .dc.html files to open
-```
-
-### How to view the design files
-Open any `.dc.html` file in a modern browser (Chrome/Edge). They are self-contained and
-interactive — click around: switch Mail/Calendar, open Compose, the Claude panel, Settings,
-double-click a message to open it in its own window, accept the calendar invite, toggle light/dark
-(top-right), and try the layout presets.
-
-**These HTML files are design references, not production code.** They show the intended look and
-behaviour precisely. The job is to **recreate them in a real Electron + React + TypeScript + Tailwind
-app** (see the build brief), not to ship the HTML.
+> ### 👋 New to coding, Claude, or AI in general?
+> This README is written for people who are comfortable with a terminal. **If that's
+> not you, don't worry** — scroll down to **[For people new to all this](#for-people-new-to-all-this)**
+> near the bottom. It explains what this is and how to run it in plain language, with
+> no assumed knowledge.
 
 ---
 
-## Fidelity
-**High-fidelity.** Colours, typography, spacing, component styling, and interactions are final.
-Recreate the UI pixel-close using the values in `Style Guide.dc.html` and the token list below.
+## What it does
+
+- Full **IMAP/SMTP** email: every folder, deep history, instant new-mail push (IDLE),
+  two-way sync of reads/flags/moves/deletes.
+- **Reading & organising**: folders, labels, pin/mute, snooze, follow-ups, rules,
+  a learning junk filter, smart views, and an optional focused inbox.
+- **Composing**: rich text, attachments, multiple signatures, templates, drafts,
+  scheduled send, and undo-send.
+- **Calendar & contacts**, search, an attachments browser, backup/restore.
+- A **local Claude (MCP) connector** that can read, search, draft, and organise your
+  mail — but **can never send, permanently delete, or read your password**. It can
+  even **set up a mail account for you** (see below).
+
+A full list is in **[FEATURES.md](FEATURES.md)**. What's been tested and the known
+limitations are in **[TESTING_AND_LIMITATIONS.md](TESTING_AND_LIMITATIONS.md)**.
 
 ---
 
-## The product in one paragraph
-DeskMail AI connects to IMAP/SMTP (and optionally POP3) accounts, syncs mail into a local SQLite
-store, and shows it in a polished, highly configurable desktop interface (flexible reading pane,
-sidebar, and layout presets). It has a Calendar with meeting-provider support (Teams/Meet/Zoom),
-Compose with signatures and attachments, and a **local MCP server** so Claude Desktop can safely
-**search, read, summarise, and draft** — never send or delete without explicit user approval.
-It is **single-user, for the owner only** — no sign-up, no licensing/EULA screens.
+## Quick start (development)
 
----
-
-## Design tokens (from the Style Guide)
-
-**Light theme (default)**
-| Token | Value | Role |
-|---|---|---|
-| `--bg` | `#f5f5f5` | app background |
-| `--bg-2` | `#ffffff` | panels / cards |
-| `--bg-3` | `#efefef` | raised / hover |
-| `--border` | `#e4e4e4` | dividers |
-| `--text` | `#111111` | primary text |
-| `--text-2` | `#4d4d4d` | secondary text |
-| `--text-3` | `#8a8a8a` | tertiary/meta |
-| `--accent` | `#1e7a38` | interactive / brand green |
-| `--accent-2` | `#1a5c28` | hover / pressed (brand dark green) |
-| `--claude` | `#bf8420` | Claude / AI accent |
-
-**Dark theme**
-| Token | Value | Role |
-|---|---|---|
-| `--bg` | `#111111` | app background (brand near-black) |
-| `--bg-2` | `#181818` | panels |
-| `--bg-3` | `#202020` | raised / hover |
-| `--border` | `#2a2a2a` | dividers |
-| `--text` | `#ffffff` | primary text |
-| `--text-2` | `#cccccc` | secondary text |
-| `--text-3` | `#7d7d7d` | tertiary/meta |
-| `--accent` | `#2fae4f` | interactive / brand green |
-| `--accent-2` | `#38bd59` | hover |
-| `--claude` | `#e0a13a` | Claude / AI accent |
-
-**Semantic:** success `#1a9e5e`/`#54d18a` · danger `#dc2f42`/`#f0787a` · star `#e0a72b`/`#f2c14e`
-(light/dark).
-
-**Type:** Hanken Grotesk (UI/body) · JetBrains Mono (technical: shortcuts, ports, IDs, tool names).
-**Radius:** 6 (sm) · 9 (md) · 12 (lg) · 20/pill. **Spacing scale:** 4 · 8 · 12 · 16 · 24 · 32 · 48.
-**Accent rule:** green means "you can act on this" — never decorative fills.
-
-The app defaults to **light**; a one-click Light/Dark toggle lives in the **top-right of the command
-bar** (not buried in layout settings). Six alternate accent palettes exist (Teal, Indigo, Emerald,
-Sunset, Plum, Cobalt) but **brand green is the default**.
-
----
-
-## Screens in the prototype
-- **Main window** — title bar (File/View/Help menus + window controls), command bar (Mail/Calendar
-  tabs, layout preset, search, Compose, Claude, View Settings, Light/Dark), and the workspace.
-- **Mail** — sidebar (accounts, folders, custom views), message list, configurable reading pane.
-- **Reading pane** — action toolbar (reply/reply-all/forward/archive/delete/star/unread), remote-image
-  block banner, invite card (Accept → adds to Calendar), attachments.
-- **Full message window** — opened by double-click; independent window with full toolbar + Claude actions.
-- **Calendar** — month view, colour-coded events, New Event modal with meeting-provider picker.
-- **Compose** — from/to/cc/bcc, subject, body, Claude rewrite bar, signature block, attachments.
-- **Claude panel** — slide-over / float / dock; read & draft only; action chips.
-- **Settings** — Accounts, Signatures, Sending, Meetings, Claude connector, Appearance, Security.
-- **View Settings** — layout presets + fine-tune controls.
-- **Style Guide** — the living design system.
-
-Full behaviour for each is in `FEATURE_SPEC.md`. Build order, packaging, backup/portability, testing,
-and the staged working method are in `CLAUDE_CODE_PROMPT.md`.
-
----
-
-## Running the app (development)
+**Prerequisites:** Windows 10/11, [Node.js](https://nodejs.org/) 20+ and Git.
 
 ```bash
+git clone <your-fork-url>
+cd "DeskMail AI"
 npm install
-npm run dev        # launch the app with hot reload
-npm test           # unit tests (Vitest)
-npm run test:e2e   # end-to-end tests (Playwright for Electron)
-npm run build      # production build into out/
+npm run dev          # launch the app with hot reload
 ```
 
-> Note: on this machine the `electron` binary and `node-sqlite3-wasm` are plain downloads/WASM — no
-> native compiler is needed. If `node_modules/electron/dist` ends up empty after install, extract the
-> cached zip from `%LOCALAPPDATA%\electron\Cache` into it (see `PROGRESS.md`).
+Other commands:
+
+```bash
+npm test             # unit tests
+npm run test:e2e     # end-to-end tests (builds + drives the app)
+npm run build        # production build into out/
+npm run package      # build the Windows installer into release/
+```
+
+> **Install note:** this project avoids native compilation — `electron` is a plain
+> download and the database is WebAssembly SQLite (`node-sqlite3-wasm`), so no build
+> tools are required. If `node_modules/electron/dist` is empty after `npm install`,
+> extract the cached zip from `%LOCALAPPDATA%\electron\Cache` into it.
+
+**Prefer not to build it yourself?** Grab the ready-made Windows installer from the
+[Releases](../../releases) page. (Because it isn't code-signed, Windows SmartScreen
+shows an "unknown publisher" warning on first run — that's normal for apps without a
+paid certificate.)
 
 ---
 
-## Connecting Claude Desktop (local MCP server)
+## Make it yours
 
-DeskMail ships a **local MCP server** so Claude Desktop can safely **search, read, summarise, draft,
-and organise** your mail. It exposes only these tools:
+The whole point of this app is that you can change it with Claude. See
+**[docs/CUSTOMISING_WITH_CLAUDE.md](docs/CUSTOMISING_WITH_CLAUDE.md)** for worked
+examples ("give it a dark-blue theme", "add a shortcut to archive", "change the
+reading pane"), each written as *what to type to Claude* and *how to see it working*.
 
-- Read/draft: `list_accounts`, `list_folders`, `search_emails`, `read_email`, `create_draft`,
-  `find_related_emails`, `find_unanswered_emails`, `extract_dates_and_deadlines`, `summarise_thread_data`.
-- Organise (all reversible): `move_email`, `archive_email`, `delete_email` (to Trash), `flag_email`,
-  `mark_email_read`.
-- Export: `export_for_notebooklm` (see below).
+If you're editing the code with Claude Code, the root **[CLAUDE.md](CLAUDE.md)** tells
+Claude how the app is put together and the rules to follow.
 
-**It can never** send email, **permanently** delete anything, read your credentials, change account
-settings, or touch files outside DeskMail's own storage. `delete_email` only moves to Trash. Drafts it
-creates are stored locally and shown in DeskMail's **Drafts** view for you to review and send manually —
-Claude never sends. (Claude's organise actions update the local cache immediately and DeskMail pushes
-them to your IMAP server on its next drain cycle.)
+---
 
-### Emails → NotebookLM
+## Connect Claude Desktop (local MCP server)
 
-`export_for_notebooklm(message_id, include_attachments)` writes the email (and its downloaded
-attachments) as source files into a `notebooklm-export/…` folder and returns the paths. Then the
-**notebooklm skill** (on the Claude side) adds those files to the notebook you choose. In the app,
-the reading pane's **NotebookLM** button does the same and downloads attachments first. So a request
-like *"add this email and its attachments to my Research notebook"* becomes: DeskMail exports → the
-notebooklm skill adds the files as sources.
+DeskMail ships a **local MCP server** so Claude Desktop (or Claude Code) can safely
+**search, read, summarise, draft, and organise** your mail, and **set up accounts**.
+It exposes only these tools:
 
-To connect: open **Settings → Claude connector** in DeskMail and copy the generated config into Claude
-Desktop's `claude_desktop_config.json` (Claude Desktop → Settings → Developer → Edit Config), then
-restart Claude Desktop. The config launches `out/main/mcp-server.js` via DeskMail's own binary in Node
-mode (`ELECTRON_RUN_AS_NODE=1`) and points it at your local `deskmail.db` through `DESKMAIL_DB`.
+- Read/draft: `list_accounts`, `list_folders`, `search_emails`, `read_email`,
+  `create_draft`, `find_related_emails`, `find_unanswered_emails`,
+  `extract_dates_and_deadlines`, `summarise_thread_data`.
+- Organise (all reversible): `move_email`, `archive_email`, `delete_email` (to Trash),
+  `flag_email`, `mark_email_read`, `label_email`, `snooze_email`, `set_followup`.
+- Overview & insight: `inbox_overview`, `triage_priority`, `get_daily_digest`,
+  `suggest_rules`, `get_unsubscribe_info`, `get_sent_context`.
+- **Account setup:** `suggest_mail_config` (look up a provider's settings),
+  `stage_account_setup` (fill in the Add-account form for you — never the password),
+  `check_account_setup` (confirm it connected).
+- Export: `export_for_notebooklm`.
+
+**It can never** send email, **permanently** delete anything, read your credentials,
+or touch files outside DeskMail's own storage. `delete_email` only moves to Trash;
+drafts are stored locally in the **Drafts** view for you to review and send yourself.
+
+**To connect:** open **Settings → Claude connector** in DeskMail and copy the
+generated config into Claude Desktop's `claude_desktop_config.json` (Claude Desktop →
+Settings → Developer → Edit Config), then restart Claude Desktop.
+
+### Have Claude set up an account for you
+
+Ask Claude Desktop something like *"set up my iCloud email in DeskMail."* Claude looks
+up the right server settings, fills in the Add-account form in the app for you, and
+tells you to type your password, run the connection test, and save. **Claude never
+asks for or sees your password** — you enter only that.
+
+---
+
+## Licence
+
+**PolyForm Noncommercial License 1.0.0** — see [LICENSE](LICENSE).
+
+In plain English: **free for personal, non-commercial use.** You can run it, read the
+code, change it, and share it. You **can't sell it** or use it commercially without
+permission. The copyright is retained by the author, so separate commercial licences
+can be granted.
+
+Third-party dependency licences are listed in
+[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+
+**No warranty.** This software touches your mail and passwords. It comes **as-is, with
+no warranty**, and the author is **not liable** for any loss or damage from using it.
+Use at your own risk, and keep your own backups. See [SECURITY.md](SECURITY.md) for the
+honest threat model.
+
+---
+
+## For people new to all this
+
+If words like "terminal", "repo", "Node" or "MCP" mean nothing to you, this section is
+for you. Nothing here assumes you can code.
+
+**What is DeskMail AI?**
+It's an email program you run on your own Windows computer — like Outlook or the Mail
+app, but it keeps your emails on *your* machine and lets an AI assistant (Claude) help
+you with them safely.
+
+**Why would I want it?**
+- Your email stays private, on your computer. It doesn't phone home.
+- Claude can read and tidy your mail and write draft replies for you — but it can
+  **never** send anything or delete anything for good on its own. You're always in
+  control.
+- You can change how it looks and works just by *asking Claude*, even if you've never
+  written a line of code.
+
+**What is Claude / Claude Desktop / Claude Code?**
+Claude is an AI assistant made by Anthropic. "Claude Desktop" is the Claude app you
+install on your computer. "Claude Code" is a version that can edit files and code for
+you. DeskMail can connect to either so the AI can help with your email or change the app.
+
+**What is an "app password"?**
+Big email providers (Gmail, iCloud, Outlook, Yahoo) often won't let another app log in
+with your normal password for safety. Instead you create a special one-time "app
+password" in your email account's security settings and use that. It's like cutting a
+spare key that only works for one gadget. If you ask Claude to set your account up, it
+will tell you when you need one and where to get it.
+
+**How do I actually get it running?**
+The easiest way, if you don't code:
+1. Go to the **Releases** page of this project (the link is near the top of this page).
+2. Download the Windows installer (a file ending in `.exe`).
+3. Run it. Windows may warn that the publisher is unknown — that's expected for a free
+   app like this; choose "More info" → "Run anyway" if you're comfortable.
+4. Open DeskMail, and either add your email by hand or ask Claude to set it up for you.
+
+If you *do* want to run it from the source code, follow **[Quick start](#quick-start-development)**
+above — and if a step is confusing, paste it into Claude and ask it to walk you through
+it on your computer.
+
+**Is it safe?**
+Your mail and password stay on your PC. The one honest caveat: the local copy of your
+mail is **not encrypted on disk** (your password is), so treat your Windows account as
+the lock on the door. More detail is in [SECURITY.md](SECURITY.md).
