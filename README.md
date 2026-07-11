@@ -113,12 +113,13 @@ asks for or sees your password** — you enter only that.
 
 ## Licence
 
-**PolyForm Noncommercial License 1.0.0** — see [LICENSE](LICENSE).
+**Apache License 2.0** — see [LICENSE](LICENSE).
 
-In plain English: **free for personal, non-commercial use.** You can run it, read the
-code, change it, and share it. You **can't sell it** or use it commercially without
-permission. The copyright is retained by the author, so separate commercial licences
-can be granted.
+In plain English: **free and open.** You can use it, read the code, change it, share
+it, fork it, and build your own version — all you have to do is keep the copyright
+notice and the licence with it. You're welcome to keep the "DeskMail AI" name or rename
+your fork, whichever you prefer. If you improve it, please do share what you did — that's
+the whole idea.
 
 Third-party dependency licences are listed in
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

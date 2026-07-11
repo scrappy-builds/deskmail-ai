@@ -1,6 +1,6 @@
 # Third-Party Licences
 
-DeskMail AI bundles the following direct dependencies. All are permissive (MIT/Apache-2.0/BSD/ISC) and free to redistribute inside a non-commercial project. Each package remains under its own licence; run `npx license-checker --summary` for the full transitive tree.
+DeskMail AI bundles the following direct dependencies. All are permissive (MIT/Apache-2.0/BSD/ISC/OFL) and compatible with redistribution under Apache-2.0. Each package remains under its own licence; run `npx license-checker --summary` for the full transitive tree.
 
 _Generated 2026-07-11._
 

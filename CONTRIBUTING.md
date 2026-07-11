@@ -9,9 +9,9 @@ best-effort basis, so please read this before opening a pull request.
   telemetry, no accounts. The Claude/MCP connector must stay **read-and-draft only** —
   it must never gain the ability to send mail, permanently delete, or read credentials.
   Changes that break these will not be merged.
-- **Keep the licence in mind.** The project is under
-  [PolyForm Noncommercial 1.0.0](LICENSE). By contributing you agree your contribution
-  can be distributed under it.
+- **Keep the licence in mind.** The project is under the
+  [Apache License 2.0](LICENSE). By contributing you agree your contribution is provided
+  under the same licence (per Apache-2.0 §5).
 
 ## Practical
 
