@@ -40,7 +40,8 @@ function tryEnableWal(db: Database): void {
   try {
     const r = db.get('PRAGMA journal_mode=WAL') as { journal_mode?: string } | undefined
     if ((r?.journal_mode ?? '').toLowerCase() !== 'wal') {
-      console.info('SQLite driver declined WAL; staying on the default journal mode.')
+      // stderr, not stdout — this module runs under the MCP stdio server too.
+      console.warn('SQLite driver declined WAL; staying on the default journal mode.')
     }
   } catch {
     /* pragma unsupported — default journalling is fine */

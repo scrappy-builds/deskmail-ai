@@ -59,7 +59,7 @@ function seedAccount(db: DB): void {
   db.run(
     `INSERT INTO accounts (display_name, email_address, incoming_type, incoming_host, incoming_port,
        incoming_security, outgoing_host, outgoing_port, outgoing_security, username)
-     VALUES ('Jamie','jamie@example.com','imap','imap.x',993,'ssl','smtp.x',465,'ssl','jamie@example.com')`
+     VALUES ('Alex','alex@example.com','imap','imap.x',993,'ssl','smtp.x',465,'ssl','alex@example.com')`
   )
   db.run('INSERT INTO credentials (account_id, secret_enc) VALUES (1, ?)', [Buffer.from('pw', 'utf-8')])
 }
@@ -74,7 +74,7 @@ const PAYLOAD = {
 }
 
 async function rawFor(payload = PAYLOAD, signature: string | null = null): Promise<Buffer> {
-  return buildRaw(buildMail({ payload, fromName: 'Jamie', fromEmail: 'jamie@example.com', signature }))
+  return buildRaw(buildMail({ payload, fromName: 'Alex', fromEmail: 'alex@example.com', signature }))
 }
 
 describe('save sent mail', () => {
@@ -93,12 +93,12 @@ describe('save sent mail', () => {
   })
 
   it('builds a raw RFC822 copy that round-trips the compose payload', async () => {
-    const raw = (await rawFor(PAYLOAD, 'Jamie\nFunctional 3D UK')).toString('utf-8')
+    const raw = (await rawFor(PAYLOAD, 'Alex\nExample Co')).toString('utf-8')
     expect(raw).toContain('To: maya@northwind.studio')
     expect(raw).toContain('Subject: Bracket drawing')
     expect(raw).toContain('Drawing attached below the fold')
     // Unfold quoted-printable soft line breaks before matching the signature.
-    expect(raw.replace(/=\r?\n/g, '')).toContain('Functional 3D UK')
+    expect(raw.replace(/=\r?\n/g, '')).toContain('Example Co')
   })
 
   it('appends to the Sent mailbox and stores a read local copy', async () => {

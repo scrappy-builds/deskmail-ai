@@ -16,7 +16,7 @@ describe('no-reply nudges', () => {
     db.run(
       `INSERT INTO accounts (display_name, email_address, incoming_type, incoming_host, incoming_port,
          incoming_security, outgoing_host, outgoing_port, outgoing_security, username)
-       VALUES ('Jamie','jamie@functional3duk.co.uk','imap','h',993,'ssl','s',465,'ssl','j')`
+       VALUES ('Alex','alex@example.com','imap','h',993,'ssl','s',465,'ssl','j')`
     )
     db.run("INSERT INTO folders (account_id, name, role, remote_path) VALUES (1,'Inbox','inbox','INBOX'), (1,'Sent','sent','Sent')")
     inbox = 1
@@ -30,7 +30,7 @@ describe('no-reply nudges', () => {
   function addSent(subject: string, to: string, daysAgo: number, header: string | null = null): number {
     db.run(
       `INSERT INTO messages (account_id, folder_id, from_email, to_json, subject, sent_at, message_id_header)
-       VALUES (1, ?, 'jamie@functional3duk.co.uk', ?, ?, datetime('now', '-' || ? || ' days'), ?)`,
+       VALUES (1, ?, 'alex@example.com', ?, ?, datetime('now', '-' || ? || ' days'), ?)`,
       [sentFolder, JSON.stringify([to]), subject, daysAgo, header]
     )
     return (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
@@ -75,7 +75,7 @@ describe('no-reply nudges', () => {
   })
 
   it('self-addressed mail never nudges', () => {
-    addSent('note to self', 'jamie@functional3duk.co.uk', 10)
+    addSent('note to self', 'alex@example.com', 10)
     expect(getAwaitingReply(db)).toHaveLength(0)
   })
 

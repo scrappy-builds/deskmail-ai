@@ -27,7 +27,7 @@ describe('parseMailto', () => {
   })
 
   it("keeps '+' literal in an address local-part", () => {
-    expect(parseMailto('mailto:jamie+news@x.com').to).toEqual(['jamie+news@x.com'])
+    expect(parseMailto('mailto:alex+news@x.com').to).toEqual(['alex+news@x.com'])
   })
 
   it('honours an extra ?to= param alongside path recipients', () => {

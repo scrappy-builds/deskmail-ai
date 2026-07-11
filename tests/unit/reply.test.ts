@@ -7,13 +7,13 @@ const msg: MessageDetail = {
   id: 7, accountId: 1, folderId: 2, fromName: 'Maya', fromEmail: 'maya@x.com',
   subject: 'Re: Launch plan', snippet: null, receivedAt: '2026-07-07T09:00:00Z',
   isRead: true, isStarred: false, hasAttachments: false,
-  to: ['jamie@example.com', 'alex@x.com'], cc: ['sam@x.com'], bcc: [],
+  to: ['alex@example.com', 'alex@x.com'], cc: ['sam@x.com'], bcc: [],
   bodyText: 'the plan', bodyHtml: '<p>the plan</p>', attachments: [], invite: null
 }
 
 describe('reply/forward draft builder', () => {
   it('reply → sender only, single Re: prefix, quoted body, in-reply-to set', () => {
-    const d = buildReplyDraft(msg, 'reply', 'jamie@example.com')
+    const d = buildReplyDraft(msg, 'reply', 'alex@example.com')
     expect(d.to).toEqual(['maya@x.com'])
     expect(d.cc).toEqual([])
     expect(d.subject).toBe('Re: Launch plan') // existing Re: not stacked
@@ -22,9 +22,9 @@ describe('reply/forward draft builder', () => {
   })
 
   it('reply-all → everyone except me and the sender, deduped', () => {
-    const d = buildReplyDraft(msg, 'replyAll', 'jamie@example.com')
+    const d = buildReplyDraft(msg, 'replyAll', 'alex@example.com')
     expect(d.to).toEqual(['maya@x.com'])
-    expect(d.cc).toEqual(['alex@x.com', 'sam@x.com']) // jamie (self) + maya (already to) excluded
+    expect(d.cc).toEqual(['alex@x.com', 'sam@x.com']) // alex (self) + maya (already to) excluded
   })
 
   it('forward → no recipients, Fwd: prefix, forwarded header', () => {

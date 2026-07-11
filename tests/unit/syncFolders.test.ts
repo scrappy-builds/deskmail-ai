@@ -22,7 +22,7 @@ interface FakeMailbox { path: string; name: string; specialUse?: string; uidVali
 function rawMessage(uid: number, date: Date): Buffer {
   return Buffer.from(
     `From: Sender ${uid} <s${uid}@northwind.test>\r\n` +
-      `To: jamie@example.com\r\n` +
+      `To: alex@example.com\r\n` +
       `Subject: Message ${uid}\r\n` +
       `Message-ID: <${uid}@northwind.test>\r\n` +
       `Date: ${date.toUTCString()}\r\n\r\n` +
@@ -107,7 +107,7 @@ describe('full mail sync — all folders, incremental, back-fill', () => {
     db.run(
       `INSERT INTO accounts (display_name, email_address, incoming_type, incoming_host, incoming_port,
          incoming_security, outgoing_host, outgoing_port, outgoing_security, username)
-       VALUES ('Jamie','jamie@example.com','imap','imap.x',993,'ssl','smtp.x',465,'ssl','jamie@example.com')`
+       VALUES ('Alex','alex@example.com','imap','imap.x',993,'ssl','smtp.x',465,'ssl','alex@example.com')`
     )
     db.run('INSERT INTO credentials (account_id, secret_enc) VALUES (1, ?)', [Buffer.from('pw', 'utf-8')])
   })
@@ -212,7 +212,7 @@ describe('full mail sync — all folders, incremental, back-fill', () => {
     // Insert a local duplicate and re-run: it should be removed, leaving one.
     upsertMessage(db, {
       accountId: 1, folderId: sentId, remoteUid: null, messageIdHeader: '<1@northwind.test>',
-      fromName: 'Jamie', fromEmail: 'jamie@example.com', to: ['x@y.z'], cc: [], bcc: [],
+      fromName: 'Alex', fromEmail: 'alex@example.com', to: ['x@y.z'], cc: [], bcc: [],
       subject: 'Message 1', snippet: '', bodyText: 'x', bodyHtml: null, receivedAt: null, sentAt: null,
       isRead: true, isStarred: false, importance: null, listUnsubscribe: null, replyTo: null, references: []
     })

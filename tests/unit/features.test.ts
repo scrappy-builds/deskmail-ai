@@ -17,12 +17,12 @@ function seedAccountFolder(db: DB): void {
   db.run(
     `INSERT INTO accounts (display_name, email_address, incoming_type, incoming_host, incoming_port,
        incoming_security, outgoing_host, outgoing_port, outgoing_security, username)
-     VALUES ('Jamie','jamie@f3d.uk','imap','imap.x',993,'ssl','smtp.x',465,'ssl','jamie@f3d.uk')`
+     VALUES ('Alex','alex@example.com','imap','imap.x',993,'ssl','smtp.x',465,'ssl','alex@example.com')`
   )
   db.run("INSERT INTO folders (account_id, name, role, remote_path) VALUES (1,'Inbox','inbox','INBOX')")
 }
 const rawEmail = (from: string, subject: string, uid: number): string =>
-  ['From: ' + from, 'To: jamie@f3d.uk', 'Subject: ' + subject, 'Date: Tue, 07 Jul 2026 09:00:00 +0100', `Message-ID: <${uid}@x>`, '', 'body', ''].join('\r\n')
+  ['From: ' + from, 'To: alex@example.com', 'Subject: ' + subject, 'Date: Tue, 07 Jul 2026 09:00:00 +0100', `Message-ID: <${uid}@x>`, '', 'body', ''].join('\r\n')
 
 const PAYLOAD: ComposePayload = { accountId: 1, to: ['a@x.com'], cc: [], bcc: [], subject: 'Hi', bodyHtml: '<p>hi</p>' }
 
@@ -40,11 +40,11 @@ describe('Stage 8 features', () => {
   })
 
   it('signatures: edit body + append toggle drives what gets appended', () => {
-    ensureDefaultSignature(db, 1, 'Jamie')
-    expect(getDefaultSignature(db, 1)).toBe('Thanks,\nJamie')
-    updateSignature(db, 1, 'Best,\nJamie Bell', true)
-    expect(getSignatureData(db, 1)).toMatchObject({ body: 'Best,\nJamie Bell', appendToNew: true })
-    updateSignature(db, 1, 'Best,\nJamie Bell', false)
+    ensureDefaultSignature(db, 1, 'Alex')
+    expect(getDefaultSignature(db, 1)).toBe('Thanks,\nAlex')
+    updateSignature(db, 1, 'Best,\nAlex Doe', true)
+    expect(getSignatureData(db, 1)).toMatchObject({ body: 'Best,\nAlex Doe', appendToNew: true })
+    updateSignature(db, 1, 'Best,\nAlex Doe', false)
     expect(getDefaultSignature(db, 1)).toBeNull() // append off → nothing appended
   })
 
@@ -76,13 +76,13 @@ describe('Stage 8 features', () => {
     expect(computeSnoozeTime('tomorrow', new Date('2026-07-09T14:00:00'))).toContain('2026-07-10')
   })
 
-  it('templates: seed a few in Jamie’s voice, once', () => {
+  it('templates: seed a few generic canned replies, once', () => {
     seedTemplatesIfEmpty(db)
     seedTemplatesIfEmpty(db)
     const t = listTemplates(db)
     expect(t).toHaveLength(3)
-    expect(t.map((x) => x.name)).toContain('Dispatch note')
-    expect(t.find((x) => x.name === 'Commission enquiry reply')?.body).toContain('Jamie')
+    expect(t.map((x) => x.name)).toContain('Following up')
+    expect(t.find((x) => x.name === 'Acknowledge receipt')?.body).toContain('[Your name]')
   })
 
   it('contacts: auto-collected from mail + searchable', async () => {

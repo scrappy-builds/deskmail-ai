@@ -3,7 +3,7 @@ import { isSimpleEmail } from '../../src/renderer/mail/darkEmail'
 
 describe('isSimpleEmail (dark-transform gate)', () => {
   it('plain text-ish mail is simple', () => {
-    expect(isSimpleEmail('<p>Hi Jamie,</p><p>The bracket arrived. Thanks!</p>')).toBe(true)
+    expect(isSimpleEmail('<p>Hi Alex,</p><p>The bracket arrived. Thanks!</p>')).toBe(true)
   })
   it('a couple of highlight backgrounds are still fine', () => {
     expect(isSimpleEmail('<p style="background-color:#ff0">note</p><td bgcolor="#eee">x</td>')).toBe(true)

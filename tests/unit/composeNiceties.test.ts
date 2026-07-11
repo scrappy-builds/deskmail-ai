@@ -3,7 +3,7 @@ import { unusualRecipients } from '../../src/renderer/compose/unusualRecipients'
 import { targetSize } from '../../src/renderer/editor/InlineImage'
 
 describe('external-domain warning', () => {
-  const known = ['northwind.studio', 'functional3duk.co.uk']
+  const known = ['northwind.studio', 'example.com']
   it('flags a never-seen domain once', () => {
     expect(unusualRecipients(['a@new.example', 'b@new.example'], known)).toEqual(['new.example'])
   })

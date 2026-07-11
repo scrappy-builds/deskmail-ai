@@ -3,7 +3,7 @@ import { domainOf, suggestSettings } from '../../src/shared/providerPresets'
 
 describe('provider presets', () => {
   it('parses the domain from an address', () => {
-    expect(domainOf('Jamie <jamie@Example.CO.UK>'.replace(/.*</, '').replace('>', ''))).toBe('example.co.uk')
+    expect(domainOf('Alex <alex@Example.CO.UK>'.replace(/.*</, '').replace('>', ''))).toBe('example.co.uk')
     expect(domainOf('a@b.com')).toBe('b.com')
     expect(domainOf('nope')).toBe('')
   })

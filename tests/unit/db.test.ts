@@ -114,10 +114,10 @@ describe('accounts insert / get / update', () => {
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
   const base: AccountInput = {
-    displayName: 'Jamie', emailAddress: 'jamie@example.com', incomingType: 'imap',
+    displayName: 'Alex', emailAddress: 'alex@example.com', incomingType: 'imap',
     incomingHost: 'imap.example.com', incomingPort: 993, incomingSecurity: 'ssl',
     outgoingHost: 'smtp.example.com', outgoingPort: 465, outgoingSecurity: 'ssl',
-    username: 'jamie@example.com', password: 'secret'
+    username: 'alex@example.com', password: 'secret'
   }
 
   it('round-trips insert → get (password excluded) → update', () => {
@@ -126,7 +126,7 @@ describe('accounts insert / get / update', () => {
 
     const got = getAccount(db, id)
     expect(got).not.toBeNull()
-    expect(got?.emailAddress).toBe('jamie@example.com')
+    expect(got?.emailAddress).toBe('alex@example.com')
     expect(got?.incomingHost).toBe('imap.example.com')
     expect(got?.password).toBe('') // never returned from the DB layer
 
@@ -144,10 +144,10 @@ describe('folder tree management', () => {
   let dir: string
   let file: string
   const base: AccountInput = {
-    displayName: 'Jamie', emailAddress: 'jamie@example.com', incomingType: 'imap',
+    displayName: 'Alex', emailAddress: 'alex@example.com', incomingType: 'imap',
     incomingHost: 'imap.example.com', incomingPort: 993, incomingSecurity: 'ssl',
     outgoingHost: 'smtp.example.com', outgoingPort: 465, outgoingSecurity: 'ssl',
-    username: 'jamie@example.com', password: 'secret'
+    username: 'alex@example.com', password: 'secret'
   }
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'deskmail-db-'))
@@ -255,7 +255,7 @@ describe('message pin / mute', () => {
   let dir: string
   let file: string
   const base: AccountInput = {
-    displayName: 'Jamie', emailAddress: 'jamie@example.com', incomingType: 'imap',
+    displayName: 'Alex', emailAddress: 'alex@example.com', incomingType: 'imap',
     incomingHost: 'h', incomingPort: 993, incomingSecurity: 'ssl',
     outgoingHost: 'h', outgoingPort: 465, outgoingSecurity: 'ssl', username: 'u', password: 'p'
   }
@@ -319,7 +319,7 @@ describe('labels / tags', () => {
   let dir: string
   let file: string
   const base: AccountInput = {
-    displayName: 'Jamie', emailAddress: 'j@x', incomingType: 'imap', incomingHost: 'h', incomingPort: 993,
+    displayName: 'Alex', emailAddress: 'j@x', incomingType: 'imap', incomingHost: 'h', incomingPort: 993,
     incomingSecurity: 'ssl', outgoingHost: 'h', outgoingPort: 465, outgoingSecurity: 'ssl', username: 'u', password: 'p'
   }
   beforeEach(() => {

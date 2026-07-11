@@ -49,7 +49,7 @@ describe('focus classification + training on the store', () => {
     db.run(
       `INSERT INTO accounts (display_name, email_address, incoming_type, incoming_host, incoming_port,
          incoming_security, outgoing_host, outgoing_port, outgoing_security, username)
-       VALUES ('Jamie','jamie@functional3duk.co.uk','imap','h',993,'ssl','s',465,'ssl','j')`
+       VALUES ('Alex','alex@example.com','imap','h',993,'ssl','s',465,'ssl','j')`
     )
     db.run("INSERT INTO folders (account_id, name, role, remote_path) VALUES (1,'Inbox','inbox','INBOX'), (1,'Sent','sent','Sent')")
   })
@@ -68,9 +68,9 @@ describe('focus classification + training on the store', () => {
 
   it('list mail classifies to Other; direct mail stays Focused', () => {
     const listMsg = addInbox('news@list.example', { list: '<mailto:leave@list.example>' })
-    const direct = addInbox('maya@northwind.studio', { to: ['jamie@functional3duk.co.uk'] })
-    expect(applyFocusClassification(db, listMsg, ['jamie@functional3duk.co.uk'])).toBe(false)
-    expect(applyFocusClassification(db, direct, ['jamie@functional3duk.co.uk'])).toBe(true)
+    const direct = addInbox('maya@northwind.studio', { to: ['alex@example.com'] })
+    expect(applyFocusClassification(db, listMsg, ['alex@example.com'])).toBe(false)
+    expect(applyFocusClassification(db, direct, ['alex@example.com'])).toBe(true)
     const rows = db.all('SELECT id, is_focused FROM messages ORDER BY id') as unknown as { id: number; is_focused: number }[]
     expect(rows.find((r) => r.id === listMsg)!.is_focused).toBe(0)
     expect(rows.find((r) => r.id === direct)!.is_focused).toBe(1)
@@ -78,11 +78,11 @@ describe('focus classification + training on the store', () => {
 
   it('a sender in my Sent mail is Focused even with list headers', () => {
     db.run(
-      `INSERT INTO messages (account_id, folder_id, from_email, to_json, subject) VALUES (1, 2, 'jamie@functional3duk.co.uk', ?, 'to them')`,
+      `INSERT INTO messages (account_id, folder_id, from_email, to_json, subject) VALUES (1, 2, 'alex@example.com', ?, 'to them')`,
       [JSON.stringify(['friendly@list.example'])]
     )
     const msg = addInbox('friendly@list.example', { list: '<https://list.example/u>' })
-    expect(applyFocusClassification(db, msg, ['jamie@functional3duk.co.uk'])).toBe(true)
+    expect(applyFocusClassification(db, msg, ['alex@example.com'])).toBe(true)
   })
 
   it('training flips the flag, feeds the focus Bayes table and future classification', () => {
@@ -98,6 +98,6 @@ describe('focus classification + training on the store', () => {
     expect(isBayesTrained(db, 'junk')).toBe(false)
 
     const fresh = addInbox('unknown@somewhere.example', { subject: 'weekly newsletter digest promotions' })
-    expect(applyFocusClassification(db, fresh, ['jamie@functional3duk.co.uk'])).toBe(false)
+    expect(applyFocusClassification(db, fresh, ['alex@example.com'])).toBe(false)
   })
 })

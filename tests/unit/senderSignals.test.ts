@@ -6,7 +6,7 @@ const BASE: SenderSignalInput = {
   fromEmail: 'maya@northwind.studio',
   replyTo: null,
   priorMessagesFromSender: 4,
-  myDomains: ['functional3duk.co.uk'],
+  myDomains: ['example.com'],
   frequentDomains: ['northwind.studio', 'ebay.co.uk']
 }
 
@@ -14,7 +14,7 @@ const ids = (input: SenderSignalInput): string[] => senderSignals(input).map((s)
 
 describe('withinOneEdit (Damerau-Levenshtein distance 1)', () => {
   it('substitution, insertion, deletion, transposition', () => {
-    expect(withinOneEdit('functional3duk', 'functiona13duk')).toBe(true) // substitution
+    expect(withinOneEdit('exampledomain', 'examp1edomain')).toBe(true) // substitution
     expect(withinOneEdit('ebay', 'ebbay')).toBe(true) // insertion
     expect(withinOneEdit('paypal', 'papal')).toBe(true) // deletion
     expect(withinOneEdit('paypal', 'payapl')).toBe(true) // transposition
@@ -47,8 +47,8 @@ describe('sender signals', () => {
   })
 
   it('lookalike domain warns (one letter off my own domain)', () => {
-    // "functiona13duk" — the l swapped for a 1.
-    const s = senderSignals({ ...BASE, fromEmail: 'orders@functiona13duk.co.uk' })
+    // "examp1e.com" — the l swapped for a 1, one edit off my own domain.
+    const s = senderSignals({ ...BASE, fromEmail: 'orders@examp1e.com' })
     expect(s.map((x) => x.id)).toContain('lookalike-domain')
   })
 

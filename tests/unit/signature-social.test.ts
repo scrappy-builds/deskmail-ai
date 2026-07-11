@@ -5,13 +5,13 @@ import { isExternalUrl, externalHref } from '../../src/renderer/mail/linkHandlin
 describe('signature social block', () => {
   it('round-trips selected platforms through build → split → parse', () => {
     const links = [
-      { id: 'twitter', url: 'https://x.com/functional3duk' },
-      { id: 'website', url: 'https://functional3duk.co.uk' }
+      { id: 'twitter', url: 'https://x.com/example' },
+      { id: 'website', url: 'https://example.com' }
     ]
-    const body = '<p>Thanks,<br>Jamie</p>' + buildSocialRow(links)
+    const body = '<p>Thanks,<br>Alex</p>' + buildSocialRow(links)
 
     const { main, social } = splitSocial(body)
-    expect(main).toBe('<p>Thanks,<br>Jamie</p>')
+    expect(main).toBe('<p>Thanks,<br>Alex</p>')
     expect(social).toContain('data:image/svg+xml;base64,')
 
     const parsed = parseSocialRow(social)

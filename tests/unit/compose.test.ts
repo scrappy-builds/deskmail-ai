@@ -19,8 +19,8 @@ const PAYLOAD: ComposePayload = {
 
 describe('buildMail', () => {
   it('maps recipients, subject and body', () => {
-    const mail = buildMail({ payload: PAYLOAD, fromName: 'Jamie Bell', fromEmail: 'jamie@f3d.uk', signature: null })
-    expect(mail.from).toBe('"Jamie Bell" <jamie@f3d.uk>')
+    const mail = buildMail({ payload: PAYLOAD, fromName: 'Alex Doe', fromEmail: 'alex@example.com', signature: null })
+    expect(mail.from).toBe('"Alex Doe" <alex@example.com>')
     expect(mail.to).toBe('a@example.com, b@example.com')
     expect(mail.cc).toBe('c@example.com')
     expect(mail.bcc).toBeUndefined()
@@ -29,16 +29,16 @@ describe('buildMail', () => {
   })
 
   it('appends the signature to the body', () => {
-    const mail = buildMail({ payload: PAYLOAD, fromName: 'Jamie', fromEmail: 'j@x', signature: 'Thanks,\nJamie' })
-    expect(mail.html).toContain('Thanks,<br>Jamie')
+    const mail = buildMail({ payload: PAYLOAD, fromName: 'Alex', fromEmail: 'j@x', signature: 'Thanks,\nAlex' })
+    expect(mail.html).toContain('Thanks,<br>Alex')
   })
 
   it('keeps a rich (HTML) signature as-is, but escapes a plain-text one', () => {
     // Rich signatures (bold/links) are preserved.
-    const rich = buildMail({ payload: PAYLOAD, fromName: 'Jamie', fromEmail: 'j@x', signature: '<b>Jamie</b>' })
-    expect(rich.html).toContain('<b>Jamie</b>')
+    const rich = buildMail({ payload: PAYLOAD, fromName: 'Alex', fromEmail: 'j@x', signature: '<b>Alex</b>' })
+    expect(rich.html).toContain('<b>Alex</b>')
     // A legacy plain-text signature with stray angle brackets is still escaped.
-    const plain = buildMail({ payload: PAYLOAD, fromName: 'Jamie', fromEmail: 'j@x', signature: 'a < b' })
+    const plain = buildMail({ payload: PAYLOAD, fromName: 'Alex', fromEmail: 'j@x', signature: 'a < b' })
     expect(plain.html).toContain('a &lt; b')
   })
 })
@@ -52,7 +52,7 @@ describe('drafts + signatures', () => {
     db.run(
       `INSERT INTO accounts (display_name, email_address, incoming_type, incoming_host, incoming_port,
          incoming_security, outgoing_host, outgoing_port, outgoing_security, username)
-       VALUES ('Jamie','jamie@f3d.uk','imap','imap.x',993,'ssl','smtp.x',465,'ssl','jamie@f3d.uk')`
+       VALUES ('Alex','alex@example.com','imap','imap.x',993,'ssl','smtp.x',465,'ssl','alex@example.com')`
     )
   })
   afterEach(() => {
@@ -77,9 +77,9 @@ describe('drafts + signatures', () => {
   })
 
   it('creates a default signature once per account', () => {
-    ensureDefaultSignature(db, 1, 'Jamie')
-    ensureDefaultSignature(db, 1, 'Jamie')
-    expect(getDefaultSignature(db, 1)).toBe('Thanks,\nJamie')
+    ensureDefaultSignature(db, 1, 'Alex')
+    ensureDefaultSignature(db, 1, 'Alex')
+    expect(getDefaultSignature(db, 1)).toBe('Thanks,\nAlex')
     expect((db.get('SELECT COUNT(*) c FROM signatures') as { c: number }).c).toBe(1)
   })
 })

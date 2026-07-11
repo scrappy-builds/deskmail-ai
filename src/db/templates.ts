@@ -25,25 +25,26 @@ export function deleteTemplate(db: DB, id: number): void {
   db.run('DELETE FROM templates WHERE id = ?', [id])
 }
 
-// Seed a few canned replies in Jamie's voice — first person, British, honest.
+// Seed a few generic, useful canned replies. Edit or delete these in Settings →
+// Templates; the [Your name] placeholder is meant to be replaced.
 export function seedTemplatesIfEmpty(db: DB): void {
   const count = (db.get('SELECT COUNT(*) c FROM templates') as { c: number }).c
   if (count > 0) return
   const seeds: [string, string, string][] = [
     [
-      'Commission enquiry reply',
-      'Re: your design enquiry',
-      "Thanks for getting in touch.\n\nHappy to take a look at this. Could you send over rough dimensions, what the part needs to do, and any photos of the space it fits? I'll come back with whether it's something I can design and a rough idea on timing.\n\nJamie"
+      'Acknowledge receipt',
+      'Re: your email',
+      "Thanks for your email — I've received it and will get back to you properly shortly.\n\nBest,\n[Your name]"
     ],
     [
-      'Licensing reply',
-      'Re: commercial licence',
-      "Thanks for asking about a licence.\n\nI license designs for businesses to print and sell — you'd get the print-ready files and permission to sell physical prints, with the design staying mine. Let me know which design you're after and roughly your expected volumes and I'll send terms.\n\nJamie"
+      'Ask for more details',
+      'Re: your enquiry',
+      "Thanks for getting in touch. To help with this, could you send over a few more details? Once I have those I'll come back to you.\n\nBest,\n[Your name]"
     ],
     [
-      'Dispatch note',
-      'Your order is on its way',
-      "Just to let you know your order has gone out today, Royal Mail 2nd Class Tracked. It usually arrives within a few working days.\n\nIf anything's not right when it turns up, tell me and I'll sort it.\n\nJamie"
+      'Following up',
+      'Following up',
+      "Just following up on my message below — let me know if you've had a chance to take a look. No rush.\n\nBest,\n[Your name]"
     ]
   ]
   for (const [name, subject, body] of seeds) createTemplate(db, name, subject, body)

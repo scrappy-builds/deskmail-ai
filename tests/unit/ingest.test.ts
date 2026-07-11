@@ -18,7 +18,7 @@ function seedAccountAndFolder(db: DB): void {
 
 const RAW = [
   'From: "Maya Chen" <maya@northwind.studio>',
-  'To: jamie@example.com, team@northwind.studio',
+  'To: alex@example.com, team@northwind.studio',
   'Cc: cc@northwind.studio',
   'Subject: Q3 launch timeline',
   'Date: Tue, 07 Jul 2026 09:41:00 +0100',
@@ -66,7 +66,7 @@ describe('parse-and-ingest', () => {
     expect(msg!.subject).toBe('Q3 launch timeline')
     expect(msg!.fromName).toBe('Maya Chen')
     expect(msg!.fromEmail).toBe('maya@northwind.studio')
-    expect(msg!.to).toContain('jamie@example.com')
+    expect(msg!.to).toContain('alex@example.com')
     expect(msg!.to).toContain('team@northwind.studio')
     expect(msg!.cc).toContain('cc@northwind.studio')
     expect(msg!.bodyText).toContain('updated launch plan')

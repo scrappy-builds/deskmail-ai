@@ -25,7 +25,7 @@ describe('draft attachments', () => {
     db.run(
       `INSERT INTO accounts (display_name, email_address, incoming_type, incoming_host, incoming_port,
          incoming_security, outgoing_host, outgoing_port, outgoing_security, username)
-       VALUES ('Jamie','jamie@example.com','imap','imap.x',993,'ssl','smtp.x',465,'ssl','jamie@example.com')`
+       VALUES ('Alex','alex@example.com','imap','imap.x',993,'ssl','smtp.x',465,'ssl','alex@example.com')`
     )
   })
   afterEach(() => {

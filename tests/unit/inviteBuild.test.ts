@@ -9,7 +9,7 @@ const BASE = {
   start: '14:00',
   end: '14:30',
   location: 'Workshop',
-  organizer: { name: 'Jamie Bell', email: 'jamie@functional3duk.co.uk' },
+  organizer: { name: 'Alex Doe', email: 'alex@example.com' },
   attendees: [{ email: 'maya@northwind.studio', name: 'Maya Chen' }]
 }
 
@@ -23,7 +23,7 @@ describe('building outgoing invites', () => {
     const inv = parseIcs(ics)!
     expect(inv.title).toBe('Print farm review')
     expect(inv.uid).toBe(BASE.uid)
-    expect(inv.organiserEmail).toBe('jamie@functional3duk.co.uk')
+    expect(inv.organiserEmail).toBe('alex@example.com')
     // Times went out as UTC; parsing them back to local lands on the original wall clock.
     expect(inv.date).toBe('2026-07-20')
     expect(inv.start).toBe('14:00')
@@ -35,13 +35,13 @@ describe('building outgoing invites', () => {
       ...BASE,
       uid: 'their-uid-123@example.com',
       organizer: { name: 'Maya Chen', email: 'maya@northwind.studio' },
-      attendees: [{ email: 'jamie@functional3duk.co.uk', name: 'Jamie Bell' }],
+      attendees: [{ email: 'alex@example.com', name: 'Alex Doe' }],
       method: 'REPLY',
       myResponse: 'ACCEPTED'
     })
     expect(ics).toContain('METHOD:REPLY')
     expect(ics).toContain('UID:their-uid-123@example.com')
-    expect(ics).toContain('ATTENDEE;CN=Jamie Bell;PARTSTAT=ACCEPTED:mailto:jamie@functional3duk.co.uk')
+    expect(ics).toContain('ATTENDEE;CN=Alex Doe;PARTSTAT=ACCEPTED:mailto:alex@example.com')
     expect(ics).not.toContain('RSVP=TRUE')
   })
 

@@ -98,7 +98,7 @@ desktop app when joining (falls back to the browser link); custom link accepts a
 
 4. **Canned reply templates.** Reusable message templates (`templates` table: name, subject, body,
    optional placeholders). Insert into Compose from a "Templates" control; manage in Settings.
-   Seed a few in Jamie's voice (e.g. commission enquiry reply, licensing reply, dispatch note).
+   Seed a few generic canned replies (e.g. acknowledge receipt, ask for details, following up).
 
 5. **Contacts / address book.** `contacts` table (name, email(s), org, notes, avatar colour).
    Auto-collect senders/recipients; autocomplete in To/Cc/Bcc; a Contacts view to browse/edit; link

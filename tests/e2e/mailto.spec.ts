@@ -29,7 +29,7 @@ test('launching with a mailto: argument opens Compose prefilled', async () => {
   const userData = mkdtempSync(join(tmpdir(), 'deskmail-mailto-'))
   // The mailto URL is passed as a launch argument, exactly as Windows would.
   const app = await electron.launch({
-    args: [MAIN, 'mailto:hello@example.com?subject=Quote%20request&body=Hi%20Jamie'],
+    args: [MAIN, 'mailto:hello@example.com?subject=Quote%20request&body=Hi%20Alex'],
     env: { ...process.env, DESKMAIL_USER_DATA: userData, DESKMAIL_SEED_DEMO: '1' }
   })
   try {
@@ -37,7 +37,7 @@ test('launching with a mailto: argument opens Compose prefilled', async () => {
     const cmp = await waitForComposeWindow(app)
     await expect(cmp.getByText('hello@example.com')).toBeVisible()
     await expect(cmp.getByRole('textbox', { name: 'Subject', exact: true })).toHaveValue('Quote request')
-    await expect(cmp.locator('.ProseMirror')).toContainText('Hi Jamie')
+    await expect(cmp.locator('.ProseMirror')).toContainText('Hi Alex')
   } finally {
     await app.close()
     safeRm(userData)

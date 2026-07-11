@@ -13,7 +13,7 @@ function seed(db: DB): void {
 }
 const RAW = [
   'From: "Maya Chen" <maya@northwind.studio>',
-  'To: jamie@example.com',
+  'To: alex@example.com',
   'Subject: Q3 launch timeline',
   'Date: Tue, 07 Jul 2026 09:41:00 +0100',
   'MIME-Version: 1.0',

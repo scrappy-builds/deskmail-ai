@@ -30,17 +30,17 @@ test('wizard saves an account; password is encrypted at rest and persists', asyn
     await win.waitForTimeout(300)
     await openAccountsWizard(win)
 
-    await win.getByLabel('Display name').fill('Jamie Bell')
-    await win.getByLabel('Email address').fill('jamie@example.com')
+    await win.getByLabel('Display name').fill('Alex Doe')
+    await win.getByLabel('Email address').fill('alex@example.com')
     await win.getByPlaceholder('imap.example.com').fill('imap.example.com')
     await win.getByPlaceholder('smtp.example.com').fill('smtp.example.com')
-    await win.getByLabel('Username').fill('jamie@example.com')
+    await win.getByLabel('Username').fill('alex@example.com')
     await win.getByLabel('Password').fill(PASSWORD)
 
     await win.getByRole('button', { name: 'Save' }).click()
 
     // The account now shows in the list.
-    await expect(win.getByText('jamie@example.com').first()).toBeVisible()
+    await expect(win.getByText('alex@example.com').first()).toBeVisible()
 
     // Encrypted at rest: the plaintext password must not appear in the DB file.
     const dbBytes = readFileSync(join(userData, 'deskmail.db'))
@@ -54,7 +54,7 @@ test('wizard saves an account; password is encrypted at rest and persists', asyn
     await win.waitForTimeout(300)
     await win.getByText('File', { exact: true }).click()
     await win.getByText('Settings…').click()
-    await expect(win.getByText('jamie@example.com').first()).toBeVisible()
+    await expect(win.getByText('alex@example.com').first()).toBeVisible()
   } finally {
     await app.close()
     safeRm(userData)
@@ -72,7 +72,7 @@ test('testing an unreachable server shows "Server settings incorrect"', async ()
     // Point incoming at a closed local port so the connection is refused quickly.
     await win.getByPlaceholder('imap.example.com').fill('127.0.0.1')
     await win.getByLabel('Port').first().fill('9')
-    await win.getByLabel('Username').fill('jamie@example.com')
+    await win.getByLabel('Username').fill('alex@example.com')
     await win.getByLabel('Password').fill(PASSWORD)
 
     await win.getByRole('button', { name: 'Test incoming' }).click()

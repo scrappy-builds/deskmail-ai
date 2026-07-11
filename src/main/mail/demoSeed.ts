@@ -33,7 +33,7 @@ const INVITE_ICS = [
   'LOCATION:Microsoft Teams Meeting',
   'URL:https://teams.microsoft.com/l/meetup-join/demo-q3-sync',
   'ORGANIZER;CN=Maya Chen:mailto:maya@northwind.studio',
-  'ATTENDEE;CN=Jamie Bell:mailto:jamie@example.com',
+  'ATTENDEE;CN=Alex Doe:mailto:alex@example.com',
   'ATTENDEE;CN=Alex Reed:mailto:alex@northwind.studio',
   'END:VEVENT',
   'END:VCALENDAR'
@@ -42,7 +42,7 @@ const INVITE_ICS = [
 function inviteEmail(): string {
   return [
     'From: "Maya Chen" <maya@northwind.studio>',
-    'To: jamie@example.com',
+    'To: alex@example.com',
     'Subject: Invitation: Q3 launch sync (Thu 9 Jul, 14:00)',
     'Date: Tue, 07 Jul 2026 09:20:00 +0100',
     `Message-ID: <invite-${Math.random().toString(36).slice(2)}@northwind.studio>`,
@@ -66,7 +66,7 @@ function inviteEmail(): string {
 const EMAILS = [
   {
     from: '"Maya Chen" <maya@northwind.studio>',
-    to: 'jamie@example.com',
+    to: 'alex@example.com',
     subject: 'Q3 launch timeline — need your sign-off',
     date: 'Tue, 07 Jul 2026 09:41:00 +0100',
     read: false,
@@ -80,7 +80,7 @@ const EMAILS = [
   },
   {
     from: '"Stripe" <receipts@stripe.com>',
-    to: 'jamie@example.com',
+    to: 'alex@example.com',
     subject: 'Your invoice for June is ready',
     date: 'Tue, 07 Jul 2026 08:12:00 +0100',
     read: false,
@@ -89,7 +89,7 @@ const EMAILS = [
   },
   {
     from: '"Priya Nair" <priya@makerspace.uk>',
-    to: 'jamie@example.com',
+    to: 'alex@example.com',
     subject: 'Re: Radiator clip — commercial licence',
     date: 'Tue, 07 Jul 2026 07:48:00 +0100',
     read: true,
@@ -98,7 +98,7 @@ const EMAILS = [
   },
   {
     from: '"GitHub" <noreply@github.com>',
-    to: 'jamie@example.com',
+    to: 'alex@example.com',
     subject: '[northwind/desk-mail] 3 new pull requests',
     date: 'Tue, 07 Jul 2026 07:03:00 +0100',
     read: false,
@@ -107,7 +107,7 @@ const EMAILS = [
   },
   {
     from: '"Tom Baker" <tom@fieldnotes.co>',
-    to: 'jamie@example.com',
+    to: 'alex@example.com',
     subject: 'Coffee next week?',
     date: 'Mon, 06 Jul 2026 16:20:00 +0100',
     read: true,
@@ -116,7 +116,7 @@ const EMAILS = [
   },
   {
     from: '"Sam Okafor" <sam@bramblewood.org>',
-    to: 'jamie@example.com',
+    to: 'alex@example.com',
     subject: 'Workshop bookings for autumn',
     date: 'Mon, 06 Jul 2026 11:05:00 +0100',
     read: true,
@@ -129,10 +129,10 @@ export async function seedDemo(db: DB): Promise<void> {
   db.run(
     `INSERT INTO accounts (display_name, email_address, incoming_type, incoming_host, incoming_port,
        incoming_security, outgoing_host, outgoing_port, outgoing_security, username, colour)
-     VALUES ('Demo Mailbox','jamie@example.com','imap','imap.example.com',993,'ssl','smtp.example.com',465,'ssl','jamie@example.com','#1e7a38')`
+     VALUES ('Demo Mailbox','alex@example.com','imap','imap.example.com',993,'ssl','smtp.example.com',465,'ssl','alex@example.com','#1e7a38')`
   )
   const accountId = (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
-  ensureDefaultSignature(db, accountId, 'Jamie')
+  ensureDefaultSignature(db, accountId, 'Alex')
   const inboxId = upsertFolder(db, accountId, 'Inbox', 'inbox', 'INBOX')
   const sentId = upsertFolder(db, accountId, 'Sent', 'sent', 'Sent')
   upsertFolder(db, accountId, 'Drafts', 'drafts', 'Drafts')
@@ -157,7 +157,7 @@ export async function seedDemo(db: DB): Promise<void> {
     { accountId, folderId: inboxId, remoteUid: uid++, isRead: false, isStarred: false },
     rawEmail({
       from: '"Prize Team" <no-reply@rewards.click>',
-      to: 'jamie@example.com',
+      to: 'alex@example.com',
       subject: 'CONGRATULATIONS YOU WON a $1000 gift card!!!',
       date: 'Tue, 07 Jul 2026 06:00:00 +0100',
       html: '<p>You have been selected as a winner. Claim your prize now — act now to receive your gift card and unclaimed funds.</p>'
@@ -171,7 +171,7 @@ export async function seedDemo(db: DB): Promise<void> {
     db,
     { accountId, folderId: sentId, remoteUid: uid++, isRead: true, isStarred: false },
     rawEmail({
-      from: '"Jamie Bell" <jamie@example.com>',
+      from: '"Alex Doe" <alex@example.com>',
       to: 'priya@makerspace.uk',
       subject: 'Licence terms for the radiator clip (printed units)',
       date: 'Tue, 07 Jul 2026 08:00:00 +0100',
@@ -183,7 +183,7 @@ export async function seedDemo(db: DB): Promise<void> {
     { accountId, folderId: archiveId, remoteUid: uid++, isRead: true, isStarred: false },
     rawEmail({
       from: '"Companies House" <noreply@companieshouse.gov.uk>',
-      to: 'jamie@example.com',
+      to: 'alex@example.com',
       subject: 'Confirmation statement filed',
       date: 'Mon, 29 Jun 2026 10:00:00 +0100',
       html: '<p>Your confirmation statement was filed successfully.</p>'

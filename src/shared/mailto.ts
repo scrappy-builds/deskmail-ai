@@ -33,7 +33,7 @@ export function parseMailto(url: string): ParsedMailto {
   if (!m) return { ...EMPTY }
 
   // Primary recipients live in the path. Percent-decode each, but keep '+'
-  // literal — it's valid in an email local-part (jamie+news@…).
+  // literal — it's valid in an email local-part (alex+news@…).
   const to = splitAddrs(m[1] ?? '').map(decode)
 
   // Query params. URLSearchParams turns both %20 and '+' into spaces, which is

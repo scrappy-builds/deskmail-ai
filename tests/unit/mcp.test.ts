@@ -10,12 +10,12 @@ function seed(db: DB): void {
   db.run(
     `INSERT INTO accounts (display_name, email_address, incoming_type, incoming_host, incoming_port,
        incoming_security, outgoing_host, outgoing_port, outgoing_security, username)
-     VALUES ('Jamie','jamie@f3d.uk','imap','imap.x',993,'ssl','smtp.x',465,'ssl','jamie@f3d.uk')`
+     VALUES ('Alex','alex@example.com','imap','imap.x',993,'ssl','smtp.x',465,'ssl','alex@example.com')`
   )
   db.run("INSERT INTO folders (account_id, name, role, remote_path) VALUES (1,'Inbox','inbox','INBOX')")
 }
 function raw(from: string, subject: string, body: string, uid: number): string {
-  return ['From: ' + from, 'To: jamie@f3d.uk', 'Subject: ' + subject, 'Date: Tue, 07 Jul 2026 09:00:00 +0100', `Message-ID: <${uid}@x>`, '', body, ''].join('\r\n')
+  return ['From: ' + from, 'To: alex@example.com', 'Subject: ' + subject, 'Date: Tue, 07 Jul 2026 09:00:00 +0100', `Message-ID: <${uid}@x>`, '', body, ''].join('\r\n')
 }
 
 const EXPECTED_TOOLS = [
@@ -182,7 +182,7 @@ describe('MCP tool surface', () => {
     db.run("INSERT INTO folders (account_id, name, role, remote_path) VALUES (1,'Sent','sent','Sent')")
     db.run(
       `INSERT INTO messages (account_id, folder_id, from_email, to_json, subject, snippet, sent_at)
-       VALUES (1, 2, 'jamie@f3d.uk', '["buyer@norway.example"]', 'Licence terms', 'the licence covers', '2026-07-05T10:00:00Z')`
+       VALUES (1, 2, 'alex@example.com', '["buyer@norway.example"]', 'Licence terms', 'the licence covers', '2026-07-05T10:00:00Z')`
     )
     const byRecipient = tool('get_sent_context').handler({ recipient: 'norway' }) as { message_id: number; to: string[] }[]
     expect(byRecipient).toHaveLength(1)

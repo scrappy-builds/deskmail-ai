@@ -188,7 +188,7 @@ export function RulesPane(): JSX.Element {
 
 // --- Signatures (multiple per account, plain text or rich HTML) ---------------
 // A body is HTML if it contains any tag — same heuristic the send path uses to
-// decide whether to escape it. A plain default like "Thanks,\nJamie" is text.
+// decide whether to escape it. A plain default like "Thanks,\nAlex" is text.
 function isHtmlBody(body: string): boolean {
   return /<[a-z][\s\S]*>/i.test(body)
 }

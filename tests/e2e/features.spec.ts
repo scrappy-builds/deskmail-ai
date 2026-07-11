@@ -82,13 +82,13 @@ test('signatures: edit and save a per-account signature', async () => {
     await win.getByText('File', { exact: true }).click()
     await win.getByText('Settings…').click()
     await win.getByRole('button', { name: 'Signatures' }).click()
-    await win.getByLabel('Signature body').fill('Cheers,\nJamie — Functional 3D UK')
+    await win.getByLabel('Signature body').fill('Cheers,\nAlex — Example Co')
     await win.getByRole('button', { name: 'Save signature' }).click()
     await expect(win.getByText('Signature saved')).toBeVisible()
 
     // It's persisted for compose.
     const sig = await win.evaluate(() => window.deskmail.compose.getSignature(1))
-    expect(sig?.body).toContain('Functional 3D UK')
+    expect(sig?.body).toContain('Example Co')
   } finally {
     await app.close()
     safeRm(userData)

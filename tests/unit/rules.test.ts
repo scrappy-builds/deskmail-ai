@@ -16,7 +16,7 @@ const rule = (over: Partial<Rule>): Rule => ({
 })
 
 describe('rule matching (pure)', () => {
-  const msg = { from: 'Maya Chen maya@northwind.studio', subject: 'Q3 launch', to: 'jamie@x', body: 'the plan' }
+  const msg = { from: 'Maya Chen maya@northwind.studio', subject: 'Q3 launch', to: 'alex@x', body: 'the plan' }
   it('contains / equals / startswith, case-insensitive', () => {
     expect(ruleMatches(rule({ field: 'from', op: 'contains', value: 'MAYA' }), msg)).toBe(true)
     expect(ruleMatches(rule({ field: 'subject', op: 'startswith', value: 'q3' }), msg)).toBe(true)

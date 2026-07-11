@@ -4,8 +4,8 @@ interface State {
   error: Error | null
 }
 
-// Last line of defence: if a render throws, show a friendly panel in Jamie's
-// voice instead of a blank window, with a way to reload.
+// Last line of defence: if a render throws, show a friendly panel instead of a
+// blank window, with a way to reload.
 export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   state: State = { error: null }
 
