@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../Icon'
 import type { AccountInput, AccountSummary } from '@shared/db'
 import { AccountWizard } from './AccountWizard'
-import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, NotificationsPane, RulesPane, SecurityPane, SendingPane, ShortcutsPane, SignaturesPane, SyncPane, TemplatesPane } from './panes'
+import { ClaudeConnectorPane, ContactsPane, LocalStoragePane, MeetingsPane, NotificationsPane, RulesPane, SecurityPane, SendingPane, ShortcutsPane, SignaturesPane, SyncPane, TemplatesPane } from './panes'
 import { AppearancePane } from './ThemeEditor'
 
 const SECTIONS = [
@@ -229,6 +229,7 @@ export function Settings({ onClose, initialAccountSetup }: { onClose: () => void
             {section === 'Contacts' && <ContactsPane />}
             {section === 'Sending' && <SendingPane />}
             {section === 'Sync' && <SyncPane />}
+            {section === 'Meetings' && <MeetingsPane />}
             {section === 'Claude connector' && <ClaudeConnectorPane />}
             {section === 'Appearance' && <AppearancePane />}
             {section === 'Shortcuts' && <ShortcutsPane />}
@@ -243,6 +244,7 @@ export function Settings({ onClose, initialAccountSetup }: { onClose: () => void
               section !== 'Contacts' &&
               section !== 'Sending' &&
               section !== 'Sync' &&
+              section !== 'Meetings' &&
               section !== 'Claude connector' &&
               section !== 'Appearance' &&
               section !== 'Shortcuts' &&

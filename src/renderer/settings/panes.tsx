@@ -857,8 +857,58 @@ export function SecurityPane(): JSX.Element {
 }
 
 // --- Claude connector (local MCP server) --------------------------------------
+// A plain-language, step-by-step explainer for people new to Claude/AI. Opens as
+// its own focused window over the settings.
+function ClaudeEli5({ onClose, onCopy }: { onClose: () => void; onCopy: () => void }): JSX.Element {
+  const steps = [
+    'On the settings screen behind this, click the “Copy” button — that copies the connection settings.',
+    'Open the Claude Desktop app on this computer.',
+    'In Claude Desktop, go to Settings → Developer → “Edit Config”.',
+    'Paste what you copied into that file, then save it.',
+    'Close Claude Desktop and open it again.'
+  ]
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ background: 'rgba(5,6,10,0.55)', backdropFilter: 'blur(3px)' }} onClick={onClose}>
+      <div className="max-h-[88vh] w-[min(560px,93vw)] overflow-y-auto rounded-lg border border-border bg-panel p-6 shadow-raised" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="text-[17px] font-bold">Connecting Claude — the simple version</div>
+          <button onClick={onClose} className="flex-none rounded-md p-1.5 text-text-2 hover:bg-raised"><Icon name="close" size={18} /></button>
+        </div>
+        <p className="mt-3 text-[13px] leading-relaxed text-text-2">
+          DeskMail can team up with <b>Claude</b>, the AI assistant app on your computer. Once they're
+          connected, you can ask Claude things like <i>“which emails need a reply?”</i> or <i>“draft a
+          friendly reply to this one”</i> — and it helps you right here with your mail.
+        </p>
+        <div className="mt-3 rounded-md px-3.5 py-2.5 text-[12.5px] leading-relaxed" style={{ background: 'var(--accent-soft)', color: 'var(--text-2)' }}>
+          <b>You stay in control.</b> Claude can read your mail and write drafts, but it can <b>never</b> send
+          an email, delete anything for good, or see your password.
+        </div>
+        <div className="mt-4 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">What you need first</div>
+        <p className="mt-1 text-[12.5px] leading-relaxed text-text-3">The free <b>Claude Desktop</b> app installed on this PC (from claude.ai). If you don't have it yet, install that first.</p>
+        <div className="mt-4 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Then, step by step</div>
+        <ol className="mt-2 flex flex-col gap-2.5">
+          {steps.map((s, i) => (
+            <li key={i} className="flex gap-3 text-[13px] leading-relaxed text-text-2">
+              <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full text-[12px] font-bold" style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}>{i + 1}</span>
+              <span>{s}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-4 text-[13px] leading-relaxed text-text-2">
+          <b>That's it.</b> Now open Claude and ask it about your email — for example, <i>“summarise my unread emails.”</i>
+        </p>
+        <div className="mt-5 flex gap-2">
+          <button onClick={onCopy} className="rounded-md px-4 py-2 text-[13px] font-semibold" style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}>Copy the settings</button>
+          <button onClick={onClose} className="rounded-md border border-border px-4 py-2 text-[13px] font-semibold text-text-2 hover:bg-raised">Close</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ClaudeConnectorPane(): JSX.Element {
   const [info, setInfo] = useState<{ configJson: string; tools: string[]; dbPath: string } | null>(null)
+  const [eli5, setEli5] = useState(false)
   const showToast = useToast((s) => s.show)
   useEffect(() => {
     void window.deskmail.mcp.info().then(setInfo)
@@ -876,6 +926,14 @@ export function ClaudeConnectorPane(): JSX.Element {
         this PC. It can't send, delete, see your passwords, change settings, or touch anything outside
         DeskMail's own storage — and any draft it writes waits for you to review and send.
       </p>
+
+      <button
+        onClick={() => setEli5(true)}
+        className="flex items-center gap-2 self-start rounded-md border px-3.5 py-2 text-[12.5px] font-semibold"
+        style={{ borderColor: 'var(--claude)', color: 'var(--claude)', background: 'var(--claude-soft)' }}
+      >
+        <span aria-hidden>✨</span> New to Claude? Show me the simple, step-by-step guide
+      </button>
 
       <div>
         <div className="mb-2 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">Available tools</div>
@@ -904,6 +962,37 @@ export function ClaudeConnectorPane(): JSX.Element {
           {' '}(Settings → Developer → Edit Config), then restart Claude Desktop.
         </p>
         <pre className="max-h-[220px] overflow-auto rounded-md border border-border bg-inset p-3 font-mono text-[11.5px] leading-relaxed text-text-2">{info.configJson}</pre>
+      </div>
+
+      {eli5 && <ClaudeEli5 onClose={() => setEli5(false)} onCopy={() => { void navigator.clipboard.writeText(info.configJson); showToast({ text: 'Config copied' }) }} />}
+    </div>
+  )
+}
+
+// --- Meetings (informational) -------------------------------------------------
+export function MeetingsPane(): JSX.Element {
+  const items = [
+    { t: 'Invites in your inbox', d: 'When an email contains a meeting invitation, open it and accept — the event is added to your calendar, with a one-click Join if it has a video link.' },
+    { t: 'Your own events', d: 'Create events in the Calendar tab. For a video call you can pick Microsoft Teams, Google Meet, Zoom, In person, or Custom link.' },
+    { t: 'Joining', d: 'DeskMail recognises Teams, Google Meet and Zoom links from invites and gives you a one-click Join button.' }
+  ]
+  return (
+    <div className="flex max-w-[540px] flex-col gap-4">
+      <p className="text-[13px] leading-relaxed text-text-2">
+        DeskMail has a built-in <b>calendar</b> and understands the meeting invites that arrive in your email.
+      </p>
+      <div className="flex flex-col gap-3.5">
+        {items.map((x) => (
+          <div key={x.t}>
+            <div className="text-[12px] font-semibold text-accent">{x.t}</div>
+            <div className="mt-0.5 text-[12.5px] leading-relaxed text-text-3">{x.d}</div>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-md border border-border px-3.5 py-2.5 text-[12.5px] leading-relaxed text-text-3">
+        <b>Good to know:</b> picking Teams, Meet or Zoom adds a placeholder link so the in-app Join button
+        works, but it isn't a real meeting on that service. To invite others to a genuine call, create the
+        meeting in your Teams/Zoom/Meet app first, then choose <b>Custom link</b> here and paste the real link.
       </div>
     </div>
   )
