@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest. This is a **personal, non-commercial project** maintained on a
+Thanks for your interest. This is a **personal project** maintained on a
 best-effort basis, so please read this before opening a pull request.
 
 ## Ground rules

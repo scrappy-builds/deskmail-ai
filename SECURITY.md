@@ -34,7 +34,7 @@ account of how it protects them and what it does **not** protect against.
 
 ## Reporting a vulnerability
 
-This is a personal, non-commercial project maintained on a best-effort basis. If you
+This is a personal project maintained on a best-effort basis. If you
 find a security issue, please **open a private security advisory** on the GitHub
 repository (Security → Report a vulnerability) rather than a public issue, so it can be
 looked at before it's widely known. Include steps to reproduce and the impact. There is
