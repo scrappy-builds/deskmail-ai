@@ -372,5 +372,19 @@ export const MIGRATIONS: string[] = [
   // folder, so a large mailbox's back-fill degraded to O(n²) (measured: ~18→10
   // msg/s and dropping across a 10k-message inbox). This makes each dedupe an
   // index seek so back-fill throughput stays flat as the folder fills.
-  `CREATE INDEX idx_messages_folder_uid ON messages(folder_id, remote_uid);`
+  `CREATE INDEX idx_messages_folder_uid ON messages(folder_id, remote_uid);`,
+
+  // --- v29: VIP contacts (optionally notify only for mail from VIP senders) ------
+  `ALTER TABLE contacts ADD COLUMN is_vip INTEGER NOT NULL DEFAULT 0;`,
+
+  // --- v30: per-event reminder (minutes before start; NULL = none) ---------------
+  // Stored only — firing/notifications are a separate later task.
+  `ALTER TABLE events ADD COLUMN reminder_minutes INTEGER;`,
+
+  // --- v31: reminder firing state ------------------------------------------------
+  // reminder_fired_at is set once a reminder has alerted, so it never repeats;
+  // reminder_snooze_until (when set) overrides the offset and re-arms the reminder.
+  // Both are local wall-clock 'YYYY-MM-DDTHH:MM' stamps, matching date/start.
+  `ALTER TABLE events ADD COLUMN reminder_fired_at TEXT;
+   ALTER TABLE events ADD COLUMN reminder_snooze_until TEXT;`
 ]

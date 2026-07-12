@@ -52,6 +52,8 @@ const api: DeskMailApi = {
     senderContext: (id: number) => ipcRenderer.invoke('mail:sender-context', id),
     knownDomains: () => ipcRenderer.invoke('mail:known-domains'),
     saveMessage: (id: number, format: 'eml' | 'html') => ipcRenderer.invoke('mail:save-message', id, format),
+    exportThreadPdf: (id: number) => ipcRenderer.invoke('mail:export-thread-pdf', id),
+    exportThreadHtml: (id: number) => ipcRenderer.invoke('mail:export-thread-html', id),
     importMail: (folderId: number) => ipcRenderer.invoke('mail:import-mail', folderId),
     exportMbox: (folderId: number) => ipcRenderer.invoke('mail:export-mbox', folderId),
     listByLabel: (labelId: number) => ipcRenderer.invoke('mail:list-by-label', labelId),
@@ -132,7 +134,8 @@ const api: DeskMailApi = {
     list: () => ipcRenderer.invoke('rules:list'),
     create: (input: RuleInput) => ipcRenderer.invoke('rules:create', input),
     update: (id: number, input: RuleInput) => ipcRenderer.invoke('rules:update', id, input),
-    remove: (id: number) => ipcRenderer.invoke('rules:delete', id)
+    remove: (id: number) => ipcRenderer.invoke('rules:delete', id),
+    run: (ruleId: number, folderId: number) => ipcRenderer.invoke('rules:run', ruleId, folderId)
   },
   labels: {
     list: () => ipcRenderer.invoke('labels:list'),
@@ -162,6 +165,9 @@ const api: DeskMailApi = {
   },
   attachments: {
     open: (messageId: number, attachmentId: number) => ipcRenderer.invoke('attachments:open', messageId, attachmentId),
+    save: (messageId: number, attachmentId: number) => ipcRenderer.invoke('attachments:save', messageId, attachmentId),
+    saveAll: (messageId: number) => ipcRenderer.invoke('attachments:save-all', messageId),
+    dataUrl: (messageId: number, attachmentId: number) => ipcRenderer.invoke('attachments:data-url', messageId, attachmentId),
     browse: (query?: string, offset?: number) => ipcRenderer.invoke('attachments:browse', query, offset)
   },
   notebooklm: {
@@ -196,7 +202,13 @@ const api: DeskMailApi = {
     join: (eventId: number) => ipcRenderer.invoke('calendar:join', eventId),
     acceptInvite: (messageId: number) => ipcRenderer.invoke('calendar:accept-invite', messageId),
     sendInvite: (eventId: number) => ipcRenderer.invoke('calendar:send-invite', eventId),
-    respondInvite: (messageId: number, response: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED') => ipcRenderer.invoke('calendar:respond-invite', messageId, response)
+    respondInvite: (messageId: number, response: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED') => ipcRenderer.invoke('calendar:respond-invite', messageId, response),
+    getEvent: (id: number) => ipcRenderer.invoke('calendar:get-event', id)
+  },
+  // Fired-reminder popup: snooze re-arms the reminder; dismiss stops it.
+  reminders: {
+    snooze: (eventId: number, minutes: number) => ipcRenderer.invoke('reminders:snooze', eventId, minutes),
+    dismiss: (eventId: number) => ipcRenderer.invoke('reminders:dismiss', eventId)
   },
   window: {
     minimise: () => ipcRenderer.send('window:minimise'),

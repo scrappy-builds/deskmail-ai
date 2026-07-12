@@ -63,6 +63,20 @@ describe('events CRUD', () => {
     expect(getEvent(db, id)).toBeNull()
   })
 
+  it('persists the reminder field (null when omitted, and round-trips an update)', () => {
+    // Omitted on the input → stored as null.
+    const id = createEvent(db, BASE)
+    expect(getEvent(db, id)!.reminderMinutes).toBeNull()
+
+    // Set on create, then changed on update.
+    const id2 = createEvent(db, { ...BASE, reminderMinutes: 15 })
+    expect(getEvent(db, id2)!.reminderMinutes).toBe(15)
+    updateEvent(db, id2, { ...BASE, reminderMinutes: 1440 })
+    expect(getEvent(db, id2)!.reminderMinutes).toBe(1440)
+    updateEvent(db, id2, { ...BASE, reminderMinutes: null })
+    expect(getEvent(db, id2)!.reminderMinutes).toBeNull()
+  })
+
   it('in-person events get no join link', () => {
     const id = createEvent(db, { ...BASE, provider: 'inperson' })
     expect(getEvent(db, id)!.joinUrl).toBeNull()

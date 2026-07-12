@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Icon } from '../Icon'
 import { InlineImage } from '../editor/InlineImage'
 import { PLATFORMS, buildSocialRow, splitSocial, parseSocialRow } from './socialIcons'
-import type { AccountSummary, ContactDetail, ContactInput, FolderSummary, LabelInfo, NotifySettings, Rule, RuleAction, RuleField, RuleInput, RuleOp, ScheduledSend, SignatureItem, Template } from '@shared/db'
+import type { AccountSummary, Contact, ContactDetail, ContactInput, FolderSummary, LabelInfo, NotifySettings, Rule, RuleAction, RuleField, RuleInput, RuleOp, ScheduledSend, SignatureItem, Template } from '@shared/db'
 import { DEFAULT_KEYMAP, RESERVED_KEYS, SHORTCUTS, type Keymap, type ShortcutAction } from '@shared/shortcuts'
 import { useToast } from '../store/toastStore'
 
@@ -54,6 +54,7 @@ export function NotificationsPane(): JSX.Element {
         schedule (or on demand) when you need to focus.
       </p>
       <Toggle on={s.enabled} onChange={(v) => patch({ enabled: v })} label="New-mail notifications" hint="Show a desktop alert for new inbox mail." />
+      <Toggle on={s.vipOnly} onChange={(v) => patch({ vipOnly: v })} label="Only notify me for VIP senders" hint="Show alerts only for mail from contacts you've flagged as VIP. Mark VIPs on the Contacts tab." />
       <Toggle on={idle} onChange={toggleIdle} label="Instant new mail (push)" hint="The mail server tells DeskMail the moment something arrives, instead of waiting for the next check. Turn off if your provider dislikes long-lived connections." />
       <Toggle on={focused} onChange={toggleFocused} label="Focused inbox" hint="Split the Inbox into Focused and Other, learned from your own behaviour. Move messages between the tabs to teach it; only Focused mail notifies." />
       <Toggle on={s.launchAtStartup} onChange={(v) => patch({ launchAtStartup: v })} label="Start DeskMail when Windows starts" hint="Launch automatically in the background when you sign in." />
@@ -82,11 +83,21 @@ const ACTION_LABELS: Record<RuleAction, string> = { move: 'Move to folder', labe
 
 const BLANK_RULE: RuleInput = { name: '', enabled: true, field: 'from', op: 'contains', value: '', action: 'star', targetFolderId: null, targetLabelId: null }
 
+// A small field label above a control, matching the settings pane style.
+function FieldLabel({ children }: { children: string }): JSX.Element {
+  return <div className="mb-1 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">{children}</div>
+}
+
+const ruleSelectCls = 'rounded-md border border-border bg-bg px-2.5 py-1.5 text-[12.5px] text-text outline-none focus:border-accent'
+
 export function RulesPane(): JSX.Element {
   const [rules, setRules] = useState<Rule[]>([])
   const [folders, setFolders] = useState<FolderSummary[]>([])
   const [labels, setLabels] = useState<LabelInfo[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [draft, setDraft] = useState<RuleInput>(BLANK_RULE)
+  // Per-rule target folder for "Run now" — defaults to the Inbox below.
+  const [runFolder, setRunFolder] = useState<Record<number, number>>({})
   const showToast = useToast((s) => s.show)
 
   const refresh = (): void => void window.deskmail.rules.list().then(setRules)
@@ -94,9 +105,20 @@ export function RulesPane(): JSX.Element {
     refresh()
     void window.deskmail.mail.listFolders().then((f) => setFolders(f.filter((x) => x.role !== 'drafts')))
     void window.deskmail.labels.list().then(setLabels)
+    void window.deskmail.contacts.list().then(setContacts)
   }, [])
 
   const set = <K extends keyof RuleInput>(k: K, v: RuleInput[K]): void => setDraft((p) => ({ ...p, [k]: v }))
+
+  // Picking a contact fills the match value with their email address and matches
+  // it exactly. No schema change — it's just a shortcut for typing an address.
+  const pickContact = (email: string): void => {
+    if (!email) return
+    setDraft((p) => ({ ...p, value: email, op: 'equals' }))
+  }
+
+  // Contacts that actually have an email to match on, newest-first as returned.
+  const emailContacts = contacts.filter((c) => (c.email ?? '').trim())
 
   const add = async (): Promise<void> => {
     const name = draft.name.trim() || `${FIELD_LABELS[draft.field]} ${OP_LABELS[draft.op]} “${draft.value.trim()}”`
@@ -116,9 +138,17 @@ export function RulesPane(): JSX.Element {
     await window.deskmail.rules.remove(id)
     refresh()
   }
+  // Sweep a folder's existing mail with one rule and report how many it caught.
+  const inboxId = folders.find((f) => f.role === 'inbox')?.id ?? folders[0]?.id
+  const runNow = async (ruleId: number, folderId: number): Promise<void> => {
+    const { count } = await window.deskmail.rules.run(ruleId, folderId)
+    const where = folders.find((f) => f.id === folderId)?.name ?? 'that folder'
+    showToast({ text: count ? `Applied to ${count} message${count === 1 ? '' : 's'}.` : `No matches in ${where}.` })
+  }
 
   const needsFolder = draft.action === 'move'
   const needsLabel = draft.action === 'label'
+  const isFrom = draft.field === 'from'
 
   return (
     <div className="flex flex-col gap-4">
@@ -127,36 +157,61 @@ export function RulesPane(): JSX.Element {
         lifting a finger. Each rule is one condition and one action.
       </p>
 
-      <div className="rounded-lg border border-border p-3.5">
-        <div className="mb-2.5 text-[11px] font-bold uppercase tracking-[.6px] text-text-3">New rule</div>
-        <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
-          <span className="text-text-2">When</span>
-          <select value={draft.field} onChange={(e) => set('field', e.target.value as RuleField)} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent">
-            {(Object.keys(FIELD_LABELS) as RuleField[]).map((f) => <option key={f} value={f}>{FIELD_LABELS[f]}</option>)}
-          </select>
-          <select value={draft.op} onChange={(e) => set('op', e.target.value as RuleOp)} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent">
-            {(Object.keys(OP_LABELS) as RuleOp[]).map((o) => <option key={o} value={o}>{OP_LABELS[o]}</option>)}
-          </select>
-          <input value={draft.value} onChange={(e) => set('value', e.target.value)} placeholder="text to match" className="min-w-[140px] flex-1 rounded-md border border-border bg-bg px-2.5 py-1.5 outline-none focus:border-accent" />
+      <div className="flex flex-col gap-3.5 rounded-lg border border-border p-3.5">
+        <div className="text-[11px] font-bold uppercase tracking-[.6px] text-text-3">New rule</div>
+
+        <div>
+          <FieldLabel>Rule name (optional)</FieldLabel>
+          <input value={draft.name} onChange={(e) => set('name', e.target.value)} placeholder="Named for you if left blank" className={inputCls} />
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[12.5px]">
-          <span className="text-text-2">then</span>
-          <select value={draft.action} onChange={(e) => set('action', e.target.value as RuleAction)} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent">
-            {(Object.keys(ACTION_LABELS) as RuleAction[]).map((a) => <option key={a} value={a}>{ACTION_LABELS[a]}</option>)}
-          </select>
-          {needsFolder && (
-            <select value={draft.targetFolderId ?? ''} onChange={(e) => set('targetFolderId', e.target.value ? Number(e.target.value) : null)} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent">
-              <option value="">choose folder…</option>
-              {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+
+        <div>
+          <FieldLabel>When an email’s…</FieldLabel>
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={draft.field} onChange={(e) => set('field', e.target.value as RuleField)} className={ruleSelectCls} aria-label="Field to match">
+              {(Object.keys(FIELD_LABELS) as RuleField[]).map((f) => <option key={f} value={f}>{FIELD_LABELS[f]}</option>)}
             </select>
-          )}
-          {needsLabel && (
-            <select value={draft.targetLabelId ?? ''} onChange={(e) => set('targetLabelId', e.target.value ? Number(e.target.value) : null)} className="rounded-md border border-border bg-bg px-2 py-1.5 outline-none focus:border-accent">
-              <option value="">choose label…</option>
-              {labels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            <select value={draft.op} onChange={(e) => set('op', e.target.value as RuleOp)} className={ruleSelectCls} aria-label="Match type">
+              {(Object.keys(OP_LABELS) as RuleOp[]).map((o) => <option key={o} value={o}>{OP_LABELS[o]}</option>)}
             </select>
+            <input value={draft.value} onChange={(e) => set('value', e.target.value)} placeholder={isFrom ? 'email address or text' : 'text to match'} className="min-w-[160px] flex-1 rounded-md border border-border bg-bg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-accent" aria-label="Text to match" />
+          </div>
+          {isFrom && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-[12px] text-text-3">or pick from Contacts</span>
+              <select value="" onChange={(e) => pickContact(e.target.value)} className={`${ruleSelectCls} min-w-[200px] max-w-full`} aria-label="Pick a contact" disabled={emailContacts.length === 0}>
+                <option value="">{emailContacts.length === 0 ? 'No contacts with an email yet' : 'Choose a contact…'}</option>
+                {emailContacts.map((c) => (
+                  <option key={c.id} value={c.email ?? ''}>{c.name ? `${c.name} — ${c.email}` : c.email}</option>
+                ))}
+              </select>
+            </div>
           )}
-          <button onClick={() => void add()} className="rounded-md bg-accent px-3.5 py-1.5 font-semibold text-accent-fg hover:bg-accent-2">Add rule</button>
+        </div>
+
+        <div>
+          <FieldLabel>Then…</FieldLabel>
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={draft.action} onChange={(e) => set('action', e.target.value as RuleAction)} className={ruleSelectCls} aria-label="Action">
+              {(Object.keys(ACTION_LABELS) as RuleAction[]).map((a) => <option key={a} value={a}>{ACTION_LABELS[a]}</option>)}
+            </select>
+            {needsFolder && (
+              <select value={draft.targetFolderId ?? ''} onChange={(e) => set('targetFolderId', e.target.value ? Number(e.target.value) : null)} className={ruleSelectCls} aria-label="Target folder">
+                <option value="">choose folder…</option>
+                {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            )}
+            {needsLabel && (
+              <select value={draft.targetLabelId ?? ''} onChange={(e) => set('targetLabelId', e.target.value ? Number(e.target.value) : null)} className={ruleSelectCls} aria-label="Target label">
+                <option value="">choose label…</option>
+                {labels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <button onClick={() => void add()} className="rounded-md bg-accent px-4 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2">Add rule</button>
         </div>
       </div>
 
@@ -176,6 +231,24 @@ export function RulesPane(): JSX.Element {
                 <div className="truncate text-[11.5px] text-text-3">
                   {FIELD_LABELS[r.field]} {OP_LABELS[r.op]} “{r.value}” → {ACTION_LABELS[r.action]}
                 </div>
+              </div>
+              <div className="flex flex-none items-center gap-1.5">
+                <select
+                  value={runFolder[r.id] ?? inboxId ?? ''}
+                  onChange={(e) => setRunFolder((s) => ({ ...s, [r.id]: Number(e.target.value) }))}
+                  className={ruleSelectCls}
+                  aria-label="Folder to apply this rule to"
+                >
+                  {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+                <button
+                  onClick={() => { const fid = runFolder[r.id] ?? inboxId; if (fid != null) void runNow(r.id, fid) }}
+                  disabled={inboxId == null}
+                  className="rounded-md border border-border px-2.5 py-1 text-[12px] font-semibold text-text-2 hover:border-accent hover:text-text disabled:opacity-40"
+                  title="Apply this rule to mail already in the chosen folder"
+                >
+                  Run now
+                </button>
               </div>
               <button onClick={() => void remove(r.id)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-danger hover:underline">Delete</button>
             </div>
@@ -525,7 +598,7 @@ export function TemplatesPane(): JSX.Element {
 }
 
 // --- Contacts -----------------------------------------------------------------
-const BLANK_CONTACT: ContactInput = { name: '', email: '', org: '', notes: '', groups: [] }
+const BLANK_CONTACT: ContactInput = { name: '', email: '', org: '', notes: '', groups: [], vip: false }
 
 export function ContactsPane(): JSX.Element {
   const [contacts, setContacts] = useState<ContactDetail[]>([])
@@ -576,6 +649,7 @@ export function ContactsPane(): JSX.Element {
         <input className={inputCls} placeholder="Organisation (optional)" value={c.org ?? ''} onChange={(e) => set('org', e.target.value)} />
         <input className={inputCls} placeholder="Groups — comma separated (e.g. Clients, Suppliers)" value={c.groups.join(', ')} onChange={(e) => set('groups', e.target.value.split(',').map((g) => g.trim()).filter(Boolean))} />
         <textarea className={`${inputCls} min-h-[80px] resize-y`} placeholder="Notes (optional)" value={c.notes ?? ''} onChange={(e) => set('notes', e.target.value)} />
+        <Toggle on={!!c.vip} onChange={(v) => set('vip', v)} label="VIP contact" hint="Mark as a VIP so you can choose to be notified only for their mail (Notifications settings)." />
         <div className="flex gap-2.5">
           <button onClick={() => void save()} className="rounded-md bg-accent px-5 py-2 text-[13px] font-semibold text-accent-fg hover:bg-accent-2">Save</button>
           <button onClick={() => setEditing(null)} className="rounded-md px-3 py-2 text-[13px] font-semibold text-text-2 hover:bg-raised">Cancel</button>
@@ -612,13 +686,14 @@ export function ContactsPane(): JSX.Element {
           {shown.map((c) => (
             <div key={c.id} className="flex items-center gap-3 rounded-md border border-border bg-bg px-3.5 py-2.5">
               <Icon name="contacts" size={16} className="flex-none text-text-3" />
+              {c.vip && <span title="VIP" className="flex-none text-accent"><Icon name="star" size={14} fill /></span>}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold">{c.name ?? c.email}</div>
                 <div className="truncate text-[12px] text-text-3">
                   {c.name ? c.email : c.org}{c.groups.length > 0 && <span className="text-accent"> · {c.groups.join(', ')}</span>}
                 </div>
               </div>
-              <button onClick={() => setEditing({ id: c.id, input: { name: c.name, email: c.email, org: c.org, notes: c.notes, groups: c.groups } })} className="rounded-md px-2 py-1 text-[12px] font-semibold text-accent hover:underline">Edit</button>
+              <button onClick={() => setEditing({ id: c.id, input: { name: c.name, email: c.email, org: c.org, notes: c.notes, groups: c.groups, vip: c.vip } })} className="rounded-md px-2 py-1 text-[12px] font-semibold text-accent hover:underline">Edit</button>
               <button onClick={() => void remove(c.id)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-danger hover:underline">Delete</button>
             </div>
           ))}

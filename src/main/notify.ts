@@ -38,6 +38,7 @@ export function getNotifySettings(db: DB): NotifySettings {
     dndFrom: getAppSetting(db, 'dnd-from') ?? '22:00',
     dndTo: getAppSetting(db, 'dnd-to') ?? '07:00',
     focusNow: getAppSetting(db, 'focus-now') === 'on',
-    launchAtStartup: getAppSetting(db, 'launch-at-startup') !== 'off' // default on
+    launchAtStartup: getAppSetting(db, 'launch-at-startup') !== 'off', // default on
+    vipOnly: getAppSetting(db, 'vip-only') === 'on' // default off
   }
 }

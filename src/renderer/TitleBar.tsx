@@ -181,7 +181,13 @@ export function TitleBar({
         DeskMail <span className="text-claude">AI</span>
       </span>
 
-      <div ref={rootRef} className="no-drag flex gap-0.5 text-text-2">
+      {/* Click-away overlay: the title bar is an OS drag-region, which swallows
+          mouse events, so a plain document listener never fires for clicks on the
+          draggable areas. This transparent layer catches them and closes the menu.
+          The menu row sits above it (z-50) so switching between menus still works. */}
+      {open && <div className="fixed inset-0 z-40" onClick={close} />}
+
+      <div ref={rootRef} className="no-drag relative z-50 flex gap-0.5 text-text-2">
         {Object.entries(menus).map(([name, items]) => (
           <div key={name} className="relative">
             <span onClick={() => toggle(name)} className={btn} style={open === name ? { background: 'var(--bg-3)' } : undefined}>

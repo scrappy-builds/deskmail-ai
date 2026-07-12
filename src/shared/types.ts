@@ -103,6 +103,9 @@ export interface DeskMailApi {
     messageSource(id: number): Promise<string | null>
     messageNeighbours(id: number): Promise<{ prevId: number | null; nextId: number | null }>
     saveMessage(id: number, format: 'eml' | 'html'): Promise<{ path: string | null }>
+    // Save a whole conversation (the message's thread) as one PDF/HTML file.
+    exportThreadPdf(id: number): Promise<{ path: string | null }>
+    exportThreadHtml(id: number): Promise<{ path: string | null }>
     // Import an .mbox/.eml into a folder; export a folder to .mbox.
     importMail(folderId: number): Promise<{ count: number }>
     exportMbox(folderId: number): Promise<{ count: number; path: string | null }>
@@ -200,6 +203,8 @@ export interface DeskMailApi {
     create(input: RuleInput): Promise<{ id: number }>
     update(id: number, input: RuleInput): Promise<void>
     remove(id: number): Promise<void>
+    // Apply an existing rule to mail already in a folder; returns how many were actioned.
+    run(ruleId: number, folderId: number): Promise<{ count: number }>
   }
   // Colour labels/tags (a message can carry several; distinct from folders).
   labels: {
@@ -246,6 +251,13 @@ export interface DeskMailApi {
     browse(query?: string, offset?: number): Promise<AttachmentBrowserItem[]>
     // Download (if needed) and open an attachment with the OS default app.
     open(messageId: number, attachmentId: number): Promise<{ ok: boolean; error?: string }>
+    // Download (if needed) then save one attachment to a user-picked location.
+    save(messageId: number, attachmentId: number): Promise<{ ok: boolean; path?: string; error?: string }>
+    // Download all, then copy every attachment into a user-picked folder.
+    saveAll(messageId: number): Promise<{ ok: boolean; count: number; dir?: string; error?: string }>
+    // Download (if needed) and return an inline base64 data: URL, or { ok:false }
+    // if the file is missing or exceeds the inline cap (kept for images only).
+    dataUrl(messageId: number, attachmentId: number): Promise<{ ok: boolean; dataUrl?: string }>
   }
   notebooklm: {
     // Export an email (+ attachments) to a folder for the notebooklm skill to add.
@@ -296,6 +308,15 @@ export interface DeskMailApi {
     sendInvite(eventId: number): Promise<SendResult>
     // Email an iTIP REPLY (Accepted/Tentative/Declined) to the invite's organiser.
     respondInvite(messageId: number, response: 'ACCEPTED' | 'TENTATIVE' | 'DECLINED'): Promise<SendResult>
+    // Full details for a single event (the reminder popup displays these).
+    getEvent(id: number): Promise<EventSummary | null>
+  }
+  // Fired-reminder popup controls.
+  reminders: {
+    // Re-arm the reminder for `minutes` from now (and close the popup).
+    snooze(eventId: number, minutes: number): Promise<void>
+    // Stop the reminder (and close the popup).
+    dismiss(eventId: number): Promise<void>
   }
   // Window controls for the custom (frameless) title bar.
   window: {

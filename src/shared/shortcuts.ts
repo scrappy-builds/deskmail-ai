@@ -10,10 +10,15 @@ export type ShortcutAction =
   | 'open'
   | 'archive'
   | 'delete'
+  | 'flagToggle'
   | 'reply'
+  | 'replyAll'
+  | 'forward'
   | 'compose'
   | 'search'
   | 'toggleUnread'
+  | 'markAllRead'
+  | 'selectAll'
   | 'help'
 
 export interface ShortcutDef {
@@ -29,10 +34,15 @@ export const SHORTCUTS: ShortcutDef[] = [
   { action: 'open', label: 'Open in its own window', defaultKey: 'Enter' },
   { action: 'archive', label: 'Archive', defaultKey: 'e' },
   { action: 'delete', label: 'Delete (to Bin)', defaultKey: '#' },
+  { action: 'flagToggle', label: 'Flag / unflag', defaultKey: 's' },
   { action: 'reply', label: 'Reply', defaultKey: 'r' },
+  { action: 'replyAll', label: 'Reply to all', defaultKey: 'a' },
+  { action: 'forward', label: 'Forward', defaultKey: 'f' },
   { action: 'compose', label: 'Compose', defaultKey: 'c' },
   { action: 'search', label: 'Focus search', defaultKey: '/' },
   { action: 'toggleUnread', label: 'Toggle read / unread', defaultKey: 'u' },
+  { action: 'markAllRead', label: 'Mark all read', defaultKey: 'm' },
+  { action: 'selectAll', label: 'Select all', defaultKey: '*' },
   { action: 'help', label: 'Show this cheat-sheet', defaultKey: '?' }
 ]
 

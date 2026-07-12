@@ -6,6 +6,30 @@ this list**, so what's left is always the live backlog.
 
 ---
 
+## Backlog
+
+_(Empty — the improvements batch below is done, verified, and shipped on
+`feature/improvements-batch`.)_
+
+### Known follow-ups / polish
+
+Minor gaps left after the improvements batch — none blocking, worth a tidy-up
+pass later:
+
+- **Reminder alert overlap.** A pre-existing "starts within 10 min" toast
+  (`checkEventReminders`) still runs alongside the new per-entry reminders, so an
+  entry with `reminderMinutes ≈ 10` can alert twice. Decide whether to retire the
+  old generic toast now that explicit reminders exist.
+- **Find-in-message is HTML-only.** The Ctrl+F find bar works on HTML email
+  bodies (the common case) but not plain-text-only emails.
+- **Standalone message window parity.** The new actions (Edit as new, Save
+  attachments, conversation export, custom snooze) live on the main-window action
+  ribbon / reading pane; the pop-out message window doesn't have all of them yet.
+- **Right-click menu has no Undo.** The message right-click menu performs
+  move/delete/archive without recording an Undo, unlike the command-bar ribbon.
+- **Per-occurrence reminders.** A recurring entry fires its reminder once off the
+  base date, not per occurrence.
+
 ## Future / roadmap
 
 - **PDF guides (User Guide + Connector Guide).** Dropped from v1 — the generator

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_KEYMAP, mergeKeymap, resolveShortcut, type Keymap } from '../../src/shared/shortcuts'
+import { DEFAULT_KEYMAP, mergeKeymap, resolveShortcut, RESERVED_KEYS, SHORTCUTS, type Keymap } from '../../src/shared/shortcuts'
 
 const ev = (over: Partial<Parameters<typeof resolveShortcut>[0]>): Parameters<typeof resolveShortcut>[0] => ({
   key: 'j',
@@ -16,6 +16,18 @@ describe('resolveShortcut', () => {
     expect(resolveShortcut(ev({ key: 'e' }), DEFAULT_KEYMAP)).toBe('archive')
     expect(resolveShortcut(ev({ key: '#' }), DEFAULT_KEYMAP)).toBe('delete')
     expect(resolveShortcut(ev({ key: '?' }), DEFAULT_KEYMAP)).toBe('help')
+    expect(resolveShortcut(ev({ key: 's' }), DEFAULT_KEYMAP)).toBe('flagToggle')
+    expect(resolveShortcut(ev({ key: 'a' }), DEFAULT_KEYMAP)).toBe('replyAll')
+    expect(resolveShortcut(ev({ key: 'f' }), DEFAULT_KEYMAP)).toBe('forward')
+    expect(resolveShortcut(ev({ key: 'm' }), DEFAULT_KEYMAP)).toBe('markAllRead')
+    expect(resolveShortcut(ev({ key: '*' }), DEFAULT_KEYMAP)).toBe('selectAll')
+  })
+
+  it('has unique, non-reserved default bindings (no collisions)', () => {
+    const keys = SHORTCUTS.map((s) => s.defaultKey).filter((k) => k !== '')
+    const lower = keys.map((k) => k.toLowerCase())
+    expect(new Set(lower).size).toBe(lower.length) // no two actions share a default
+    for (const k of keys) expect(RESERVED_KEYS.has(k)).toBe(false)
   })
 
   it('is case-insensitive for letters (caps lock / shift)', () => {

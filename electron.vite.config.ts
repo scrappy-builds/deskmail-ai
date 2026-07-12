@@ -42,7 +42,9 @@ export default defineConfig({
           // Independent message windows load their own entry (own preload, no Node).
           message: resolve('src/renderer/message.html'),
           // Compose runs in its own window too — same standalone entry pattern.
-          compose: resolve('src/renderer/compose.html')
+          compose: resolve('src/renderer/compose.html'),
+          // Fired event reminders pop up in their own small always-on-top window.
+          reminder: resolve('src/renderer/reminder.html')
         }
       }
     }

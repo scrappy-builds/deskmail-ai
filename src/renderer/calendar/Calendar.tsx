@@ -39,8 +39,11 @@ function buildCells(month: Date): Cell[] {
 function EventChip({ e, onClick }: { e: EventSummary; onClick?: () => void }): JSX.Element {
   return (
     <div
-      onClick={onClick}
-      className="truncate rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold text-white"
+      onClick={(ev) => {
+        ev.stopPropagation()
+        onClick?.()
+      }}
+      className="truncate cursor-pointer rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold text-white"
       style={{ background: PROVIDERS[e.provider].colour }}
       title={e.title}
     >
@@ -51,7 +54,7 @@ function EventChip({ e, onClick }: { e: EventSummary; onClick?: () => void }): J
 }
 
 export function Calendar(): JSX.Element {
-  const { cursor, view, events, newEventOpen, load, prev, next, goToday, setView, openNew } = useCalendar()
+  const { cursor, view, events, newEventOpen, editingEvent, load, prev, next, goToday, setView, goToDate, openNew, openEdit } = useCalendar()
 
   useEffect(() => {
     void load()
@@ -87,7 +90,7 @@ export function Calendar(): JSX.Element {
       <div className="flex w-[252px] flex-none flex-col border-r border-border bg-panel">
         <div className="p-3.5 pb-2.5">
           <button onClick={() => openNew()} className="flex w-full items-center justify-center gap-2 rounded-md bg-accent px-3 py-2.5 text-[13px] font-bold text-accent-fg hover:bg-accent-2">
-            <Icon name="plus" size={16} /> New event
+            <Icon name="plus" size={16} /> New entry
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-3 pb-3.5">
@@ -151,13 +154,13 @@ export function Calendar(): JSX.Element {
               {buildCells(cursor).map((c, i) => {
                 const evs = c.date ? byDate.get(c.date) ?? [] : []
                 return (
-                  <div key={i} onClick={() => c.date && openNew(c.date)} className="flex min-h-0 cursor-pointer flex-col gap-[3px] p-1.5 hover:bg-raised" style={{ background: c.inMonth ? 'var(--bg-2)' : 'var(--bg-3)' }}>
+                  <div key={i} onClick={() => c.date && void goToDate(c.date)} className="flex min-h-0 cursor-pointer flex-col gap-[3px] p-1.5 hover:bg-raised" style={{ background: c.inMonth ? 'var(--bg-2)' : 'var(--bg-3)' }}>
                     <div className="flex justify-end">
                       <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-pill px-1.5 text-[12px] font-bold" style={{ color: c.date === today ? 'var(--accent-fg)' : c.inMonth ? 'var(--text)' : 'var(--text-3)', background: c.date === today ? 'var(--accent)' : 'transparent' }}>
                         {c.inMonth ? c.day : ''}
                       </span>
                     </div>
-                    {evs.slice(0, 3).map((e) => <EventChip key={`${e.id}-${e.date}`} e={e} />)}
+                    {evs.slice(0, 3).map((e) => <EventChip key={`${e.id}-${e.date}`} e={e} onClick={() => openEdit(e)} />)}
                     {evs.length > 3 && <div className="px-1 text-[10.5px] text-text-3">+{evs.length - 3} more</div>}
                   </div>
                 )
@@ -172,14 +175,14 @@ export function Calendar(): JSX.Element {
               const key = isoOf(d)
               const evs = byDate.get(key) ?? []
               return (
-                <div key={key} onClick={() => openNew(key)} className="flex min-h-0 cursor-pointer flex-col gap-[3px] bg-bg-2 p-2 hover:bg-raised">
+                <div key={key} onClick={() => void goToDate(key)} className="flex min-h-0 cursor-pointer flex-col gap-[3px] bg-bg-2 p-2 hover:bg-raised">
                   <div className="mb-1 flex items-center gap-1.5">
                     <span className="text-[10.5px] font-bold uppercase tracking-[.4px] text-text-3">{d.toLocaleDateString('en-GB', { weekday: 'short' })}</span>
                     <span className="inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-pill px-1 text-[12px] font-bold" style={{ color: key === today ? 'var(--accent-fg)' : 'var(--text)', background: key === today ? 'var(--accent)' : 'transparent' }}>
                       {d.getDate()}
                     </span>
                   </div>
-                  {evs.map((e) => <EventChip key={`${e.id}-${e.date}`} e={e} />)}
+                  {evs.map((e) => <EventChip key={`${e.id}-${e.date}`} e={e} onClick={() => openEdit(e)} />)}
                 </div>
               )
             })}
@@ -196,7 +199,7 @@ export function Calendar(): JSX.Element {
               ) : (
                 <div className="flex flex-col gap-2">
                   {(byDate.get(isoOf(cursor)) ?? []).map((e) => (
-                    <div key={`${e.id}-${e.date}`} className="flex items-center gap-3 rounded-lg border border-border bg-panel px-4 py-3">
+                    <div key={`${e.id}-${e.date}`} onClick={() => openEdit(e)} className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-panel px-4 py-3 hover:border-accent">
                       <span className="w-1 self-stretch rounded" style={{ background: PROVIDERS[e.provider].colour }} />
                       <div className="w-[92px] flex-none text-[13px] font-bold">{e.start ?? 'All day'}{e.end ? `–${e.end}` : ''}</div>
                       <div className="min-w-0 flex-1">
@@ -204,7 +207,7 @@ export function Calendar(): JSX.Element {
                         <div className="text-[11.5px] text-text-3">{PROVIDERS[e.provider].label}{e.recurFreq !== 'none' ? ' · repeats' : ''}</div>
                       </div>
                       {e.joinUrl && (
-                        <button onClick={() => void window.deskmail.calendar.join(e.id)} className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-fg hover:bg-accent-2">Join</button>
+                        <button onClick={(ev) => { ev.stopPropagation(); void window.deskmail.calendar.join(e.id) }} className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-fg hover:bg-accent-2">Join</button>
                       )}
                     </div>
                   ))}
@@ -215,7 +218,7 @@ export function Calendar(): JSX.Element {
         )}
       </div>
 
-      {newEventOpen && <EventModal />}
+      {(newEventOpen || editingEvent) && <EventModal />}
     </div>
   )
 }

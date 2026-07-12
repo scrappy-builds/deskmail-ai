@@ -46,9 +46,9 @@ export function Workspace({
             order: a.list.order,
             flex: a.list.grow ? '1 1 auto' : `0 1 ${a.list.basisPx}px`,
             minWidth: a.list.grow ? 0 : 262,
-            borderRight: a.reading.position === 'right' ? '1px solid var(--border)' : undefined,
-            borderLeft: a.reading.position === 'left' ? '1px solid var(--border)' : undefined,
-            borderBottom: a.reading.bottom ? '1px solid var(--border)' : undefined
+            borderRight: a.reading.position === 'right' ? '4px solid var(--border)' : undefined,
+            borderLeft: a.reading.position === 'left' ? '4px solid var(--border)' : undefined,
+            borderBottom: a.reading.bottom ? '4px solid var(--border)' : undefined
           }}
         >
           <MessageList

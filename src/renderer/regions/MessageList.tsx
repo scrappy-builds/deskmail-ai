@@ -6,6 +6,7 @@ import { sortMessages, SORT_LABELS, type SortField } from '../mail/sortMessages'
 import { groupThreads } from '../mail/threads'
 import { MSG_DND_TYPE } from '../mail/dnd'
 import { visibleRange } from './useWindowedList'
+import { MessageContextMenu } from './MessageContextMenu'
 import { useMail } from '../store/mailStore'
 import { useLayout } from '../store/layoutStore'
 
@@ -26,6 +27,7 @@ function Row({
   onToggleCheck,
   onSelect,
   onOpen,
+  onContextMenu,
   onDragStart,
   rowPaddingY,
   clamp,
@@ -42,6 +44,7 @@ function Row({
   onToggleCheck: () => void
   onSelect: () => void
   onOpen: () => void
+  onContextMenu: (e: React.MouseEvent) => void
   onDragStart: (e: React.DragEvent) => void
   rowPaddingY: number
   clamp: number
@@ -61,6 +64,7 @@ function Row({
       onDragStart={onDragStart}
       onClick={onSelect}
       onDoubleClick={onOpen}
+      onContextMenu={onContextMenu}
       className="flex cursor-pointer gap-2.5 border-b border-border hover:bg-hover"
       style={{
         padding: `${rowPaddingY}px 14px ${rowPaddingY}px ${indent ? 30 : 11}px`,
@@ -253,6 +257,16 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
     e.dataTransfer.effectAllowed = 'move'
   }
 
+  // Right-click opens the message context menu at the cursor. Selecting the row
+  // (so the reading pane follows, like a normal click) unless it's part of the
+  // current tick selection — then we leave the selection intact and act on it.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; id: number } | null>(null)
+  const openContext = (e: React.MouseEvent, msgId: number): void => {
+    e.preventDefault()
+    if (!(selectedIds.has(msgId) && selectedIds.size > 0)) void select(msgId)
+    setCtxMenu({ x: e.clientX, y: e.clientY, id: msgId })
+  }
+
   return (
     <>
       <div className="flex h-12 flex-none items-center gap-2.5 border-b border-border px-3.5">
@@ -363,6 +377,7 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
                   onDragStart={(e) => startDrag(e, m.id)}
                   onClick={() => handleSelect(m.id)}
                   onDoubleClick={() => onOpen?.(m.id)}
+                  onContextMenu={(e) => openContext(e, m.id)}
                   className="cursor-pointer border-b border-border hover:bg-hover"
                   style={{ background: m.id === selectedId ? 'var(--accent-soft)' : undefined, opacity: m.isMuted ? 0.55 : 1 }}
                 >
@@ -426,6 +441,7 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
                       onToggleCheck={() => toggleSelected(e.m.id)}
                       onSelect={() => handleSelect(e.m.id)}
                       onOpen={() => onOpen?.(e.m.id)}
+                      onContextMenu={(ev) => openContext(ev, e.m.id)}
                       onDragStart={(ev) => startDrag(ev, e.m.id)}
                       rowPaddingY={rowPaddingY}
                       clamp={Math.max(1, previewLineCount)}
@@ -451,6 +467,9 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
           </button>
         )}
       </div>
+      {ctxMenu && (
+        <MessageContextMenu x={ctxMenu.x} y={ctxMenu.y} messageId={ctxMenu.id} onClose={() => setCtxMenu(null)} />
+      )}
     </>
   )
 }

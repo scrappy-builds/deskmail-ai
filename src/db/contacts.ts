@@ -34,6 +34,7 @@ interface Row {
   id: number
   name: string | null
   emails_json: string | null
+  is_vip: number
 }
 
 function firstEmail(json: string | null): string | null {
@@ -47,8 +48,8 @@ function firstEmail(json: string | null): string | null {
 }
 
 export function listContacts(db: DB): Contact[] {
-  const rows = db.all('SELECT id, name, emails_json FROM contacts ORDER BY name IS NULL, name, id') as unknown as Row[]
-  return rows.map((r) => ({ id: r.id, name: r.name, email: firstEmail(r.emails_json) }))
+  const rows = db.all('SELECT id, name, emails_json, is_vip FROM contacts ORDER BY name IS NULL, name, id') as unknown as Row[]
+  return rows.map((r) => ({ id: r.id, name: r.name, email: firstEmail(r.emails_json), vip: !!r.is_vip }))
 }
 
 // --- Manual address book (create / edit / delete + groups) ------------------
@@ -59,13 +60,14 @@ interface DetailRow {
   org: string | null
   notes: string | null
   groups_json: string | null
+  is_vip: number
 }
 function toDetail(r: DetailRow): ContactDetail {
-  return { id: r.id, name: r.name, email: firstEmail(r.emails_json), org: r.org, notes: r.notes, groups: parseArr(r.groups_json) }
+  return { id: r.id, name: r.name, email: firstEmail(r.emails_json), org: r.org, notes: r.notes, groups: parseArr(r.groups_json), vip: !!r.is_vip }
 }
 
 export function listContactsDetail(db: DB): ContactDetail[] {
-  const rows = db.all('SELECT id, name, emails_json, org, notes, groups_json FROM contacts ORDER BY name IS NULL, name, id') as unknown as DetailRow[]
+  const rows = db.all('SELECT id, name, emails_json, org, notes, groups_json, is_vip FROM contacts ORDER BY name IS NULL, name, id') as unknown as DetailRow[]
   return rows.map(toDetail)
 }
 
@@ -78,16 +80,16 @@ export function listContactGroups(db: DB): string[] {
 
 export function createContact(db: DB, c: ContactInput): number {
   db.run(
-    "INSERT INTO contacts (name, emails_json, org, notes, groups_json, last_seen_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
-    [c.name, emailJson(c.email), c.org, c.notes, JSON.stringify(c.groups)]
+    "INSERT INTO contacts (name, emails_json, org, notes, groups_json, is_vip, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))",
+    [c.name, emailJson(c.email), c.org, c.notes, JSON.stringify(c.groups), c.vip ? 1 : 0]
   )
   return (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
 }
 
 export function updateContact(db: DB, id: number, c: ContactInput): void {
   db.run(
-    'UPDATE contacts SET name = ?, emails_json = ?, org = ?, notes = ?, groups_json = ? WHERE id = ?',
-    [c.name, emailJson(c.email), c.org, c.notes, JSON.stringify(c.groups), id]
+    'UPDATE contacts SET name = ?, emails_json = ?, org = ?, notes = ?, groups_json = ?, is_vip = ? WHERE id = ?',
+    [c.name, emailJson(c.email), c.org, c.notes, JSON.stringify(c.groups), c.vip ? 1 : 0, id]
   )
 }
 
@@ -99,8 +101,18 @@ export function deleteContact(db: DB, id: number): void {
 export function searchContacts(db: DB, query: string, limit = 8): Contact[] {
   const q = `%${query.trim().toLowerCase()}%`
   const rows = db.all(
-    "SELECT id, name, emails_json FROM contacts WHERE LOWER(name) LIKE ? OR LOWER(emails_json) LIKE ? ORDER BY last_seen_at DESC LIMIT ?",
+    "SELECT id, name, emails_json, is_vip FROM contacts WHERE LOWER(name) LIKE ? OR LOWER(emails_json) LIKE ? ORDER BY last_seen_at DESC LIMIT ?",
     [q, q, limit]
   ) as unknown as Row[]
-  return rows.map((r) => ({ id: r.id, name: r.name, email: firstEmail(r.emails_json) }))
+  return rows.map((r) => ({ id: r.id, name: r.name, email: firstEmail(r.emails_json), vip: !!r.is_vip }))
+}
+
+// True if any VIP-flagged contact owns this email address (case-insensitive).
+// Contacts store their addresses lowercased in emails_json (a JSON array), so we
+// scan the VIP rows and match the parsed addresses against the normalised input.
+export function isVipSender(db: DB, email: string | null): boolean {
+  const addr = email?.trim().toLowerCase()
+  if (!addr) return false
+  const rows = db.all('SELECT emails_json FROM contacts WHERE is_vip = 1') as unknown as { emails_json: string | null }[]
+  return rows.some((r) => parseArr(r.emails_json).some((e) => e.toLowerCase() === addr))
 }

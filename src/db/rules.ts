@@ -2,6 +2,7 @@ import type { Rule, RuleInput } from '@shared/db'
 import type { DB } from './database'
 import { applyAction } from './mailActions'
 import { setMessageLabel } from './labels'
+import { listMessages } from './messages'
 
 interface RuleRow {
   id: number
@@ -114,50 +115,81 @@ export function ruleMatches(rule: Rule, msg: { from: string; subject: string; to
   return hay.includes(needle)
 }
 
-// Run every enabled rule against a freshly-ingested message, applying the first
-// matching action(s). Reuses applyAction so move/junk/archive also queue the IMAP
-// change. Called from the sync/ingest path.
-export function applyRulesToMessage(db: DB, messageId: number): void {
-  const rules = listRules(db).filter((r) => r.enabled)
-  if (rules.length === 0) return
+// Assemble the fields ruleMatches tests against from a stored message row.
+// null if the message no longer exists.
+function messageRuleFields(db: DB, messageId: number): { from: string; subject: string; to: string; body: string } | null {
   const r = db.get('SELECT subject, from_name, from_email, to_json, body_text FROM messages WHERE id = ?', [messageId]) as
     | { subject: string | null; from_name: string | null; from_email: string | null; to_json: string | null; body_text: string | null }
     | undefined
-  if (!r) return
+  if (!r) return null
   let to: string[] = []
   try {
     to = r.to_json ? (JSON.parse(r.to_json) as string[]) : []
   } catch {
     to = []
   }
-  const msg = {
+  return {
     from: `${r.from_name ?? ''} ${r.from_email ?? ''}`.trim(),
     subject: r.subject ?? '',
     to: to.join(' '),
     body: r.body_text ?? ''
   }
+}
 
+// Perform a single rule's action on one message. Reuses applyAction so
+// move/junk/archive also queue the reversible IMAP change. Returns true when an
+// action was actually carried out (a move/label with no target is a no-op).
+// Shared by applyRulesToMessage (incoming mail) and applyRuleToFolder (run now).
+export function applyRuleActionToMessage(db: DB, rule: Rule, messageId: number): boolean {
+  switch (rule.action) {
+    case 'star':
+      applyAction(db, messageId, 'flag')
+      return true
+    case 'read':
+      applyAction(db, messageId, 'read')
+      return true
+    case 'junk':
+      applyAction(db, messageId, 'junk')
+      return true
+    case 'archive':
+      applyAction(db, messageId, 'archive')
+      return true
+    case 'move':
+      if (rule.targetFolderId == null) return false
+      applyAction(db, messageId, 'move', rule.targetFolderId)
+      return true
+    case 'label':
+      if (rule.targetLabelId == null) return false
+      setMessageLabel(db, messageId, rule.targetLabelId, true)
+      return true
+  }
+  return false
+}
+
+// Run every enabled rule against a freshly-ingested message, applying the first
+// matching action(s). Called from the sync/ingest path.
+export function applyRulesToMessage(db: DB, messageId: number): void {
+  const rules = listRules(db).filter((r) => r.enabled)
+  if (rules.length === 0) return
+  const msg = messageRuleFields(db, messageId)
+  if (!msg) return
   for (const rule of rules) {
     if (!ruleMatches(rule, msg)) continue
-    switch (rule.action) {
-      case 'star':
-        applyAction(db, messageId, 'flag')
-        break
-      case 'read':
-        applyAction(db, messageId, 'read')
-        break
-      case 'junk':
-        applyAction(db, messageId, 'junk')
-        break
-      case 'archive':
-        applyAction(db, messageId, 'archive')
-        break
-      case 'move':
-        if (rule.targetFolderId != null) applyAction(db, messageId, 'move', rule.targetFolderId)
-        break
-      case 'label':
-        if (rule.targetLabelId != null) setMessageLabel(db, messageId, rule.targetLabelId, true)
-        break
-    }
+    applyRuleActionToMessage(db, rule, messageId)
   }
+}
+
+// "Apply rule now": sweep the messages already sitting in a folder with one rule
+// and action every match. Runs regardless of the rule's enabled flag (you might
+// be trialling a disabled rule). Returns how many messages were actioned.
+export function applyRuleToFolder(db: DB, ruleId: number, folderId: number): number {
+  const rule = listRules(db).find((r) => r.id === ruleId)
+  if (!rule) return 0
+  let count = 0
+  for (const m of listMessages(db, folderId)) {
+    const fields = messageRuleFields(db, m.id)
+    if (!fields || !ruleMatches(rule, fields)) continue
+    if (applyRuleActionToMessage(db, rule, m.id)) count++
+  }
+  return count
 }

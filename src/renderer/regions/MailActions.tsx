@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Icon, type IconName } from '../Icon'
 import type { SnoozeOption } from '@shared/db'
 import { buildReplyDraft, type ReplyKind } from '../mail/reply'
+import { buildEditAsNewDraft } from '../mail/editAsNew'
 import { planBulk, runBulk, type BulkOp } from '../mail/bulkOps'
 import { flattenFolderTree } from '../mail/folderTree'
 import { aggregateFlags, effectiveTargets } from '../mail/messageActions'
@@ -82,9 +83,15 @@ function MenuItem({ icon, label, onClick, danger, disabled, indent = 0 }: { icon
   )
 }
 
+const SectionLabel = ({ children }: { children: React.ReactNode }): JSX.Element => (
+  <div className="px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">{children}</div>
+)
+
 // The message-action ribbon that lives in the top command bar (Mail mode only).
 // Acts on the ticked messages if any are ticked, else the message open in the
 // reading pane. Buttons grey out when they don't apply to the current selection.
+// As the bar narrows, the trailing actions fold (right-to-left) into "More" —
+// the search / Send-Receive / colour-scheme controls to our right stay put.
 export function MailActions(): JSX.Element {
   const selected = useMail((s) => s.selected)
   const selectedId = useMail((s) => s.selectedId)
@@ -98,6 +105,9 @@ export function MailActions(): JSX.Element {
   const clearSelected = useMail((s) => s.clearSelected)
   const setUndo = useMail((s) => s.setUndo)
   const showToast = useToast((s) => s.show)
+  // Custom-snooze picker (a datetime-local input shown inside the Snooze menu).
+  const [pickDate, setPickDate] = useState(false)
+  const [dateVal, setDateVal] = useState('')
 
   const ids = effectiveTargets(selectedIds, selectedId)
   const has = ids.length > 0
@@ -154,6 +164,24 @@ export function MailActions(): JSX.Element {
     void window.deskmail.compose.saveDraft(payload).then(({ id }) => window.deskmail.openCompose(id))
   }
 
+  // "Edit as new": open a fresh, editable draft copied from the open message.
+  // Only ever saves a draft and opens compose — it never sends.
+  const startEditAsNew = (): void => {
+    if (!selected) return
+    const payload = buildEditAsNewDraft(selected)
+    void window.deskmail.compose.saveDraft(payload).then(({ id }) => window.deskmail.openCompose(id))
+  }
+
+  // Snooze every target until a picked wall-clock time (the existing snoozeUntil).
+  const snoozeUntilPicked = async (): Promise<void> => {
+    if (!dateVal) return
+    const iso = new Date(dateVal).toISOString()
+    const label = new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    setPickDate(false)
+    setDateVal('')
+    await applyEach((id) => window.deskmail.mail.snoozeUntil(id, iso), `Snoozed until ${label}`)
+  }
+
   // Sidebar-ordered, de-duplicated folder list (Inbox + its subfolders, Sent,
   // Junk, Trash, Archive, then custom folders), minus the folder we're already in.
   const moveTargets = flattenFolderTree(folders).filter((n) => n.folder.id !== activeFolderId)
@@ -180,49 +208,90 @@ export function MailActions(): JSX.Element {
       .then(() => showToast({ text: `Rule added: mail from ${selected.fromEmail} → ${folder.name}. Tune it in Settings → Rules.` }))
   }
 
+  // --- Shared menu fragments (used inline in a dropdown and when folded) --------
+  const moveList = (close: () => void): JSX.Element =>
+    moveTargets.length === 0 ? (
+      <div className="px-2.5 py-1.5 text-[12px] text-text-3">No other folders.</div>
+    ) : (
+      <>{moveTargets.map(({ folder: f, depth }) => <MenuItem key={f.id} label={f.name} indent={depth} onClick={() => { close(); void runOp('move', `Moved to ${f.name}`, f.id) }} />)}</>
+    )
+  const snoozeList = (close: () => void): JSX.Element => (
+    <>{SNOOZE_OPTS.map((s) => <MenuItem key={s.opt} label={s.label} onClick={() => { close(); void applyEach((id) => window.deskmail.mail.snooze(id, s.opt), `Snoozed until ${s.label.toLowerCase()}`) }} />)}</>
+  )
+  const snoozeInline = (close: () => void): JSX.Element =>
+    pickDate ? (
+      <div className="p-1.5">
+        <div className="px-1 pb-1.5 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Snooze until…</div>
+        <input
+          type="datetime-local"
+          value={dateVal}
+          onChange={(e) => setDateVal(e.target.value)}
+          className="w-full rounded-md border border-border-2 bg-panel px-2 py-1.5 text-[12.5px] text-text-1"
+        />
+        <div className="mt-1.5 flex justify-end gap-1">
+          <MenuItem label="Cancel" onClick={() => { setPickDate(false); setDateVal('') }} />
+          <MenuItem icon="clock" label="Snooze" disabled={!dateVal} onClick={() => { close(); void snoozeUntilPicked() }} />
+        </div>
+      </div>
+    ) : (
+      <>
+        {snoozeList(close)}
+        <div className="my-1 border-t border-border" />
+        <MenuItem icon="clock" label="Pick a date…" onClick={() => setPickDate(true)} />
+      </>
+    )
+
+  // --- Primary actions, priority order (Reply kept longest; Snooze folds first).
+  // `w` estimates (px) drive the fold thresholds; they're deliberately generous so
+  // the visible set always fits and never overlaps the static controls to our right.
+  // ponytail: eyeballed widths + width breakpoints; retune here if labels change.
+  type Prim = { key: string; w: number; inline: JSX.Element; menu: (c: () => void) => JSX.Element }
+  const primary: Prim[] = [
+    { key: 'reply', w: 74, inline: <Btn icon="reply" label="Reply" disabled={!replyEnabled} onClick={() => startReply('reply')} />, menu: (c) => <MenuItem icon="reply" label="Reply" disabled={!replyEnabled} onClick={() => { c(); startReply('reply') }} /> },
+    { key: 'replyAll', w: 92, inline: <Btn icon="replyAll" label="Reply all" disabled={!replyEnabled} onClick={() => startReply('replyAll')} />, menu: (c) => <MenuItem icon="replyAll" label="Reply all" disabled={!replyEnabled} onClick={() => { c(); startReply('replyAll') }} /> },
+    { key: 'forward', w: 88, inline: <Btn icon="forward" label="Forward" disabled={!replyEnabled} onClick={() => startReply('forward')} />, menu: (c) => <MenuItem icon="forward" label="Forward" disabled={!replyEnabled} onClick={() => { c(); startReply('forward') }} /> },
+    { key: 'delete', w: 80, inline: <Btn icon="trash" label={hardDelete ? 'Delete forever' : 'Delete'} danger disabled={!has} onClick={deleteSelected} />, menu: (c) => <MenuItem icon="trash" danger label={hardDelete ? 'Delete forever' : 'Delete'} disabled={!has} onClick={() => { c(); deleteSelected() }} /> },
+    { key: 'archive', w: 88, inline: <Btn icon="archive" label="Archive" disabled={!has} onClick={() => void runOp('archive', 'Archived')} />, menu: (c) => <MenuItem icon="archive" label="Archive" disabled={!has} onClick={() => { c(); void runOp('archive', 'Archived') }} /> },
+    { key: 'move', w: 96, inline: <Dropdown icon="draft" label="Move to" disabled={!has} render={(close) => (<><SectionLabel>Move to…</SectionLabel>{moveList(close)}</>)} />, menu: (c) => (<><SectionLabel>Move to…</SectionLabel>{moveList(c)}</>) },
+    { key: 'read', w: 80, inline: <Btn icon={flags.anyUnread ? 'check' : 'markUnread'} label={flags.anyUnread ? 'Read' : 'Unread'} disabled={!has} onClick={() => void runOp(flags.anyUnread ? 'read' : 'unread', flags.anyUnread ? 'Marked read' : 'Marked unread')} />, menu: (c) => <MenuItem icon={flags.anyUnread ? 'check' : 'markUnread'} label={flags.anyUnread ? 'Mark read' : 'Mark unread'} disabled={!has} onClick={() => { c(); void runOp(flags.anyUnread ? 'read' : 'unread', flags.anyUnread ? 'Marked read' : 'Marked unread') }} /> },
+    { key: 'flag', w: 72, inline: <Btn icon="star" label={flags.anyUnflagged ? 'Flag' : 'Unflag'} active={has && !flags.anyUnflagged} disabled={!has} onClick={() => void runOp(flags.anyUnflagged ? 'flag' : 'unflag', flags.anyUnflagged ? 'Flagged' : 'Unflagged')} />, menu: (c) => <MenuItem icon="star" label={flags.anyUnflagged ? 'Flag' : 'Unflag'} disabled={!has} onClick={() => { c(); void runOp(flags.anyUnflagged ? 'flag' : 'unflag', flags.anyUnflagged ? 'Flagged' : 'Unflagged') }} /> },
+    { key: 'snooze', w: 96, inline: <Dropdown icon="clock" label="Snooze" disabled={!has} render={snoozeInline} />, menu: (c) => (<><SectionLabel>Snooze</SectionLabel>{snoozeList(c)}</>) }
+  ]
+
+  // Measure our own width and fold trailing actions into "More" to fit.
+  const barRef = useRef<HTMLDivElement>(null)
+  const [barW, setBarW] = useState(1200)
+  useEffect(() => {
+    const el = barRef.current
+    if (!el) return
+    setBarW(el.clientWidth)
+    const ro = new ResizeObserver(() => setBarW(el.clientWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Reserve room for the always-present "More" button (+ the "Not junk" button in Junk).
+  const reserve = 84 + (inJunk && inboxId != null ? 84 : 0)
+  let cum = 0
+  let visibleCount = 0
+  for (let i = 0; i < primary.length; i++) {
+    cum += primary[i].w
+    if (barW >= reserve + cum) visibleCount = i + 1
+    else break
+  }
+  const inlineItems = primary.slice(0, visibleCount)
+  const folded = primary.slice(visibleCount)
+
   return (
-    <div className="flex min-w-0 items-center gap-0.5">
-      <Btn icon="reply" label="Reply" disabled={!replyEnabled} onClick={() => startReply('reply')} />
-      <Btn icon="replyAll" label="Reply all" disabled={!replyEnabled} onClick={() => startReply('replyAll')} />
-      <Btn icon="forward" label="Forward" disabled={!replyEnabled} onClick={() => startReply('forward')} />
-      <Divider />
-      <Btn icon="trash" label={hardDelete ? 'Delete forever' : 'Delete'} danger disabled={!has} onClick={deleteSelected} />
-      <Btn icon="archive" label="Archive" disabled={!has} onClick={() => void runOp('archive', 'Archived')} />
-      <Dropdown icon="draft" label="Move to" disabled={!has}
-        render={(close) => (
-          <>
-            <div className="px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Move to…</div>
-            {moveTargets.length === 0 ? (
-              <div className="px-2.5 py-1.5 text-[12px] text-text-3">No other folders.</div>
-            ) : (
-              moveTargets.map(({ folder: f, depth }) => <MenuItem key={f.id} label={f.name} indent={depth} onClick={() => { close(); void runOp('move', `Moved to ${f.name}`, f.id) }} />)
-            )}
-          </>
-        )}
-      />
-      <Divider />
-      <Btn
-        icon={flags.anyUnread ? 'check' : 'markUnread'}
-        label={flags.anyUnread ? 'Read' : 'Unread'}
-        disabled={!has}
-        onClick={() => void runOp(flags.anyUnread ? 'read' : 'unread', flags.anyUnread ? 'Marked read' : 'Marked unread')}
-      />
-      <Btn
-        icon="star"
-        label={flags.anyUnflagged ? 'Flag' : 'Unflag'}
-        active={has && !flags.anyUnflagged}
-        disabled={!has}
-        onClick={() => void runOp(flags.anyUnflagged ? 'flag' : 'unflag', flags.anyUnflagged ? 'Flagged' : 'Unflagged')}
-      />
-      <Dropdown icon="clock" label="Snooze" disabled={!has}
-        render={(close) => (
-          <>
-            {SNOOZE_OPTS.map((s) => (
-              <MenuItem key={s.opt} label={s.label} onClick={() => { close(); void applyEach((id) => window.deskmail.mail.snooze(id, s.opt), `Snoozed until ${s.label.toLowerCase()}`) }} />
-            ))}
-          </>
-        )}
-      />
+    // flex-1 so we absorb the middle space, but never shrink below the width of
+    // the "More" button — otherwise it would spill over the static search box.
+    <div ref={barRef} className="flex min-w-0 flex-1 items-center gap-0.5" style={{ minWidth: 92 }}>
+      {inlineItems.map((p, i) => (
+        <span key={p.key} className="flex flex-none items-center">
+          {(i === 3 || i === 6) && <Divider />}
+          {p.inline}
+        </span>
+      ))}
 
       {inJunk && inboxId != null && (
         <Btn icon="inbox" label="Not junk" disabled={!has} onClick={() => void runOp('move', 'Moved to Inbox', inboxId)} />
@@ -231,13 +300,19 @@ export function MailActions(): JSX.Element {
       <Dropdown icon="sliders" label="More" disabled={!has}
         render={(close) => (
           <>
+            {folded.length > 0 && (
+              <>
+                {folded.map((p) => <div key={p.key}>{p.menu(close)}</div>)}
+                <div className="my-1 border-t border-border" />
+              </>
+            )}
             <MenuItem
               icon="pin"
               label={flags.anyUnpinned ? 'Pin to top' : 'Unpin'}
               onClick={() => { close(); void applyEach((id) => window.deskmail.mail.pin(id, flags.anyUnpinned), flags.anyUnpinned ? 'Pinned to top' : 'Unpinned') }}
             />
             <div className="my-1 border-t border-border" />
-            <div className="px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Categorise</div>
+            <SectionLabel>Categorise</SectionLabel>
             {labels.length === 0 ? (
               <div className="px-2.5 py-1.5 text-[12px] text-text-3">No labels yet — add one in Settings.</div>
             ) : (
@@ -251,14 +326,16 @@ export function MailActions(): JSX.Element {
               ))
             )}
             <div className="my-1 border-t border-border" />
-            <div className="my-1 border-t border-border" />
-            <div className="px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Follow up</div>
+            <SectionLabel>Follow up</SectionLabel>
             {SNOOZE_OPTS.map((s) => (
               <MenuItem key={`fu-${s.opt}`} icon="star" label={s.label} onClick={() => { close(); void applyEach((id) => window.deskmail.mail.setFollowup(id, s.opt), `Follow-up set for ${s.label.toLowerCase()}`) }} />
             ))}
             <MenuItem icon="close" label="Clear follow-up" onClick={() => { close(); void applyEach((id) => window.deskmail.mail.setFollowup(id, 'clear'), 'Follow-up cleared') }} />
             <div className="my-1 border-t border-border" />
             <MenuItem icon="print" label="Print to PDF" disabled={!single} onClick={() => { close(); void window.deskmail.mail.printPdf(ids[0]).then((r) => { if (r.path) showToast({ text: 'Saved as PDF' }) }) }} />
+            <MenuItem icon="draft" label="Save conversation (PDF)…" disabled={!single} onClick={() => { close(); void window.deskmail.mail.exportThreadPdf(ids[0]).then((r) => { if (r.path) showToast({ text: `Saved conversation to ${r.path}` }) }) }} />
+            <MenuItem icon="draft" label="Save conversation (HTML)…" disabled={!single} onClick={() => { close(); void window.deskmail.mail.exportThreadHtml(ids[0]).then((r) => { if (r.path) showToast({ text: `Saved conversation to ${r.path}` }) }) }} />
+            <MenuItem icon="draft" label="Edit as new" disabled={!single || !selected} onClick={() => { close(); startEditAsNew() }} />
             <MenuItem icon="openWindow" label="Open in window" disabled={!single} onClick={() => { close(); window.deskmail.openMessage(ids[0]) }} />
             <MenuItem icon="draft" label="Export to NotebookLM" disabled={!single || !selected} onClick={() => { close(); if (selected) void window.deskmail.notebooklm.export(selected.id, selected.attachments.length > 0).then((r) => showToast({ text: r.note ? `Exported to NotebookLM folder (${r.note})` : `Exported ${r.files.length} file(s) for NotebookLM` })) }} />
             <MenuItem icon="shield" label="Block sender → Junk" disabled={!single || !selected?.fromEmail} onClick={() => { close(); blockSender() }} />

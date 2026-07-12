@@ -98,6 +98,7 @@ export interface NotifySettings {
   dndTo: string // "HH:MM"
   focusNow: boolean
   launchAtStartup: boolean // start DeskMail when Windows starts
+  vipOnly: boolean // only notify for mail from VIP-flagged contacts
 }
 
 // A saved "smart view": a set of conditions (match all/any) over the mailbox.
@@ -210,6 +211,9 @@ export interface EventInput {
   guests: string[]
   recurFreq: RecurFreq
   recurUntil: string | null // YYYY-MM-DD, inclusive; null = no end
+  // Minutes before start to remind; null = no reminder. Optional so existing
+  // callers that build an EventInput (MCP tool, accept-invite) still compile.
+  reminderMinutes?: number | null
 }
 
 export interface EventSummary {
@@ -226,6 +230,7 @@ export interface EventSummary {
   attendees: EventAttendee[]
   recurFreq: RecurFreq
   recurUntil: string | null
+  reminderMinutes: number | null // minutes before start; null = no reminder
 }
 
 // Parsed from an email calendar invite (ICS). Times are LOCAL wall-clock
@@ -293,6 +298,7 @@ export interface Contact {
   id: number
   name: string | null
   email: string | null
+  vip: boolean
 }
 
 // Full contact record for the address book (manual add/edit + groups).
@@ -302,6 +308,7 @@ export interface ContactInput {
   org: string | null
   notes: string | null
   groups: string[]
+  vip?: boolean // VIP flag; defaults to false when omitted (older callers / vCard import)
 }
 export interface ContactDetail extends ContactInput {
   id: number

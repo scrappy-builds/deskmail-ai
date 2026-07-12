@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { openDatabase, type DB } from '../../src/db/database'
-import { applyRulesToMessage, createRule, listRules, ruleMatches } from '../../src/db/rules'
+import { applyRuleToFolder, applyRulesToMessage, createRule, listRules, ruleMatches } from '../../src/db/rules'
 import { createLabel, labelsForMessage } from '../../src/db/labels'
 import { ensureStandardFolders, listFolders } from '../../src/db/folders'
 import { insertAccount } from '../../src/db/accounts'
@@ -91,5 +91,63 @@ describe('applyRulesToMessage', () => {
     })
     applyRulesToMessage(db, id)
     expect(getMessage(db, id)?.isStarred).toBe(false)
+  })
+})
+
+describe('applyRuleToFolder ("run now")', () => {
+  let dir: string
+  let db: DB
+  const base: AccountInput = {
+    displayName: 'J', emailAddress: 'j@x', incomingType: 'imap', incomingHost: 'h', incomingPort: 993,
+    incomingSecurity: 'ssl', outgoingHost: 'h', outgoingPort: 465, outgoingSecurity: 'ssl', username: 'u', password: 'p'
+  }
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'deskmail-runrule-'))
+    db = openDatabase(join(dir, 'deskmail.db'))
+  })
+  afterEach(() => {
+    db.close()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  const msg = (acc: number, folder: number, uid: number, subject: string): number =>
+    upsertMessage(db, {
+      accountId: acc, folderId: folder, remoteUid: uid, messageIdHeader: null, fromName: null, fromEmail: 'x@y',
+      to: [], cc: [], bcc: [], subject, snippet: null, bodyText: null, bodyHtml: null, receivedAt: null, sentAt: null, isRead: false, isStarred: false
+    })
+
+  it('sweeps existing mail, counts matches and applies the action', () => {
+    const acc = insertAccount(db, base)
+    ensureStandardFolders(db, acc)
+    const inbox = listFolders(db, acc).find((f) => f.role === 'inbox')!.id
+    const id = createRule(db, { name: 'star invoices', enabled: true, field: 'subject', op: 'contains', value: 'invoice', action: 'star', targetFolderId: null, targetLabelId: null })
+
+    const hit1 = msg(acc, inbox, 1, 'Your invoice')
+    const hit2 = msg(acc, inbox, 2, 'INVOICE overdue')
+    const miss = msg(acc, inbox, 3, 'hello')
+
+    expect(applyRuleToFolder(db, id, inbox)).toBe(2)
+    expect(getMessage(db, hit1)?.isStarred).toBe(true)
+    expect(getMessage(db, hit2)?.isStarred).toBe(true)
+    expect(getMessage(db, miss)?.isStarred).toBe(false)
+  })
+
+  it('runs even when the rule is disabled', () => {
+    const acc = insertAccount(db, base)
+    ensureStandardFolders(db, acc)
+    const inbox = listFolders(db, acc).find((f) => f.role === 'inbox')!.id
+    const id = createRule(db, { name: 'off', enabled: false, field: 'subject', op: 'contains', value: 'invoice', action: 'star', targetFolderId: null, targetLabelId: null })
+    const hit = msg(acc, inbox, 1, 'Your invoice')
+
+    expect(applyRuleToFolder(db, id, inbox)).toBe(1)
+    expect(getMessage(db, hit)?.isStarred).toBe(true)
+  })
+
+  it('an unknown rule id actions nothing', () => {
+    const acc = insertAccount(db, base)
+    ensureStandardFolders(db, acc)
+    const inbox = listFolders(db, acc).find((f) => f.role === 'inbox')!.id
+    msg(acc, inbox, 1, 'Your invoice')
+    expect(applyRuleToFolder(db, 999, inbox)).toBe(0)
   })
 })

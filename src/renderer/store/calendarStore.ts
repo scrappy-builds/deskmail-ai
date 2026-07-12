@@ -29,15 +29,20 @@ interface CalendarState {
   events: EventSummary[]
   newEventOpen: boolean
   newEventDate: string | null
+  editingEvent: EventSummary | null
 
   load: () => Promise<void>
   prev: () => Promise<void>
   next: () => Promise<void>
   goToday: () => Promise<void>
   setView: (v: CalView) => Promise<void>
+  goToDate: (iso: string) => Promise<void>
   openNew: (date?: string) => void
+  openEdit: (ev: EventSummary) => void
   closeNew: () => void
   createEvent: (input: EventInput) => Promise<void>
+  updateEvent: (id: number, input: EventInput) => Promise<void>
+  deleteEvent: (id: number) => Promise<void>
 }
 
 export const useCalendar = create<CalendarState>((set, get) => ({
@@ -46,6 +51,7 @@ export const useCalendar = create<CalendarState>((set, get) => ({
   events: [],
   newEventOpen: false,
   newEventDate: null,
+  editingEvent: null,
 
   load: async () => {
     const { from, to } = rangeFor(get().view, get().cursor)
@@ -78,13 +84,30 @@ export const useCalendar = create<CalendarState>((set, get) => ({
     set({ view: v })
     await get().load()
   },
+  // Jump to a specific day and show it in day view (used by day-cell clicks).
+  goToDate: async (isoDate) => {
+    const [y, m, d] = isoDate.split('-').map(Number)
+    set({ cursor: new Date(y, m - 1, d), view: 'day' })
+    await get().load()
+  },
 
-  openNew: (date) => set({ newEventOpen: true, newEventDate: date ?? null }),
-  closeNew: () => set({ newEventOpen: false, newEventDate: null }),
+  openNew: (date) => set({ newEventOpen: true, newEventDate: date ?? null, editingEvent: null }),
+  openEdit: (ev) => set({ editingEvent: ev, newEventOpen: false, newEventDate: null }),
+  closeNew: () => set({ newEventOpen: false, newEventDate: null, editingEvent: null }),
 
   createEvent: async (input) => {
     await window.deskmail.calendar.createEvent(input)
-    set({ newEventOpen: false, newEventDate: null })
+    set({ newEventOpen: false, newEventDate: null, editingEvent: null })
+    await get().load()
+  },
+  updateEvent: async (id, input) => {
+    await window.deskmail.calendar.updateEvent(id, input)
+    set({ newEventOpen: false, newEventDate: null, editingEvent: null })
+    await get().load()
+  },
+  deleteEvent: async (id) => {
+    await window.deskmail.calendar.deleteEvent(id)
+    set({ newEventOpen: false, newEventDate: null, editingEvent: null })
     await get().load()
   }
 }))

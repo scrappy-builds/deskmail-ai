@@ -30,9 +30,9 @@ export function expandOccurrences(startDate: string, freq: RecurFreq | null, unt
 export function createEvent(db: DB, e: EventInput): number {
   const joinUrl = e.joinUrl ?? generateJoinLink(e.provider, e.location ?? undefined)
   db.run(
-    `INSERT INTO events (title, date, start, end, provider, location, join_url, notes, calendar, recur_freq, recur_until)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [e.title, e.date, e.start, e.end, e.provider, e.location, joinUrl, e.notes, e.calendar, e.recurFreq, e.recurUntil]
+    `INSERT INTO events (title, date, start, end, provider, location, join_url, notes, calendar, recur_freq, recur_until, reminder_minutes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [e.title, e.date, e.start, e.end, e.provider, e.location, joinUrl, e.notes, e.calendar, e.recurFreq, e.recurUntil, e.reminderMinutes ?? null]
   )
   const id = (db.get('SELECT last_insert_rowid() AS id') as { id: number }).id
   for (const g of e.guests) {
@@ -55,6 +55,7 @@ interface EventRow {
   calendar: string | null
   recur_freq: string | null
   recur_until: string | null
+  reminder_minutes: number | null
 }
 
 function attendeesFor(db: DB, eventId: number): EventAttendee[] {
@@ -80,7 +81,8 @@ function toSummary(db: DB, r: EventRow): EventSummary {
     calendar: r.calendar,
     attendees: attendeesFor(db, r.id),
     recurFreq: (r.recur_freq as RecurFreq) ?? 'none',
-    recurUntil: r.recur_until
+    recurUntil: r.recur_until,
+    reminderMinutes: r.reminder_minutes
   }
 }
 
@@ -107,13 +109,58 @@ export function getEvent(db: DB, id: number): EventSummary | null {
 export function updateEvent(db: DB, id: number, e: EventInput): void {
   db.run(
     `UPDATE events SET title = ?, date = ?, start = ?, end = ?, provider = ?, location = ?, join_url = ?,
-       notes = ?, calendar = ?, recur_freq = ?, recur_until = ?, updated_at = datetime('now') WHERE id = ?`,
-    [e.title, e.date, e.start, e.end, e.provider, e.location, e.joinUrl, e.notes, e.calendar, e.recurFreq, e.recurUntil, id]
+       notes = ?, calendar = ?, recur_freq = ?, recur_until = ?, reminder_minutes = ?, updated_at = datetime('now') WHERE id = ?`,
+    [e.title, e.date, e.start, e.end, e.provider, e.location, e.joinUrl, e.notes, e.calendar, e.recurFreq, e.recurUntil, e.reminderMinutes ?? null, id]
   )
 }
 
 export function deleteEvent(db: DB, id: number): void {
   db.run('DELETE FROM events WHERE id = ?', [id])
+}
+
+// --- Reminder firing --------------------------------------------------------
+// Events that have a reminder set and haven't fired yet — the scheduler computes
+// each one's due time (via reminderDueAt) and fires those that have arrived.
+export interface ReminderCandidate {
+  id: number
+  title: string
+  date: string
+  start: string | null
+  reminderMinutes: number
+  snoozeUntil: string | null
+}
+
+export function listReminderCandidates(db: DB): ReminderCandidate[] {
+  const rows = db.all(
+    `SELECT id, title, date, start, reminder_minutes, reminder_snooze_until
+       FROM events
+      WHERE reminder_minutes IS NOT NULL AND reminder_fired_at IS NULL`
+  ) as unknown as {
+    id: number
+    title: string
+    date: string
+    start: string | null
+    reminder_minutes: number
+    reminder_snooze_until: string | null
+  }[]
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    date: r.date,
+    start: r.start,
+    reminderMinutes: r.reminder_minutes,
+    snoozeUntil: r.reminder_snooze_until
+  }))
+}
+
+// Mark a reminder alerted so it never re-fires (dismiss uses this too).
+export function setReminderFired(db: DB, id: number, at: string): void {
+  db.run('UPDATE events SET reminder_fired_at = ? WHERE id = ?', [at, id])
+}
+
+// Snooze: park the reminder until a later time and re-arm it (clear fired).
+export function snoozeReminder(db: DB, id: number, until: string): void {
+  db.run('UPDATE events SET reminder_snooze_until = ?, reminder_fired_at = NULL WHERE id = ?', [until, id])
 }
 
 // The event's iCalendar UID (generated on first use, then stable — updates and

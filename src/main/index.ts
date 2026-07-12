@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { app, dialog, session, shell, nativeImage, BrowserWindow, ipcMain, Menu, Notification, Tray } from 'electron'
 import { loadSettings } from './settings'
@@ -13,13 +13,13 @@ import { createFolder, deleteFolder, ensureStandardFolders, findFolderByRole, ge
 import { imapCreateFolder, imapDeleteFolder, imapMoveToTrashAndDelete, imapRenameFolder } from './mail/folderOps'
 import { listFolders } from '../db/folders'
 import { allKnownDomains, countDuplicateMessages, countFromSender, dedupeMessages, getMessage, listMessages, listMessagesByLabel, listUnifiedInbox, messageNeighbours, searchMessages, setFollowup, setMuted, setPinned, topSenderDomains } from '../db/messages'
-import { buildEml, saveMessageFile } from './mail/messageExport'
+import { buildEml, gatherThread, saveMessageFile, saveThreadFile } from './mail/messageExport'
 import { exportMbox, importMailFile } from './mail/mbox'
 import { buildVcf, parseVcf } from './contacts/vcard'
 import { createLabel, deleteLabel, labelsForMessage, listLabels, renameLabel, setMessageLabel } from '../db/labels'
-import { createRule, deleteRule, listRules, updateRule } from '../db/rules'
+import { applyRuleToFolder, createRule, deleteRule, listRules, updateRule } from '../db/rules'
 import { createSmartView, deleteSmartView, listSmartViews, runSmartView } from '../db/smartViews'
-import { printMessageToPdf } from './mail/printPdf'
+import { printMessagesToPdf, printMessageToPdf } from './mail/printPdf'
 import { checkAutoBackup } from './autoBackup'
 import { getNotifySettings, notificationsSuppressed, type NotifySettings } from './notify'
 import { applyAction, emptyFolder } from '../db/mailActions'
@@ -30,12 +30,13 @@ import { listAllAttachments, listAttachmentRows } from '../db/messages'
 import { exportForNotebookLM } from '../mcp/export'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
 import { createSignature, deleteSignature, ensureDefaultSignature, getSignatureData, listSignatures, setDefaultSignature, setSignatureAppend, updateSignature, updateSignatureById } from '../db/signatures'
-import { createEvent, deleteEvent, ensureEventUid, getEvent, listEvents, updateEvent } from '../db/events'
+import { createEvent, deleteEvent, ensureEventUid, getEvent, listEvents, listReminderCandidates, setReminderFired, snoozeReminder, updateEvent } from '../db/events'
+import { localStamp, parseLocalStamp, reminderDueAt } from '@shared/reminders'
 import { buildInviteIcs, type PartStat } from './mail/ics'
 import { cancelScheduled, dueScheduled, listScheduled, markError, markSent, recordSendFailure, retryScheduled, scheduleSend } from '../db/scheduledSends'
 import { computeSnoozeTime, snoozeMessage, unsnooze } from '../db/snoozes'
 import { createTemplate, deleteTemplate, listTemplates, seedTemplatesIfEmpty, updateTemplate } from '../db/templates'
-import { createContact, deleteContact, listContacts, listContactGroups, listContactsDetail, searchContacts, updateContact } from '../db/contacts'
+import { createContact, deleteContact, isVipSender, listContacts, listContactGroups, listContactsDetail, searchContacts, updateContact } from '../db/contacts'
 import { dismissNudge, getTodayAgenda } from '../db/today'
 import { createTask, deleteTask, listTasks, setTaskDone } from '../db/tasks'
 import { isTrustedSender, listTrustedSenders, trustSender, untrustSender } from '../db/trustedSenders'
@@ -232,9 +233,11 @@ function createTray(): void {
 // the message window.
 function notifyNewMail(ids: number[]): void {
   if (!Notification.isSupported() || notificationsSuppressed(db)) return
+  const vipOnly = getNotifySettings(db).vipOnly
   for (const id of ids.slice(0, 5)) {
     const m = getMessage(db, id)
     if (!m) continue
+    if (vipOnly && !isVipSender(db, m.fromEmail)) continue
     const title = m.fromName || m.fromEmail || 'New mail'
     const body = m.subject || '(no subject)'
     try {
@@ -496,6 +499,82 @@ function openComposeWindow(draftId?: number): void {
   }
 }
 
+// A fired reminder opens its own small, always-on-top window front-and-centre —
+// a tray toast alone is easy to miss while you're reading email. Keyed per event
+// so a second fire (or a click on the toast) focuses the existing window.
+const reminderWindows = new Map<number, BrowserWindow>()
+
+function openReminderWindow(eventId: number): void {
+  const existing = reminderWindows.get(eventId)
+  if (existing && !existing.isDestroyed()) {
+    existing.show()
+    existing.focus()
+    return
+  }
+
+  const win = new BrowserWindow({
+    width: 430,
+    height: 280,
+    show: false,
+    frame: false,
+    alwaysOnTop: true,
+    center: true,
+    backgroundColor: '#f5f5f5',
+    icon: iconPath,
+    title: 'Reminder — DeskMail AI',
+    webPreferences: securePrefs()
+  })
+
+  win.once('ready-to-show', () => {
+    win.show()
+    win.focus()
+  })
+  hardenWindow(win)
+
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/reminder.html?eventId=${eventId}`)
+  } else {
+    win.loadFile(join(__dirname, '../renderer/reminder.html'), { query: { eventId: String(eventId) } })
+  }
+
+  reminderWindows.set(eventId, win)
+  win.on('closed', () => reminderWindows.delete(eventId))
+}
+
+function closeReminderWindow(eventId: number): void {
+  const win = reminderWindows.get(eventId)
+  if (win && !win.isDestroyed()) win.close()
+}
+
+// Event reminders that FIRE (the event carries a reminderMinutes offset). Each
+// tick computes every un-fired candidate's due time and alerts those that have
+// arrived: a front-and-centre reminder window plus a plain tray toast, then marks
+// it fired so it never repeats. A reminder due more than 12h ago (the app was
+// shut) is retired silently, so launching doesn't spray stale alerts.
+// ponytail: a recurring event fires once, off its base date — per-occurrence
+// reminders aren't tracked yet.
+const REMINDER_STALE_MS = 12 * 60 * 60 * 1000
+function checkReminders(): void {
+  const now = new Date()
+  const nowStamp = localStamp(now)
+  for (const e of listReminderCandidates(db)) {
+    const due = reminderDueAt(e.date, e.start, e.reminderMinutes, e.snoozeUntil)
+    if (!due || due > nowStamp) continue // not due yet (fixed-width stamps compare lexically)
+    if (now.getTime() - parseLocalStamp(due).getTime() > REMINDER_STALE_MS) {
+      setReminderFired(db, e.id, nowStamp) // too old to bother the user — retire it quietly
+      continue
+    }
+    setReminderFired(db, e.id, nowStamp) // mark before alerting so it can't double-fire
+    openReminderWindow(e.id)
+    if (Notification.isSupported()) {
+      const at = e.start ? ` at ${e.start}` : ''
+      const n = new Notification({ title: `Reminder: ${e.title}`, body: `${e.date}${at}` })
+      n.on('click', () => openReminderWindow(e.id))
+      n.show()
+    }
+  }
+}
+
 function registerIpc(): void {
   ipcMain.handle('settings:get', () => loadLayoutPrefs(db))
 
@@ -647,7 +726,8 @@ function registerIpc(): void {
       dndFrom: { key: 'dnd-from', enc: (v) => String(v) },
       dndTo: { key: 'dnd-to', enc: (v) => String(v) },
       focusNow: { key: 'focus-now', enc: (v) => (v ? 'on' : 'off') },
-      launchAtStartup: { key: 'launch-at-startup', enc: (v) => (v ? 'on' : 'off') }
+      launchAtStartup: { key: 'launch-at-startup', enc: (v) => (v ? 'on' : 'off') },
+      vipOnly: { key: 'vip-only', enc: (v) => (v ? 'on' : 'off') }
     }
     for (const k of Object.keys(patch) as (keyof NotifySettings)[]) {
       if (patch[k] !== undefined) setAppSetting(db, map[k].key, map[k].enc(patch[k]))
@@ -671,6 +751,12 @@ function registerIpc(): void {
   ipcMain.handle('rules:create', (_e, input: RuleInput) => ({ id: createRule(db, input) }))
   ipcMain.handle('rules:update', (_e, id: number, input: RuleInput) => updateRule(db, id, input))
   ipcMain.handle('rules:delete', (_e, id: number) => deleteRule(db, id))
+  // Apply an existing rule to mail already sitting in a folder ("run now").
+  ipcMain.handle('rules:run', (_e, ruleId: number, folderId: number) => {
+    const count = applyRuleToFolder(db, ruleId, folderId)
+    if (count) broadcastMailChanged()
+    return { count }
+  })
 
   // --- Local-only message flags (pin/mute) + print to PDF ----------------------
   ipcMain.handle('mail:pin', (_e, id: number, on: boolean) => {
@@ -708,6 +794,37 @@ function registerIpc(): void {
     })
     if (res.canceled || !res.filePath) return { path: null }
     await printMessageToPdf(app.getPath('userData'), m, res.filePath)
+    return { path: res.filePath }
+  })
+  // Save a whole conversation (every message in the thread, oldest first) as one
+  // PDF. Falls back to just the open message when it has no thread.
+  ipcMain.handle('mail:export-thread-pdf', async (e, messageId: number) => {
+    const msgs = gatherThread(db, messageId)
+    if (!msgs.length) return { path: null }
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const safe = (msgs[0].subject || 'conversation').replace(/[^\w -]+/g, '_').slice(0, 60)
+    const res = await dialog.showSaveDialog(win!, {
+      title: 'Save conversation as PDF',
+      defaultPath: `${safe}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    if (res.canceled || !res.filePath) return { path: null }
+    await printMessagesToPdf(app.getPath('userData'), msgs, res.filePath)
+    return { path: res.filePath }
+  })
+  // Same, as a single self-contained HTML file.
+  ipcMain.handle('mail:export-thread-html', async (e, messageId: number) => {
+    const msgs = gatherThread(db, messageId)
+    if (!msgs.length) return { path: null }
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const safe = (msgs[0].subject || 'conversation').replace(/[^\w -]+/g, '_').slice(0, 60)
+    const res = await dialog.showSaveDialog(win!, {
+      title: 'Save conversation as HTML',
+      defaultPath: `${safe}.html`,
+      filters: [{ name: 'HTML', extensions: ['html'] }]
+    })
+    if (res.canceled || !res.filePath) return { path: null }
+    saveThreadFile(msgs, res.filePath)
     return { path: res.filePath }
   })
   ipcMain.handle('mail:message-source', (_e, messageId: number) => {
@@ -946,6 +1063,69 @@ function registerIpc(): void {
     const err = await shell.openPath(row.local_path) // opens with the OS default app (explicit user action)
     return err ? { ok: false, error: err } : { ok: true }
   })
+  // Download (if needed) and return the fresh row with an on-disk copy, or null.
+  const ensureAttachment = async (messageId: number, attachmentId: number) => {
+    let row = listAttachmentRows(db, messageId).find((r) => r.id === attachmentId)
+    if (!row?.local_path || !existsSync(row.local_path)) {
+      await fetchAndSaveAttachments(db, messageId, attachDir(messageId))
+      row = listAttachmentRows(db, messageId).find((r) => r.id === attachmentId)
+      sweepAttachments() // keep the cache under its cap after each download
+    }
+    return row?.local_path && existsSync(row.local_path) ? row : null
+  }
+  ipcMain.handle('attachments:save', async (e, messageId: number, attachmentId: number) => {
+    const row = await ensureAttachment(messageId, attachmentId)
+    if (!row?.local_path) return { ok: false, error: "I couldn't download that attachment — the account may be offline." }
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const res = await dialog.showSaveDialog(win!, { title: 'Save attachment', defaultPath: row.filename ?? 'attachment' })
+    if (res.canceled || !res.filePath) return { ok: false }
+    try {
+      copyFileSync(row.local_path, res.filePath)
+      return { ok: true, path: res.filePath }
+    } catch (err) {
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+  ipcMain.handle('attachments:save-all', async (e, messageId: number) => {
+    await fetchAndSaveAttachments(db, messageId, attachDir(messageId))
+    sweepAttachments()
+    const rows = listAttachmentRows(db, messageId).filter((r) => r.local_path && existsSync(r.local_path))
+    if (rows.length === 0) return { ok: false, count: 0, error: "I couldn't download those attachments — the account may be offline." }
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const res = await dialog.showOpenDialog(win!, { title: 'Choose a folder to save attachments', properties: ['openDirectory', 'createDirectory'] })
+    if (res.canceled || !res.filePaths[0]) return { ok: false, count: 0 }
+    const dir = res.filePaths[0]
+    const used = new Set<string>()
+    let count = 0
+    try {
+      for (const row of rows) {
+        let name = row.filename ?? 'attachment'
+        // De-duplicate colliding names, both within this batch and against the folder.
+        if (used.has(name.toLowerCase()) || existsSync(join(dir, name))) {
+          const dot = name.lastIndexOf('.')
+          const stem = dot > 0 ? name.slice(0, dot) : name
+          const ext = dot > 0 ? name.slice(dot) : ''
+          let n = 2
+          while (used.has(`${stem} (${n})${ext}`.toLowerCase()) || existsSync(join(dir, `${stem} (${n})${ext}`))) n++
+          name = `${stem} (${n})${ext}`
+        }
+        used.add(name.toLowerCase())
+        copyFileSync(row.local_path!, join(dir, name))
+        count++
+      }
+      return { ok: true, count, dir }
+    } catch (err) {
+      return { ok: false, count, error: (err as Error).message }
+    }
+  })
+  // Inline preview: base64 data URL, capped at 8 MB so we never inline huge files.
+  ipcMain.handle('attachments:data-url', async (_e, messageId: number, attachmentId: number) => {
+    const row = await ensureAttachment(messageId, attachmentId)
+    if (!row?.local_path) return { ok: false }
+    if (statSync(row.local_path).size > 8 * 1024 * 1024) return { ok: false }
+    const mime = row.mime_type || 'application/octet-stream'
+    return { ok: true, dataUrl: `data:${mime};base64,${readFileSync(row.local_path).toString('base64')}` }
+  })
   // One searchable view of every attachment in the store.
   ipcMain.handle('attachments:browse', (_e, query?: string, offset?: number) => listAllAttachments(db, { query, offset }))
 
@@ -1094,6 +1274,18 @@ function registerIpc(): void {
   // --- Calendar & meetings (Stage 7) ------------------------------------------
   ipcMain.handle('calendar:list-events', (_e, from?: string, to?: string) => listEvents(db, from, to))
   ipcMain.handle('calendar:create-event', (_e, input: EventInput) => ({ id: createEvent(db, input) }))
+  // The reminder popup fetches its event's details to display them.
+  ipcMain.handle('calendar:get-event', (_e, id: number) => getEvent(db, id))
+  // Snooze a fired reminder: re-arm it for `minutes` from now and close the popup.
+  ipcMain.handle('reminders:snooze', (_e, eventId: number, minutes: number) => {
+    snoozeReminder(db, eventId, localStamp(new Date(Date.now() + minutes * 60000)))
+    closeReminderWindow(eventId)
+  })
+  // Dismiss (stop) a reminder: it's already marked fired — just close the popup.
+  ipcMain.handle('reminders:dismiss', (_e, eventId: number) => {
+    setReminderFired(db, eventId, localStamp(new Date()))
+    closeReminderWindow(eventId)
+  })
   ipcMain.handle('calendar:update-event', (_e, id: number, input: EventInput) => updateEvent(db, id, input))
   ipcMain.handle('calendar:delete-event', (_e, id: number) => deleteEvent(db, id))
   ipcMain.handle('calendar:join', async (_e, eventId: number) => {
@@ -1351,6 +1543,10 @@ app.whenReady().then(async () => {
   // Event reminders: check once a minute for anything starting soon.
   checkEventReminders()
   setInterval(checkEventReminders, 60 * 1000)
+  // Firing reminders (events with a reminderMinutes offset): a run shortly after
+  // launch (so the window is settled), then every 30s.
+  setTimeout(checkReminders, 5000)
+  setInterval(checkReminders, 30 * 1000)
   // Drain queued mail actions to IMAP periodically (offline changes reconcile,
   // and any actions Claude queued via MCP get pushed + reflected in the UI).
   setInterval(() => {

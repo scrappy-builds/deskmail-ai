@@ -58,8 +58,64 @@ export function EmailBody({
   const [darkOverride, setDarkOverride] = useState<boolean | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
+  // Find-in-message (Ctrl/Cmd+F within the reading pane). The body lives in a
+  // same-origin sandboxed iframe, so we can drive Chromium's window.find inside it.
+  const [findOpen, setFindOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [count, setCount] = useState(0)
+  const findInputRef = useRef<HTMLInputElement>(null)
+
   const appDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark'
   useEffect(() => setDarkOverride(null), [messageId])
+
+  // Count occurrences in the rendered body text (window.find gives no total).
+  const countMatches = (q: string): number => {
+    if (!q) return 0
+    const hay = (iframeRef.current?.contentDocument?.body?.textContent ?? '').toLowerCase()
+    const needle = q.toLowerCase()
+    let n = 0
+    for (let i = hay.indexOf(needle); i !== -1; i = hay.indexOf(needle, i + needle.length)) n++
+    return n
+  }
+  type FindWindow = Window & { find?: (s: string, caseSensitive?: boolean, backwards?: boolean, wrap?: boolean) => boolean }
+  const navigate = (backwards: boolean): void => {
+    const win = iframeRef.current?.contentWindow as FindWindow | null
+    if (!win?.find || !query) return
+    win.find(query, false, backwards, true) // selects + scrolls the match into view
+  }
+  const closeFind = (): void => {
+    setFindOpen(false)
+    setQuery('')
+    iframeRef.current?.contentWindow?.getSelection?.()?.removeAllRanges?.()
+  }
+  const openFind = (): void => {
+    setFindOpen(true)
+    setTimeout(() => findInputRef.current?.focus(), 0)
+  }
+
+  useEffect(() => {
+    if (findOpen) setCount(countMatches(query))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, findOpen])
+  // Reset the find bar when the message changes.
+  useEffect(() => {
+    setFindOpen(false)
+    setQuery('')
+  }, [messageId])
+  // Ctrl/Cmd+F opens the bar when focus is in the pane (outside the iframe).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F') && html) {
+        e.preventDefault()
+        openFind()
+      } else if (e.key === 'Escape' && findOpen) {
+        closeFind()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [html, findOpen])
 
   // A persisted "always for this sender" choice unblocks images on open.
   useEffect(() => {
@@ -108,10 +164,52 @@ export function EmailBody({
     // Show where a link points on hover (the frameless window has no status bar).
     doc.addEventListener('mouseover', (e) => setHoverUrl(externalHref(e.target)))
     doc.addEventListener('mouseleave', () => setHoverUrl(null))
+    // Ctrl/Cmd+F while focus is inside the message frame opens the find bar too.
+    doc.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault()
+        openFind()
+      } else if (e.key === 'Escape') {
+        closeFind()
+      }
+    })
   }
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      {findOpen && (
+        <div className="absolute left-3 top-2 z-20 flex items-center gap-1 rounded-lg border border-border bg-panel px-2 py-1.5 shadow-raised">
+          <Icon name="search" size={13} className="flex-none text-text-3" />
+          <input
+            ref={findInputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                navigate(e.shiftKey)
+              } else if (e.key === 'Escape') {
+                e.preventDefault()
+                closeFind()
+              }
+            }}
+            placeholder="Find in message…"
+            className="w-[150px] bg-transparent text-[12.5px] outline-none"
+          />
+          <span className="min-w-[62px] flex-none text-right text-[11px] text-text-3">
+            {query ? (count > 0 ? `${count} match${count === 1 ? '' : 'es'}` : 'No matches') : ''}
+          </span>
+          <button onClick={() => navigate(true)} title="Previous" className="flex-none rounded-sm p-1 text-text-3 hover:text-accent">
+            <Icon name="chevronDown" size={14} className="rotate-180" />
+          </button>
+          <button onClick={() => navigate(false)} title="Next" className="flex-none rounded-sm p-1 text-text-3 hover:text-accent">
+            <Icon name="chevronDown" size={14} />
+          </button>
+          <button onClick={closeFind} title="Close" className="flex-none rounded-sm p-1 text-text-3 hover:text-accent">
+            <Icon name="close" size={14} />
+          </button>
+        </div>
+      )}
       {result?.blockedRemote && !allowImages && (
         <div
           className="mx-6 mt-4 flex items-center gap-3 rounded-md border px-3.5 py-2.5 text-[12.5px]"

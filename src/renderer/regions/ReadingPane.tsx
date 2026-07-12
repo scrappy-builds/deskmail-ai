@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../Icon'
-import type { LabelInfo, MessageDetail } from '@shared/db'
+import type { AttachmentInfo, LabelInfo, MessageDetail } from '@shared/db'
 import { fmtFullDate, initials } from '../mail/format'
 import { buildReplyDraft } from '../mail/reply'
 import { parseListUnsubscribe } from '../mail/unsubscribe'
@@ -197,6 +197,95 @@ function fmtSize(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// One attachment: Open (default app), Save (native dialog), and — for images —
+// an on-demand inline Preview that only fetches the data URL when asked.
+function AttachmentCard({ messageId, att }: { messageId: number; att: AttachmentInfo }): JSX.Element {
+  const showToast = useToast((s) => s.show)
+  const isImage = !!att.mimeType?.startsWith('image/')
+  const [preview, setPreview] = useState<string | null>(null)
+  const [showing, setShowing] = useState(false)
+
+  const open = (): void => {
+    void window.deskmail.attachments.open(messageId, att.id).then((r) => {
+      if (!r.ok) showToast({ text: r.error ?? "Couldn't open the attachment" })
+    })
+  }
+  const save = (): void => {
+    void window.deskmail.attachments.save(messageId, att.id).then((r) => {
+      if (r.ok && r.path) showToast({ text: `Saved to ${r.path}` })
+      else if (r.error) showToast({ text: r.error })
+    })
+  }
+  const togglePreview = (): void => {
+    if (showing) {
+      setShowing(false)
+      return
+    }
+    setShowing(true)
+    if (preview) return
+    void window.deskmail.attachments.dataUrl(messageId, att.id).then((r) => {
+      if (r.ok && r.dataUrl) setPreview(r.dataUrl)
+      else showToast({ text: 'That image is too large to preview here — use Open or Save.' })
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2.5 rounded-md border border-border bg-bg px-3 py-2">
+        <button onClick={open} title="Open attachment" className="flex min-w-0 items-center gap-2.5 text-left hover:opacity-80">
+          <div className="flex h-8 w-8 flex-none items-center justify-center rounded-sm bg-accent text-[8px] font-extrabold uppercase text-white">
+            {(att.filename?.split('.').pop() ?? 'file').slice(0, 4)}
+          </div>
+          <div className="min-w-0">
+            <div className="max-w-[180px] truncate text-[12.5px] font-semibold">{att.filename ?? 'attachment'}</div>
+            <div className="text-[10.5px] text-text-3">{fmtSize(att.size)}</div>
+          </div>
+        </button>
+        <div className="flex flex-none items-center gap-0.5 border-l border-border pl-1.5 text-[11.5px] font-semibold">
+          {isImage && (
+            <button onClick={togglePreview} title="Preview" className="rounded-sm px-1.5 py-1 text-text-3 hover:text-accent">
+              {showing ? 'Hide' : 'Preview'}
+            </button>
+          )}
+          <button onClick={save} title="Save" className="rounded-sm px-1.5 py-1 text-text-3 hover:text-accent">
+            Save
+          </button>
+        </div>
+      </div>
+      {isImage && showing && preview && (
+        <img src={preview} alt={att.filename ?? 'attachment'} className="rounded-md border border-border" style={{ maxWidth: '100%' }} />
+      )}
+    </div>
+  )
+}
+
+function Attachments({ m }: { m: MessageDetail }): JSX.Element {
+  const showToast = useToast((s) => s.show)
+  const saveAll = (): void => {
+    void window.deskmail.attachments.saveAll(m.id).then((r) => {
+      if (r.ok) showToast({ text: `Saved ${r.count} ${r.count === 1 ? 'attachment' : 'attachments'} to ${r.dir}` })
+      else if (r.error) showToast({ text: r.error })
+    })
+  }
+  return (
+    <div className="border-t border-border px-6 py-4">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Attachments ({m.attachments.length})</div>
+        {m.attachments.length > 1 && (
+          <button onClick={saveAll} className="text-[11.5px] font-semibold text-accent hover:underline">
+            Save all
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2.5">
+        {m.attachments.map((att) => (
+          <AttachmentCard key={att.id} messageId={m.id} att={att} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function ReadingPane(): JSX.Element {
   const m = useMail((s) => s.selected)
   const folders = useMail((s) => s.folders)
@@ -208,6 +297,14 @@ export function ReadingPane(): JSX.Element {
 
   // Message actions now live in the top command-bar ribbon; the pane just reads.
   const inJunk = folders.find((f) => f.id === activeFolderId)?.role === 'junk'
+
+  const addContact = (): void => {
+    if (!m?.fromEmail) return
+    void window.deskmail.contacts
+      .create({ name: m.fromName || null, email: m.fromEmail, org: null, notes: null, groups: [] })
+      .then(() => showToast({ text: `Added ${m.fromName || m.fromEmail} to contacts` }))
+      .catch((e: Error) => showToast({ text: e.message }))
+  }
 
   if (!m) {
     return (
@@ -224,7 +321,7 @@ export function ReadingPane(): JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div key={m.id} className="dm-fade min-h-0 flex-1 overflow-y-auto">
+      <div key={`body-${m.id}`} className="dm-fade min-h-0 flex-1 overflow-y-auto">
         <div className="border-b border-border px-6 py-5" style={accountColour ? { borderLeft: `3px solid ${accountColour}` } : undefined}>
           <h1 className="text-[19px] font-bold leading-tight">{m.subject || '(no subject)'}</h1>
           <div className="mt-3 flex items-center gap-3">
@@ -244,6 +341,15 @@ export function ReadingPane(): JSX.Element {
               </div>
               <div className="truncate text-[12px] text-text-3">to {m.to.join(', ') || '—'}</div>
             </div>
+            {m.fromEmail && (
+              <button
+                onClick={addContact}
+                title="Add to contacts"
+                className="flex-none rounded-md border border-border p-1.5 text-text-3 hover:border-accent hover:text-accent"
+              >
+                <Icon name="contacts" size={15} />
+              </button>
+            )}
             <div className="flex-none text-[12px] text-text-3">{fmtFullDate(m.receivedAt)}</div>
           </div>
           <LabelBar messageId={m.id} />
@@ -256,38 +362,10 @@ export function ReadingPane(): JSX.Element {
 
         <EmailBody html={m.bodyHtml} text={m.bodyText} allowByDefault={!inJunk} messageId={m.id} senderEmail={m.fromEmail} />
 
-        {m.attachments.length > 0 && (
-          <div className="border-t border-border px-6 py-4">
-            <div className="mb-2 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">
-              Attachments ({m.attachments.length})
-            </div>
-            <div className="flex flex-wrap gap-2.5">
-              {m.attachments.map((att) => (
-                <button
-                  key={att.id}
-                  onClick={() => {
-                    void window.deskmail.attachments.open(m.id, att.id).then((r) => {
-                      if (!r.ok) showToast({ text: r.error ?? "Couldn't open the attachment" })
-                    })
-                  }}
-                  title="Open attachment"
-                  className="flex items-center gap-2.5 rounded-md border border-border bg-bg px-3 py-2 text-left hover:bg-hover"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-accent text-[8px] font-extrabold uppercase text-white">
-                    {(att.filename?.split('.').pop() ?? 'file').slice(0, 4)}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="max-w-[180px] truncate text-[12.5px] font-semibold">{att.filename ?? 'attachment'}</div>
-                    <div className="text-[10.5px] text-text-3">{fmtSize(att.size)}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {m.attachments.length > 0 && <Attachments m={m} />}
       </div>
 
-      <QuickReply key={m.id} m={m} />
+      <QuickReply key={`reply-${m.id}`} m={m} />
     </div>
   )
 }

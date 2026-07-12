@@ -16,7 +16,6 @@ import { OutboxModal } from './compose/OutboxModal'
 import { SmartViewBuilder } from './SmartViewBuilder'
 import { AttachmentsBrowser } from './mail/AttachmentsBrowser'
 import { Calendar } from './calendar/Calendar'
-import { Today } from './today/Today'
 import { Toast } from './Toast'
 import { useCalendar } from './store/calendarStore'
 
@@ -80,6 +79,14 @@ export function App(): JSX.Element {
         useToast.getState().show({ text: toast })
       })
     }
+    // Open a compose window prefilled from the selected message (reply / reply-all / forward).
+    const draftFromSelected = (kind: Parameters<typeof buildReplyDraft>[1]): void => {
+      const s = useMail.getState()
+      const sel = s.selected
+      if (!sel) return
+      const selfEmail = s.accounts.find((a) => a.id === sel.accountId)?.emailAddress
+      void window.deskmail.compose.saveDraft(buildReplyDraft(sel, kind, selfEmail)).then(({ id }) => window.deskmail.openCompose(id))
+    }
     return installShortcuts(
       () => ({ enabled: gateRef.current.enabled && gateRef.current.active, map: gateRef.current.map }),
       {
@@ -91,19 +98,33 @@ export function App(): JSX.Element {
         },
         archive: () => quick('archive', 'Archived'),
         delete: () => quick('trash', 'Moved to Bin'),
-        reply: () => {
-          const s = useMail.getState()
-          const sel = s.selected
+        flagToggle: () => {
+          const sel = useMail.getState().selected
           if (!sel) return
-          const selfEmail = s.accounts.find((a) => a.id === sel.accountId)?.emailAddress
-          void window.deskmail.compose.saveDraft(buildReplyDraft(sel, 'reply', selfEmail)).then(({ id }) => window.deskmail.openCompose(id))
+          quick(sel.isStarred ? 'unflag' : 'flag', sel.isStarred ? 'Unflagged' : 'Flagged')
         },
+        reply: () => draftFromSelected('reply'),
+        replyAll: () => draftFromSelected('replyAll'),
+        forward: () => draftFromSelected('forward'),
         compose: () => window.deskmail.openCompose(),
         search: () => (document.getElementById('deskmail-search') as HTMLInputElement | null)?.focus(),
         toggleUnread: () => {
           const sel = useMail.getState().selected
           if (!sel) return
           quick(sel.isRead ? 'unread' : 'read', sel.isRead ? 'Marked unread' : 'Marked read')
+        },
+        markAllRead: () => {
+          const s = useMail.getState()
+          const fid = s.activeFolderId
+          if (fid == null) return
+          void window.deskmail.mail.markFolderRead(fid).then(({ count }) => {
+            void s.refresh()
+            useToast.getState().show({ text: count > 0 ? `Marked ${count} as read` : 'Nothing unread here' })
+          })
+        },
+        selectAll: () => {
+          const s = useMail.getState()
+          s.selectAll(s.messages.map((m) => m.id))
         },
         help: () => setShortcutHelpOpen(true)
       }
@@ -148,7 +169,6 @@ export function App(): JSX.Element {
         />
       )}
       {mode === 'calendar' && <Calendar />}
-      {mode === 'today' && <Today />}
 
       {viewSettingsOpen && <ViewSettings onClose={() => setViewSettingsOpen(false)} />}
       {settingsOpen && <Settings initialAccountSetup={setupPrefill} onClose={() => { setSettingsOpen(false); setSetupPrefill(null); reloadShortcuts() }} />}
