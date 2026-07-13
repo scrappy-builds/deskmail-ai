@@ -57,25 +57,26 @@ test('rebinding Archive to a new key makes that key archive; the old key stops w
     const rows = win.locator('[data-testid^="msg-row-"]')
     await expect(rows).toHaveCount(7)
 
-    // Settings → Shortcuts → rebind Archive (default 'e') to 'a'.
+    // Settings → Shortcuts → rebind Archive (default 'e') to 'x' (an unused key —
+    // 'a' is already the default for Reply-to-all, which would clash).
     await win.getByText('File', { exact: true }).click()
     await win.getByText('Settings…').click()
     await win.getByRole('button', { name: 'Shortcuts' }).click()
     await win.getByRole('button', { name: 'e', exact: true }).click() // the Archive key button
     await win.waitForTimeout(100)
-    await win.keyboard.press('a')
-    await expect(win.getByRole('button', { name: 'a', exact: true })).toBeVisible()
+    await win.keyboard.press('x')
+    await expect(win.getByRole('button', { name: 'x', exact: true })).toBeVisible()
 
     // Close Settings (backdrop click) so App reloads the live keymap.
     await win.mouse.click(8, 8)
     await expect(win.getByText('Settings', { exact: true })).toHaveCount(0)
 
-    // 'a' now archives; 'e' no longer does.
+    // 'x' now archives; 'e' no longer does.
     await win.getByTestId('msg-row-4').click()
     await win.keyboard.press('e')
     await win.waitForTimeout(200)
     await expect(rows).toHaveCount(7) // old key is inert
-    await win.keyboard.press('a')
+    await win.keyboard.press('x')
     await expect(rows).toHaveCount(6)
     await expect(win.getByTestId('msg-row-4')).toHaveCount(0)
   } finally {

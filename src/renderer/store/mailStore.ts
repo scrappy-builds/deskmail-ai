@@ -27,6 +27,7 @@ interface MailState {
   activeLabelId: number | null // when set, the list shows this label's messages
   activeSmartViewId: number | null // when set, the list shows this smart view
   activeUnified: boolean // when true, the list shows all accounts' inboxes combined
+  special: 'drafts' | 'outbox' | null // Drafts/Outbox shown inline like a folder, not a pop-up
   selectedId: number | null
   selected: MessageDetail | null
   selectedIds: Set<number> // multi-select for bulk actions
@@ -45,6 +46,7 @@ interface MailState {
   setLabel: (id: number) => Promise<void>
   setSmartView: (id: number) => Promise<void>
   setUnified: () => Promise<void>
+  setSpecial: (v: 'drafts' | 'outbox') => void
   select: (id: number) => Promise<void>
   selectNext: () => Promise<void> // keyboard j: move down the sorted list
   selectPrev: () => Promise<void> // keyboard k: move up the sorted list
@@ -78,6 +80,7 @@ export const useMail = create<MailState>((set, get) => ({
   activeLabelId: null,
   activeSmartViewId: null,
   activeUnified: false,
+  special: null,
   selectedId: null,
   selected: null,
   selectedIds: new Set<number>(),
@@ -132,23 +135,27 @@ export const useMail = create<MailState>((set, get) => ({
 
   setFolder: async (id) => {
     const messages = await window.deskmail.mail.listMessages(id)
-    set({ activeFolderId: id, activeLabelId: null, activeSmartViewId: null, activeUnified: false, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
+    set({ activeFolderId: id, activeLabelId: null, activeSmartViewId: null, activeUnified: false, special: null, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
   },
 
   setLabel: async (id) => {
     const messages = await window.deskmail.mail.listByLabel(id)
-    set({ activeLabelId: id, activeSmartViewId: null, activeUnified: false, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
+    set({ activeLabelId: id, activeSmartViewId: null, activeUnified: false, special: null, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
   },
 
   setSmartView: async (id) => {
     const messages = await window.deskmail.smartViews.run(id)
-    set({ activeSmartViewId: id, activeLabelId: null, activeUnified: false, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
+    set({ activeSmartViewId: id, activeLabelId: null, activeUnified: false, special: null, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
   },
 
   setUnified: async () => {
     const messages = await window.deskmail.mail.listUnified()
-    set({ activeUnified: true, activeFolderId: null, activeLabelId: null, activeSmartViewId: null, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
+    set({ activeUnified: true, activeFolderId: null, activeLabelId: null, activeSmartViewId: null, special: null, messages, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' })
   },
+
+  // Drafts/Outbox are shown inline in the main area (like a folder), not as a
+  // pop-up. They read their own stores, so no message list to load here.
+  setSpecial: (v) => set({ special: v, selectedId: null, selected: null, selectedIds: new Set(), searchQuery: '' }),
 
   toggleSelected: (id) =>
     set((s) => {

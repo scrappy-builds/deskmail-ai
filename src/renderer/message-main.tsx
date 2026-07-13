@@ -9,6 +9,7 @@ import './styles.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MessageWindow } from './MessageWindow'
+import { Toast } from './Toast'
 import { applyTheme } from './theme'
 import { ErrorBoundary } from './ErrorBoundary'
 
@@ -22,6 +23,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <MessageWindow id={id} />
+      <Toast />
     </ErrorBoundary>
   </StrictMode>
 )

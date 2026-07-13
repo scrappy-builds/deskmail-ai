@@ -89,39 +89,41 @@ async function captureAll() {
   await win.waitForTimeout(300)
   await capture(win, 'main', [
     { loc: win.getByText('File', { exact: true }), label: 'Menus — File, View, Help' },
-    { loc: win.getByRole('button', { name: 'Mail', exact: true }), label: 'Today / Mail / Calendar' },
-    { loc: win.getByRole('button', { name: 'Layout preset' }), label: 'Layout preset (window arrangement)' },
-    { loc: win.getByPlaceholder('Search mail…'), label: 'Search your mail' },
+    { loc: win.getByRole('button', { name: 'Mail', exact: true }), label: 'Mail / Calendar' },
     { loc: win.getByRole('button', { name: 'Compose' }), label: 'Compose a new message' },
-    { loc: win.getByRole('button', { name: 'Claude', exact: true }), label: 'Claude assistant panel' },
-    { loc: win.getByRole('button', { name: 'Toggle theme' }), label: 'Light / Dark toggle' }
+    { loc: win.getByPlaceholder('Search mail…'), label: 'Search your mail' },
+    { loc: win.getByRole('button', { name: 'Send / Receive' }), label: 'Send queued mail & check for new mail' },
+    { loc: win.getByRole('button', { name: 'Colour scheme' }), label: 'Light / Dark colour scheme' }
   ])
 
-  // Reading a message
+  // Reading a message (further actions — NotebookLM export, Ask Claude — live in
+  // the reading pane's "More" menu; the ribbon shows the common ones).
   await capture(win, 'reading', [
     { loc: win.getByRole('button', { name: 'Reply', exact: true }), label: 'Reply / Reply all / Forward' },
     { loc: win.getByRole('button', { name: 'Archive' }).last(), label: 'Archive · Delete · Star · Mark unread' },
-    { loc: win.getByRole('button', { name: 'Snooze' }), label: 'Snooze (hide until later)' },
-    { loc: win.getByRole('button', { name: 'NotebookLM' }), label: 'Export this email for NotebookLM' },
-    { loc: win.getByRole('button', { name: 'Ask Claude' }), label: 'Ask Claude about this email' }
+    { loc: win.getByRole('button', { name: 'Snooze' }), label: 'Snooze (hide until later)' }
   ])
 
-  // Compose (captured before Settings so no modal blocks the buttons)
-  await win.getByRole('button', { name: 'Compose' }).click()
-  await win.waitForTimeout(300)
-  await win.getByLabel('To', { exact: true }).fill('priya@makerspace.uk')
-  await win.getByRole('textbox', { name: 'Subject', exact: true }).fill('Re: Radiator clip licence')
-  await win.locator('.ProseMirror').click()
-  await win.keyboard.type('Morning Priya — happy to license this for resale of printed units.')
-  await win.waitForTimeout(200)
-  await capture(win, 'compose', [
-    { loc: win.getByLabel('To', { exact: true }), label: 'To (with Cc / Bcc)' },
-    { loc: win.getByRole('button', { name: 'Templates' }), label: 'Insert a saved reply template' },
-    { loc: win.getByRole('button', { name: 'Send', exact: true }), label: 'Send now (with an undo window)' },
-    { loc: win.getByRole('button', { name: 'Send later' }), label: 'Schedule for later' },
-    { loc: win.getByRole('button', { name: 'Save draft' }), label: 'Save as a draft' }
+  // Compose now opens in its OWN window — grab that window and capture it there.
+  const [composeWin] = await Promise.all([
+    app.waitForEvent('window'),
+    win.getByRole('button', { name: 'Compose' }).click()
   ])
-  await win.getByTitle('Close').last().click() // compose modal's close (not the window control)
+  await composeWin.waitForLoadState()
+  await composeWin.waitForTimeout(400)
+  await composeWin.getByLabel('To', { exact: true }).fill('sam@example.com')
+  await composeWin.getByRole('textbox', { name: 'Subject', exact: true }).fill('Re: your enquiry')
+  await composeWin.locator('.ProseMirror').click()
+  await composeWin.keyboard.type('Thanks for getting in touch — happy to help with this.')
+  await composeWin.waitForTimeout(200)
+  await capture(composeWin, 'compose', [
+    { loc: composeWin.getByLabel('To', { exact: true }), label: 'To (with Cc / Bcc)' },
+    { loc: composeWin.getByRole('button', { name: 'Templates' }), label: 'Insert a saved reply template' },
+    { loc: composeWin.getByRole('button', { name: 'Send', exact: true }), label: 'Send now (with an undo window)' },
+    { loc: composeWin.getByRole('button', { name: 'Send later' }), label: 'Schedule for later' },
+    { loc: composeWin.getByRole('button', { name: 'Save draft' }), label: 'Save as a draft' }
+  ])
+  await composeWin.close()
   await win.waitForTimeout(300)
 
   // Open the File menu → Settings
@@ -247,6 +249,10 @@ function buildUserGuide(path) {
   h(doc, 'What DeskMail AI is')
   p(doc, 'DeskMail AI is your own desktop email client. It connects to your email account (IMAP/SMTP), keeps a copy of your mail locally so you can read it offline, and lets Claude help you search, draft and organise — all on this PC. Nothing is stored in the cloud by DeskMail; your mail and settings live on your machine.')
 
+  h(doc, 'In plain words')
+  p(doc, 'Think of DeskMail as a letter tray that sits on your desk. Your email provider is the post office. DeskMail nips to the post office, brings copies of your letters home, and keeps them in the tray so you can read them any time — even with the internet off. When you write a reply, DeskMail takes it back to the post office to send.')
+  p(doc, 'The clever part is the helper (Claude). It’s like a trustworthy assistant who can read the tray, tidy it, and write draft replies for you to check — but it is never allowed to lick the envelope and post anything itself, and it can never throw a letter away for good. You always press Send. And because everything lives in the tray on your desk (not in someone else’s building), your post stays yours.')
+
   h(doc, '1 · The main window')
   p(doc, 'Everything is reachable from the bars along the top:')
   shot(doc, 'main')
@@ -310,9 +316,9 @@ function buildConnectorGuide(path, config) {
   h(doc, '4 · Try it')
   p(doc, 'Ask Claude things like:')
   p(doc, '   • “Search my unread mail and summarise what needs a reply.”')
-  p(doc, '   • “Draft a reply to Priya about the licence.” (it appears in DeskMail’s Drafts)')
-  p(doc, '   • “Move the GitHub notifications to Archive and flag Maya’s email.”')
-  p(doc, '   • “Export Maya’s email and its attachments for NotebookLM.”')
+  p(doc, '   • “Draft a reply to Sam about the delivery date.” (it appears in DeskMail’s Drafts)')
+  p(doc, '   • “Move the newsletter emails to Archive and flag the message from the bank.”')
+  p(doc, '   • “Export that email and its attachments for NotebookLM.”')
 
   h(doc, 'Troubleshooting')
   p(doc, '• Tools don’t appear: make sure DeskMail has been run at least once (so the database exists), the JSON is valid (no trailing commas), and you fully restarted Claude Desktop.')

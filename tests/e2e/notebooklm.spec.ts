@@ -32,8 +32,9 @@ test('Send to NotebookLM exports the email to a folder for the skill to add', as
     expect(existsSync(emailFile)).toBe(true)
     expect(readFileSync(emailFile, 'utf-8')).toContain('Q3 launch timeline')
 
-    // The reading-pane button works too.
-    await win.getByRole('button', { name: 'NotebookLM' }).click()
+    // The ribbon action works too — it lives in the "More" menu now.
+    await win.getByRole('button', { name: 'More' }).click()
+    await win.getByRole('button', { name: 'Export to NotebookLM' }).click()
     await expect(win.getByText(/for NotebookLM/i)).toBeVisible()
   } finally {
     await app.close()

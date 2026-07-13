@@ -11,8 +11,6 @@ import { CommandBar, type Mode } from './CommandBar'
 import { Workspace } from './regions/Workspace'
 import { ViewSettings } from './ViewSettings'
 import { Settings } from './settings/Settings'
-import { DraftsModal } from './compose/DraftsModal'
-import { OutboxModal } from './compose/OutboxModal'
 import { SmartViewBuilder } from './SmartViewBuilder'
 import { AttachmentsBrowser } from './mail/AttachmentsBrowser'
 import { Calendar } from './calendar/Calendar'
@@ -45,8 +43,6 @@ export function App(): JSX.Element {
   // When the MCP connector stages an account, open Settings → Accounts with the
   // wizard pre-filled (password blank) for the user to finish.
   const [setupPrefill, setSetupPrefill] = useState<AccountInput | null>(null)
-  const [draftsOpen, setDraftsOpen] = useState(false)
-  const [outboxOpen, setOutboxOpen] = useState(false)
   const [smartBuilderOpen, setSmartBuilderOpen] = useState(false)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
@@ -66,7 +62,7 @@ export function App(): JSX.Element {
   // Global keyboard shortcuts. The listener mounts once and reads the live config
   // through a ref each keypress, so remaps and the master toggle apply instantly
   // and without re-binding. Shortcuts are gated to Mail mode with no modal open.
-  const anyModalOpen = viewSettingsOpen || settingsOpen || draftsOpen || outboxOpen || smartBuilderOpen || attachmentsOpen || shortcutHelpOpen
+  const anyModalOpen = viewSettingsOpen || settingsOpen || smartBuilderOpen || attachmentsOpen || shortcutHelpOpen
   const gateRef = useRef({ enabled: false, map: DEFAULT_KEYMAP as Keymap, active: false })
   gateRef.current = { enabled: shortcutCfg.enabled, map: shortcutCfg.map, active: mode === 'mail' && !anyModalOpen }
   useEffect(() => {
@@ -163,8 +159,6 @@ export function App(): JSX.Element {
       {mode === 'mail' && (
         <Workspace
           onOpen={(id) => window.deskmail.openMessage(id)}
-          onOpenDrafts={() => setDraftsOpen(true)}
-          onOpenOutbox={() => setOutboxOpen(true)}
           onOpenSmartBuilder={() => setSmartBuilderOpen(true)}
         />
       )}
@@ -172,16 +166,6 @@ export function App(): JSX.Element {
 
       {viewSettingsOpen && <ViewSettings onClose={() => setViewSettingsOpen(false)} />}
       {settingsOpen && <Settings initialAccountSetup={setupPrefill} onClose={() => { setSettingsOpen(false); setSetupPrefill(null); reloadShortcuts() }} />}
-      {draftsOpen && (
-        <DraftsModal
-          onClose={() => setDraftsOpen(false)}
-          onEdit={(d) => {
-            setDraftsOpen(false)
-            window.deskmail.openCompose(d.id)
-          }}
-        />
-      )}
-      {outboxOpen && <OutboxModal onClose={() => setOutboxOpen(false)} />}
       {smartBuilderOpen && <SmartViewBuilder onClose={() => setSmartBuilderOpen(false)} />}
       {attachmentsOpen && <AttachmentsBrowser onClose={() => setAttachmentsOpen(false)} />}
       {shortcutHelpOpen && <ShortcutHelp map={shortcutCfg.map} onClose={() => setShortcutHelpOpen(false)} />}

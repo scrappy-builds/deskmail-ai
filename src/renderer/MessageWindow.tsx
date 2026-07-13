@@ -3,10 +3,12 @@ import { Icon, type IconName } from './Icon'
 import type { FolderSummary, MailOp, MessageDetail, SnoozeOption } from '@shared/db'
 import { fmtFullDate, initials } from './mail/format'
 import { buildReplyDraft, type ReplyKind } from './mail/reply'
+import { buildEditAsNewDraft } from './mail/editAsNew'
 import { flattenFolderTree } from './mail/folderTree'
 import { EmailBody } from './mail/EmailBody'
 import { SenderBanners } from './mail/SenderBanners'
 import { InviteCard } from './mail/InviteCard'
+import { useToast } from './store/toastStore'
 
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
 
@@ -36,6 +38,8 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
   const [accountColour, setAccountColour] = useState<string | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [source, setSource] = useState<string | null>(null)
+  const [snoozeDate, setSnoozeDate] = useState('') // custom "snooze until" picker value
+  const showToast = useToast((s) => s.show)
   const w = window.deskmail.window
 
   useEffect(() => {
@@ -58,6 +62,30 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
     const selfEmail = accounts.find((a) => a.id === m.accountId)?.emailAddress
     const { id: draftId } = await window.deskmail.compose.saveDraft(buildReplyDraft(m, kind, selfEmail))
     window.deskmail.openCompose(draftId)
+  }
+
+  // "Edit as new": a fresh, fully editable draft copied from this message. Never sends.
+  const editAsNew = async (): Promise<void> => {
+    if (!m || m === 'loading') return
+    const { id: draftId } = await window.deskmail.compose.saveDraft(buildEditAsNewDraft(m))
+    window.deskmail.openCompose(draftId)
+  }
+  const saveAttachments = (mid: number): void => {
+    void window.deskmail.attachments.saveAll(mid).then((r) => {
+      if (r.ok) showToast({ text: `Saved ${r.count} ${r.count === 1 ? 'attachment' : 'attachments'} to ${r.dir}` })
+    })
+  }
+  const exportThread = (mid: number, as: 'pdf' | 'html'): void => {
+    const run = as === 'pdf' ? window.deskmail.mail.exportThreadPdf(mid) : window.deskmail.mail.exportThreadHtml(mid)
+    void run.then((r) => { if (r.path) showToast({ text: `Saved conversation to ${r.path}` }) })
+  }
+  const snoozeUntilPicked = (mid: number): void => {
+    if (!snoozeDate) return
+    const iso = new Date(snoozeDate).toISOString()
+    const label = new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    setMoreOpen(false)
+    setSnoozeDate('')
+    void window.deskmail.mail.snoozeUntil(mid, iso).then(() => { showToast({ text: `Snoozed until ${label}` }); w.close() })
   }
 
   const chrome = (title: string): JSX.Element => (
@@ -162,15 +190,35 @@ export function MessageWindow({ id }: { id: number }): JSX.Element {
               <div className="fixed inset-0 z-10" onClick={() => setMoreOpen(false)} />
               <div className="absolute left-0 top-full z-20 mt-1 max-h-[70vh] w-[220px] overflow-y-auto rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised">
                 <MoreItem icon={msg.isPinned ? 'pin' : 'pin'} label={msg.isPinned ? 'Unpin' : 'Pin to top'} onClick={() => { setMoreOpen(false); void window.deskmail.mail.pin(msg.id, !msg.isPinned); setM({ ...msg, isPinned: !msg.isPinned }) }} />
+                <MoreItem icon="draft" label="Edit as new" onClick={() => { setMoreOpen(false); void editAsNew() }} />
+                <div className="my-1 border-t border-border" />
                 <MoreItem icon="print" label="Save as PDF" onClick={() => { setMoreOpen(false); void window.deskmail.mail.printPdf(msg.id) }} />
                 <MoreItem icon="draft" label="Save as .eml" onClick={() => { setMoreOpen(false); void window.deskmail.mail.saveMessage(msg.id, 'eml') }} />
                 <MoreItem icon="draft" label="Save as .html" onClick={() => { setMoreOpen(false); void window.deskmail.mail.saveMessage(msg.id, 'html') }} />
+                {msg.attachments.length > 0 && (
+                  <MoreItem icon="clip" label="Save attachments…" onClick={() => { setMoreOpen(false); saveAttachments(msg.id) }} />
+                )}
+                <MoreItem icon="draft" label="Save conversation (PDF)…" onClick={() => { setMoreOpen(false); exportThread(msg.id, 'pdf') }} />
+                <MoreItem icon="draft" label="Save conversation (HTML)…" onClick={() => { setMoreOpen(false); exportThread(msg.id, 'html') }} />
                 <MoreItem icon="openWindow" label="View source" onClick={() => { setMoreOpen(false); void window.deskmail.mail.messageSource(msg.id).then(setSource) }} />
                 <div className="my-1 border-t border-border" />
                 <div className="px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Snooze</div>
                 {SNOOZE_OPTS.map((s) => (
                   <MoreItem key={s.opt} icon="clock" label={s.label} onClick={() => { setMoreOpen(false); void window.deskmail.mail.snooze(msg.id, s.opt); w.close() }} />
                 ))}
+                <div className="p-1.5" onClick={(e) => e.stopPropagation()}>
+                  <div className="px-1 pb-1.5 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Snooze until…</div>
+                  <input
+                    type="datetime-local"
+                    value={snoozeDate}
+                    onChange={(e) => setSnoozeDate(e.target.value)}
+                    aria-label="Snooze until"
+                    className="w-full rounded-md border border-border-2 bg-panel px-2 py-1.5 text-[12.5px] text-text"
+                  />
+                  <div className="mt-1.5 flex justify-end">
+                    <MoreItem icon="clock" label="Snooze" onClick={() => snoozeUntilPicked(msg.id)} />
+                  </div>
+                </div>
                 <div className="my-1 border-t border-border" />
                 <div className="px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[.6px] text-text-3">Move to</div>
                 {moveTargets.map(({ folder: f, depth }) => (

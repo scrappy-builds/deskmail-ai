@@ -26,6 +26,10 @@ function wrap(inner: string, dark: boolean): string {
 </style></head><body>${inner}</body></html>`
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 // Remembers messages where the user chose to load images, so switching folders
 // and back doesn't re-block them. ponytail: in-memory; resets on app restart —
 // a junk message re-blocks after restart, which is the safe default.
@@ -105,7 +109,7 @@ export function EmailBody({
   // Ctrl/Cmd+F opens the bar when focus is in the pane (outside the iframe).
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F') && html) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F') && (html || text)) {
         e.preventDefault()
         openFind()
       } else if (e.key === 'Escape' && findOpen) {
@@ -115,7 +119,7 @@ export function EmailBody({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [html, findOpen])
+  }, [html, text, findOpen])
 
   // A persisted "always for this sender" choice unblocks images on open.
   useEffect(() => {
@@ -131,19 +135,26 @@ export function EmailBody({
   }, [senderEmail, messageId])
 
   const result = useMemo(() => {
-    if (!html) return null
-    const clean = sanitiseEmail(html, allowImages)
-    // Quote collapsing runs after sanitising; it only adds our details/summary.
-    return { ...clean, html: collapseQuotes(clean.html).html }
-  }, [html, allowImages])
+    if (html) {
+      const clean = sanitiseEmail(html, allowImages)
+      // Quote collapsing runs after sanitising; it only adds our details/summary.
+      return { ...clean, html: collapseQuotes(clean.html).html }
+    }
+    // Plain-text-only body: render it through the same iframe (escaped, pre-wrap)
+    // so find-in-message, counting and navigation work exactly as for HTML mail.
+    if (text != null) {
+      return { html: `<div style="white-space:pre-wrap;word-break:break-word">${escapeHtml(text)}</div>`, blockedRemote: false }
+    }
+    return null
+  }, [html, text, allowImages])
 
-  // Dark transform: automatic only for simple emails in a dark app theme; the
-  // chip below lets any message be flipped either way.
-  const darkAuto = useMemo(() => appDark && !!html && isSimpleEmail(html), [appDark, html])
+  // Dark transform: automatic for simple emails (and plain text) in a dark app
+  // theme; the chip below lets any message be flipped either way.
+  const darkAuto = useMemo(() => appDark && (html ? isSimpleEmail(html) : text != null), [appDark, html, text])
   const renderDark = darkOverride ?? darkAuto
 
-  if (!html) {
-    return <div className="whitespace-pre-line px-6 py-5 text-[14px] leading-[1.65] text-text">{text ?? ''}</div>
+  if (!result) {
+    return <div className="px-6 py-5 text-[13px] italic text-text-3">This message has no content.</div>
   }
 
   // Size the frame to its content so the reading pane scrolls as one page.
@@ -255,7 +266,7 @@ export function EmailBody({
         ref={iframeRef}
         title="Message body"
         sandbox="allow-same-origin"
-        srcDoc={wrap(result!.html, renderDark)}
+        srcDoc={wrap(result.html, renderDark)}
         onLoad={onLoad}
         data-dark={renderDark || undefined}
         className="mt-3 w-full border-0"

@@ -160,7 +160,9 @@ export async function seedDemo(db: DB): Promise<void> {
       to: 'alex@example.com',
       subject: 'CONGRATULATIONS YOU WON a $1000 gift card!!!',
       date: 'Tue, 07 Jul 2026 06:00:00 +0100',
-      html: '<p>You have been selected as a winner. Claim your prize now — act now to receive your gift card and unclaimed funds.</p>'
+      // Carries a remote tracking pixel — images are blocked in Junk (only), so
+      // this never loads unless the user explicitly asks.
+      html: '<p>You have been selected as a winner. Claim your prize now — act now to receive your gift card and unclaimed funds.</p><img src="https://tracker.rewards.click/open.gif?id=99" width="1" height="1">'
     })
   )
   applyJunkIfSpam(db, spamId, true)

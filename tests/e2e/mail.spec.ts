@@ -18,7 +18,7 @@ function safeRm(dir: string): void {
   }
 }
 
-test('renders a sanitised email body and blocks remote images by default', async () => {
+test('sanitises the body, strips scripts, and loads images in the inbox', async () => {
   const userData = mkdtempSync(join(tmpdir(), 'deskmail-mail-'))
   const app = await launch(userData, true)
   try {
@@ -33,13 +33,32 @@ test('renders a sanitised email body and blocks remote images by default', async
     const body = win.frameLocator('iframe[title="Message body"]').locator('body')
     await expect(body).toContainText('updated launch plan')
 
-    // Security: no script survived, the tracker URL was stripped, nothing ran.
+    // Security: the <script> never survives and nothing runs — regardless of images.
     const inner = await body.innerHTML()
     expect(inner.toLowerCase()).not.toContain('<script')
-    expect(inner).not.toContain('tracker.northwind')
     expect(await win.evaluate(() => (window as unknown as { __pwned?: boolean }).__pwned === true)).toBe(false)
 
-    // Remote images blocked with an opt-in.
+    // Inbox mail loads remote images by default — no blocked-images banner.
+    await expect(win.getByText(/blocked remote images/i)).toHaveCount(0)
+  } finally {
+    await app.close()
+    safeRm(userData)
+  }
+})
+
+test('blocks remote images only in Junk, with an opt-in', async () => {
+  const userData = mkdtempSync(join(tmpdir(), 'deskmail-mail-'))
+  const app = await launch(userData, true)
+  try {
+    const win = await app.firstWindow()
+    await win.waitForTimeout(800)
+
+    // Open the Junk folder and the auto-filtered spam message (it has a tracker pixel).
+    await win.getByRole('button', { name: 'Junk' }).click()
+    await win.getByRole('heading', { name: /gift card/i }).waitFor().catch(() => undefined)
+    await win.locator('[data-testid^="msg-row-"]').first().click()
+
+    // Remote images are blocked here, with a one-click opt-in.
     await expect(win.getByText(/blocked remote images/i)).toBeVisible()
     await win.getByRole('button', { name: 'Load images' }).click()
     await expect(win.getByText(/blocked remote images/i)).toHaveCount(0)

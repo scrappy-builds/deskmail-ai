@@ -19,6 +19,7 @@ async function withImap(db: DB, accountId: number, fn: (c: ImapFlow) => Promise<
     auth: { user: acc.username, pass: password },
     logger: false
   })
+  client.on('error', () => {}) // don't let a socket 'error' crash the main process
   try {
     await client.connect()
     await fn(client)

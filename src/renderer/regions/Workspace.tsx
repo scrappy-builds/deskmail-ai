@@ -1,21 +1,21 @@
 import { computeArrangement } from '@shared/layout'
 import { useLayout } from '../store/layoutStore'
+import { useMail } from '../store/mailStore'
 import { Sidebar } from './Sidebar'
 import { MessageList } from './MessageList'
 import { ReadingPane } from './ReadingPane'
+import { DraftsView } from '../compose/DraftsModal'
+import { OutboxView } from '../compose/OutboxModal'
 
 export function Workspace({
   onOpen,
-  onOpenDrafts,
-  onOpenOutbox,
   onOpenSmartBuilder
 }: {
   onOpen?: (id: number) => void
-  onOpenDrafts?: () => void
-  onOpenOutbox?: () => void
   onOpenSmartBuilder?: () => void
 }): JSX.Element {
   const prefs = useLayout((s) => s.prefs)
+  const special = useMail((s) => s.special)
   const a = computeArrangement(prefs)
 
   return (
@@ -31,11 +31,16 @@ export function Workspace({
             borderLeftWidth: a.sidebar.side === 'right' ? 1 : 0
           }}
         >
-          <Sidebar showLabels={a.sidebar.showLabels} onOpenDrafts={onOpenDrafts} onOpenOutbox={onOpenOutbox} onOpenSmartBuilder={onOpenSmartBuilder} />
+          <Sidebar showLabels={a.sidebar.showLabels} onOpenSmartBuilder={onOpenSmartBuilder} />
         </div>
       )}
 
+      {/* Drafts / Outbox take over the main area inline, like any other folder. */}
+      {special === 'drafts' && <div className="flex min-h-0 min-w-0 flex-1" style={{ order: 1 }}><DraftsView /></div>}
+      {special === 'outbox' && <div className="flex min-h-0 min-w-0 flex-1" style={{ order: 1 }}><OutboxView /></div>}
+
       {/* Main: message list + reading pane */}
+      {special === null && (
       <div
         className="flex min-h-0 min-w-0 flex-1"
         style={{ order: 1, flexDirection: a.main.direction }}
@@ -73,6 +78,7 @@ export function Workspace({
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }

@@ -24,8 +24,9 @@ const EXPECTED_TOOLS = [
   'move_email', 'archive_email', 'delete_email', 'flag_email', 'mark_email_read',
   'export_for_notebooklm',
   'list_labels', 'label_email', 'inbox_overview', 'triage_priority', 'batch_apply',
-  'suggest_rules', 'get_unsubscribe_info', 'create_calendar_event',
+  'suggest_rules', 'list_rules', 'create_rule', 'delete_rule', 'get_unsubscribe_info', 'create_calendar_event',
   'get_sent_context', 'snooze_email', 'set_followup', 'get_daily_digest', 'get_rule_suggestions',
+  'list_contacts', 'create_task',
   'suggest_mail_config', 'stage_account_setup', 'check_account_setup'
 ].sort()
 
@@ -215,6 +216,55 @@ describe('MCP tool surface', () => {
     expect(Object.keys(d).sort()).toEqual(['awaiting_reply', 'date', 'events', 'followups_due_today', 'snoozes_landing_today', 'tasks', 'unread'])
     expect(Array.isArray(d.unread)).toBe(true)
     expect((d.unread as unknown[]).length).toBeLessThanOrEqual(20)
+  })
+
+  it('move_email rejects a folder that is not the message\'s account (clear error)', () => {
+    // No folder id 999 → clear, actionable error, and nothing moved.
+    const bad = tool('move_email').handler({ message_id: 1, target_folder_id: 999 }) as { ok: boolean; error?: string }
+    expect(bad.ok).toBe(false)
+    expect(bad.error).toMatch(/list_folders/i)
+    // A real folder in the same account works.
+    db.run("INSERT INTO folders (account_id, name, role, remote_path) VALUES (1,'Work','none','Work')")
+    const workId = (db.get("SELECT id FROM folders WHERE name='Work'") as { id: number }).id
+    const ok = tool('move_email').handler({ message_id: 1, target_folder_id: workId }) as { ok: boolean; moved_to?: string }
+    expect(ok.ok).toBe(true)
+    expect((db.get('SELECT folder_id FROM messages WHERE id=1') as { folder_id: number }).folder_id).toBe(workId)
+  })
+
+  it('create_rule makes a rule, validates targets, and can sweep existing mail', () => {
+    db.run("INSERT INTO folders (account_id, name, role, remote_path) VALUES (1,'Vendors','none','Vendors')")
+    const vendorId = (db.get("SELECT id FROM folders WHERE name='Vendors'") as { id: number }).id
+
+    // move needs a valid target folder.
+    expect((tool('create_rule').handler({ field: 'from', value: 'x@y.com', action: 'move' }) as { ok: boolean }).ok).toBe(false)
+    expect((tool('create_rule').handler({ field: 'from', value: 'x@y.com', action: 'move', target_folder_id: 999 }) as { ok: boolean }).ok).toBe(false)
+
+    // A from-rule for Maya, applied now, moves the two seeded inbox messages.
+    const res = tool('create_rule').handler({ field: 'from', value: 'maya@northwind.studio', action: 'move', target_folder_id: vendorId, apply_now: true }) as { ok: boolean; rule_id: number; applied_to_existing: number }
+    expect(res.ok).toBe(true)
+    expect(res.applied_to_existing).toBe(2)
+    expect((db.get('SELECT COUNT(*) c FROM messages WHERE folder_id = ?', [vendorId]) as { c: number }).c).toBe(2)
+
+    // It shows up in list_rules, and delete_rule removes it.
+    const rules = tool('list_rules').handler({}) as { id: number; value: string }[]
+    expect(rules.some((r) => r.id === res.rule_id && r.value === 'maya@northwind.studio')).toBe(true)
+    expect((tool('delete_rule').handler({ rule_id: res.rule_id }) as { ok: boolean }).ok).toBe(true)
+    expect((tool('delete_rule').handler({ rule_id: res.rule_id }) as { ok: boolean }).ok).toBe(false) // already gone
+    expect((tool('list_rules').handler({}) as unknown[]).length).toBe(0)
+  })
+
+  it('create_task adds a to-do (with validation); list_contacts reads saved contacts', () => {
+    const ok = tool('create_task').handler({ title: 'Reply to Maya', from_message_id: 1 }) as { ok: boolean; task_id: number }
+    expect(ok.ok).toBe(true)
+    expect((db.get('SELECT title, message_id FROM tasks WHERE id = ?', [ok.task_id]) as { title: string; message_id: number }).title).toBe('Reply to Maya')
+    expect((tool('create_task').handler({ title: '   ' }) as { ok: boolean }).ok).toBe(false)
+    expect((tool('create_task').handler({ title: 'x', due: 'not-a-date' }) as { ok: boolean }).ok).toBe(false)
+
+    db.run(`INSERT INTO contacts (name, emails_json, org) VALUES ('Buyer AS', '["buyer@norway.example"]', 'Norway AS')`)
+    const all = tool('list_contacts').handler({}) as { email: string }[]
+    expect(all.some((c) => c.email === 'buyer@norway.example')).toBe(true)
+    expect((tool('list_contacts').handler({ query: 'norway' }) as unknown[]).length).toBe(1)
+    expect((tool('list_contacts').handler({ query: 'zzz' }) as unknown[]).length).toBe(0)
   })
 
   it('get_rule_suggestions mines repeated actions and suppresses existing rules', () => {

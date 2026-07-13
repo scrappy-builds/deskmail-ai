@@ -103,3 +103,34 @@ test('sending is a manual action queued behind an undo window', async () => {
     safeRm(userData)
   }
 })
+
+test('address book: pick a contact straight into the To field', async () => {
+  const userData = mkdtempSync(join(tmpdir(), 'deskmail-cmp-'))
+  const app = await launch(userData)
+  try {
+    const win = await app.firstWindow()
+    await win.waitForTimeout(700)
+
+    // A contact to pick (demo seed has none).
+    await win.evaluate(() => window.deskmail.contacts.create({ name: 'Priya Patel', email: 'priya@example.com', org: null, notes: null, groups: [] }))
+
+    // Compose loads contacts on mount, so open it after the contact exists.
+    const [cmp] = await Promise.all([
+      app.waitForEvent('window'),
+      win.getByRole('button', { name: 'Compose' }).click()
+    ])
+    await cmp.waitForLoadState()
+
+    await cmp.getByRole('button', { name: 'Add from contacts' }).click()
+    const picker = cmp.getByTestId('contact-picker')
+    await picker.getByText('Priya Patel').click() // ticks the contact
+    await picker.getByRole('button', { name: 'To', exact: true }).click()
+    await picker.getByRole('button', { name: 'Done' }).click()
+
+    // The address landed as a chip in To — no typing.
+    await expect(cmp.getByText('priya@example.com')).toBeVisible()
+  } finally {
+    await app.close()
+    safeRm(userData)
+  }
+})

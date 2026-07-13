@@ -128,13 +128,20 @@ export interface ReminderCandidate {
   start: string | null
   reminderMinutes: number
   snoozeUntil: string | null
+  recurFreq: RecurFreq
+  recurUntil: string | null
+  firedAt: string | null
 }
 
+// A recurring event stays a candidate after it has fired (fired_at records the
+// last occurrence alerted, so the scheduler can arm the next one); a one-off
+// drops out once fired.
 export function listReminderCandidates(db: DB): ReminderCandidate[] {
   const rows = db.all(
-    `SELECT id, title, date, start, reminder_minutes, reminder_snooze_until
+    `SELECT id, title, date, start, reminder_minutes, reminder_snooze_until, recur_freq, recur_until, reminder_fired_at
        FROM events
-      WHERE reminder_minutes IS NOT NULL AND reminder_fired_at IS NULL`
+      WHERE reminder_minutes IS NOT NULL
+        AND (reminder_fired_at IS NULL OR (recur_freq IS NOT NULL AND recur_freq NOT IN ('none')))`
   ) as unknown as {
     id: number
     title: string
@@ -142,6 +149,9 @@ export function listReminderCandidates(db: DB): ReminderCandidate[] {
     start: string | null
     reminder_minutes: number
     reminder_snooze_until: string | null
+    recur_freq: string | null
+    recur_until: string | null
+    reminder_fired_at: string | null
   }[]
   return rows.map((r) => ({
     id: r.id,
@@ -149,13 +159,19 @@ export function listReminderCandidates(db: DB): ReminderCandidate[] {
     date: r.date,
     start: r.start,
     reminderMinutes: r.reminder_minutes,
-    snoozeUntil: r.reminder_snooze_until
+    snoozeUntil: r.reminder_snooze_until,
+    recurFreq: (r.recur_freq as RecurFreq) ?? 'none',
+    recurUntil: r.recur_until,
+    firedAt: r.reminder_fired_at
   }))
 }
 
-// Mark a reminder alerted so it never re-fires (dismiss uses this too).
+// Mark a reminder alerted (dismiss uses this too). `at` is the occurrence's due
+// stamp: for a recurring event that becomes the "last fired" watermark the
+// scheduler steps past to reach the next occurrence. Clearing any snooze stops a
+// snoozed recurring reminder from re-firing forever off the stale snooze time.
 export function setReminderFired(db: DB, id: number, at: string): void {
-  db.run('UPDATE events SET reminder_fired_at = ? WHERE id = ?', [at, id])
+  db.run('UPDATE events SET reminder_fired_at = ?, reminder_snooze_until = NULL WHERE id = ?', [at, id])
 }
 
 // Snooze: park the reminder until a later time and re-arm it (clear fired).

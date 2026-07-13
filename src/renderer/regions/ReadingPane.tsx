@@ -295,9 +295,6 @@ export function ReadingPane(): JSX.Element {
   // Account accent colour carries into the pane (border + sender chip).
   const accountColour = (m && accounts.find((a) => a.id === m.accountId)?.colour) || null
 
-  // Message actions now live in the top command-bar ribbon; the pane just reads.
-  const inJunk = folders.find((f) => f.id === activeFolderId)?.role === 'junk'
-
   const addContact = (): void => {
     if (!m?.fromEmail) return
     void window.deskmail.contacts
@@ -360,7 +357,7 @@ export function ReadingPane(): JSX.Element {
 
         {m.invite && <InviteCard messageId={m.id} invite={m.invite} />}
 
-        <EmailBody html={m.bodyHtml} text={m.bodyText} allowByDefault={!inJunk} messageId={m.id} senderEmail={m.fromEmail} />
+        <EmailBody html={m.bodyHtml} text={m.bodyText} allowByDefault={m.folderRole !== 'junk'} messageId={m.id} senderEmail={m.fromEmail} />
 
         {m.attachments.length > 0 && <Attachments m={m} />}
       </div>

@@ -85,6 +85,8 @@ plan 32's measurement, richer history for focus/nudges/attachments browser.
 
 **What:** Global single-key shortcuts: `j`/`k` next/previous message, `Enter` open, `e` archive,
 `#` delete, `r` reply, `c` compose, `/` focus search, `u` toggle unread, `?` cheat-sheet overlay.
+**User-configurable (2026-07-10 requirement):** a master on/off toggle for all shortcuts, and a
+Settings pane where each binding can be remapped or cleared. The listed keys are the defaults.
 
 **Approach:**
 - One `keydown` listener on `window` in a new `src/renderer/shortcuts.ts`:
@@ -98,32 +100,50 @@ plan 32's measurement, richer history for focus/nudges/attachments browser.
   selection change, so `j`/`k` work at 20k messages.
 - `?` opens a small cheat-sheet modal (`src/renderer/ShortcutHelp.tsx`) listing the map — static
   content, styled like the existing modals. Include the `Win+.` emoji hint here.
-- Keep the map a plain object so the cheat-sheet renders from the same source of truth. No
-  user-configurable bindings (YAGNI — add only if ever asked).
+- **Customisable bindings (now required):** store the key→action map and the master enable flag in
+  the existing settings store (`src/db/settings.ts`), defaulting to the map above. `installShortcuts`
+  reads from settings, not a hardcoded object, and no-ops entirely when the master toggle is off. The
+  cheat-sheet renders from the same live map so it always matches the user's bindings.
+- Settings pane (`Appearance` or a new `Shortcuts` section): master on/off switch, a row per action
+  showing its current key with a "press a key to rebind" capture and a clear/reset-to-default button.
+  Reject binds that would collide with a reserved key (e.g. `Enter` in a list) and warn on duplicates.
 
-**Files:** create `src/renderer/shortcuts.ts`, `src/renderer/ShortcutHelp.tsx`; modify
-`src/renderer/App.tsx`, small additions to `src/renderer/store/mailStore.ts` (selectNext/Prev if
-not already exposed).
+**Files:** create `src/renderer/shortcuts.ts`, `src/renderer/ShortcutHelp.tsx`; a Shortcuts settings
+pane; modify `src/renderer/App.tsx`, `src/db/settings.ts` (keymap + enable flag), small additions to
+`src/renderer/store/mailStore.ts` (selectNext/Prev if not already exposed).
 
-**Tests:** unit — the key→action dispatch as a pure function (event-like input → action name |
-null, incl. the input-focus guard). E2E — press `j` then `Enter` opens the second message; `/`
-focuses search; typing `j` *inside* search does not navigate.
+**Tests:** unit — the key→action dispatch as a pure function driven by a supplied map (event-like
+input → action name | null, incl. the input-focus guard and the master-off case). E2E — press `j`
+then `Enter` opens the second message; rebind archive to a new key and confirm it fires; master
+toggle off disables everything; typing `j` *inside* search does not navigate.
 
-**Effort:** med. **Depends on:** nothing.
+**Effort:** med (the remap UI adds a little over the original fixed-map version). **Depends on:** nothing.
 
 ---
 
 ### Plan 4 — Default mail app (mailto: handler)
 
 **What:** Register DeskMail as a Windows mailto: handler; clicking an email link anywhere opens
-Compose pre-filled.
+Compose pre-filled. **User-facing controls (2026-07-10 requirement):** an on/off toggle in Settings,
+and a tickable "Set DeskMail as my default email app" box in the NSIS installer.
+
+**Windows constraint (be honest in the UI):** since Windows 10, no app can *silently* become the
+default mail client — the OS forces a user confirmation. So both the installer checkbox and the
+Settings toggle can only (a) register DeskMail as an available mailto handler and (b) open Windows'
+Default-apps page (or let Windows show its "how do you want to open this?" chooser on first click).
+The copy next to both controls must say so plainly rather than imply a silent switch.
 
 **Approach:**
-- Registration: `app.setAsDefaultProtocolClient('mailto')` on startup (works for the packaged app),
-  plus a "Make DeskMail my default email app" button in Settings → Accounts that calls it and
-  explains Windows' Settings→Apps confirmation. electron-builder NSIS registers the ProgID via the
+- Registration: `app.setAsDefaultProtocolClient('mailto')` (works for the packaged app). Settings →
+  Accounts gets an **on/off toggle** ("Use DeskMail for email links"): ON calls the register + opens
+  the Windows Default-apps page; OFF calls `app.removeAsDefaultProtocolClient('mailto')`. Replaces the
+  original single "Make default" button. electron-builder NSIS registers the ProgID via the
   `protocols` entry in `electron-builder.yml` (a `deskmail` scheme entry already exists there —
   add `mailto` alongside it).
+- Installer checkbox: NSIS custom option (via electron-builder's `nsis.include`/custom script) adding
+  a ticked-by-default "Set DeskMail as my default email app" line on the finish page; when ticked it
+  writes the handler registration and launches `ms-settings:defaultapps` so the user confirms. Keep
+  it optional — never force it.
 - Single-instance: **already built** for the toast quick actions — extend `handleProtocolArgs` in
   `src/main/index.ts` to also recognise an argument starting `mailto:` (both in `second-instance`
   and first-launch argv).
@@ -133,14 +153,16 @@ Compose pre-filled.
 - Open: the compose window is already its own entry (`compose.html`) — the cleanest prefill path is
   the existing one: `saveDraft(payload)` → `openComposeWindow(draftId)`.
 
-**Files:** create `src/shared/mailto.ts`; modify `src/main/index.ts` (protocol + argv handling),
-`electron-builder.yml`, `src/renderer/settings/panes.tsx` (the button).
+**Files:** create `src/shared/mailto.ts`; a small NSIS include script for the installer checkbox;
+modify `src/main/index.ts` (protocol + argv handling, register/unregister), `electron-builder.yml`
+(`protocols` + `nsis.include`), `src/renderer/settings/panes.tsx` (the on/off toggle).
 
 **Tests:** unit — `parseMailto` over plain address, multi-recipient, subject+body encoding, junk
 input → empty fields (trust boundary: this string comes from outside the app). E2E — launch with a
-`mailto:` argv → Compose opens with the To field filled.
+`mailto:` argv → Compose opens with the To field filled; toggle OFF unregisters. (Installer checkbox
+is verified manually against a real install — NSIS isn't exercised by the E2E suite.)
 
-**Effort:** easy. **Depends on:** nothing.
+**Effort:** easy–med (installer checkbox adds the only fiddly bit). **Depends on:** nothing.
 
 ---
 

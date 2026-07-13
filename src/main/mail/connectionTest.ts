@@ -40,6 +40,7 @@ export async function testIncoming(cfg: ConnectionConfig): Promise<TestResult> {
     // Give up reasonably quickly rather than hanging the wizard.
     socketTimeout: 15000
   })
+  client.on('error', () => {}) // don't let a socket 'error' crash the main process
   try {
     await client.connect()
     await client.logout()

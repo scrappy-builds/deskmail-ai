@@ -48,6 +48,7 @@ export function MessageContextMenu({ x, y, messageId, onClose }: Props): JSX.Ele
   const selectedIds = useMail((s) => s.selectedIds)
   const refresh = useMail((s) => s.refresh)
   const clearSelected = useMail((s) => s.clearSelected)
+  const setUndo = useMail((s) => s.setUndo)
   const showToast = useToast((s) => s.show)
 
   const rootRef = useRef<HTMLDivElement>(null)
@@ -111,6 +112,13 @@ export function MessageContextMenu({ x, y, messageId, onClose }: Props): JSX.Ele
     onClose()
   }
   const runOp = async (op: BulkOp, toast: string, targetFolderId?: number): Promise<void> => {
+    // Reversible ops (move/trash/archive) record an Undo for the Edit menu, just
+    // like the command-bar ribbon — right-click actions were the odd one out.
+    if ((op === 'move' || op === 'delete' || op === 'archive') && activeFolderId != null) {
+      const undoIds = [...ids]
+      const back = activeFolderId
+      setUndo({ label: toast, run: () => { for (const uid of undoIds) void window.deskmail.mail.action(uid, 'move', back); void refresh() } })
+    }
     await runBulk(planBulk(op, ids, targetFolderId))
     await finish(toast)
   }

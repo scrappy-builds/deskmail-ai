@@ -25,15 +25,17 @@ test('archiving a message removes it from the inbox and stars persist', async ()
     const rows = win.locator('[data-testid^="msg-row-"]')
     await expect(rows).toHaveCount(7)
 
-    // Archive the selected message via the reading-pane toolbar.
+    // Archive the selected message via the command-bar ribbon. (name 'Archive'
+    // also matches the sidebar Archive *folder*; the ribbon button is first in
+    // the DOM, so .first() targets the action, not the folder.)
     await win.getByTestId('msg-row-4').click()
-    await win.getByRole('button', { name: 'Archive' }).last().click()
+    await win.getByRole('button', { name: 'Archive' }).first().click()
     await expect(rows).toHaveCount(6)
     await expect(win.getByTestId('msg-row-4')).toHaveCount(0)
 
-    // Star another one; it moves to the DB and reflects in the store.
+    // Flag another one; it moves to the DB and reflects in the store (isStarred).
     await win.getByTestId('msg-row-5').click()
-    await win.getByRole('button', { name: 'Star', exact: true }).click()
+    await win.getByRole('button', { name: 'Flag', exact: true }).click()
     await win.waitForTimeout(200)
     const starred = await win.evaluate(() => window.deskmail.mail.getMessage(5).then((m) => m?.isStarred))
     expect(starred).toBe(true)

@@ -4,6 +4,8 @@ import type { AccountRow, ComposePayload, SendResult } from '@shared/db'
 import type { DB } from '../../db/database'
 import { getCredential } from '../credentials'
 import { getDefaultSignature, getSignatureBody } from '../../db/signatures'
+import { upgradeLegacySocial } from '@shared/socialIcons'
+import { inlineDataImages } from '@shared/outboundImages'
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -26,15 +28,22 @@ export interface BuildMailOpts {
 // The signature is appended here (the editor body doesn't contain it), so it's
 // consistent whether the message is sent now or scheduled later.
 export function buildMail(o: BuildMailOpts): SendMailOptions {
-  const sigHtml = o.signature ? `<br><br>--<br>${signatureToHtml(o.signature)}` : ''
+  // Legacy signatures stored their social icons as SVG data-URIs (stripped by
+  // most clients); upgrade to the PNG block before sending so old signatures work.
+  const sig = o.signature ? upgradeLegacySocial(o.signature) : null
+  const sigHtml = sig ? `<br><br>--<br>${signatureToHtml(sig)}` : ''
+  // Convert every embedded data-URI image (signature icons + inline pastes) into a
+  // cid: inline attachment so it renders in the recipient's client.
+  const { html, attachments: inlineImgs } = inlineDataImages(`${o.payload.bodyHtml}${sigHtml}`)
+  const fileAttachments = o.payload.attachments?.map((a) => ({ filename: a.name, path: a.path })) ?? []
   return {
     from: `"${o.fromName}" <${o.fromEmail}>`,
     to: o.payload.to.join(', '),
     cc: o.payload.cc.length ? o.payload.cc.join(', ') : undefined,
     bcc: o.payload.bcc.length ? o.payload.bcc.join(', ') : undefined,
     subject: o.payload.subject,
-    html: `${o.payload.bodyHtml}${sigHtml}`,
-    attachments: o.payload.attachments?.map((a) => ({ filename: a.name, path: a.path })),
+    html,
+    attachments: [...inlineImgs, ...fileAttachments],
     // nodemailer maps this to X-Priority + Importance headers (omit when normal).
     priority: o.payload.importance && o.payload.importance !== 'normal' ? o.payload.importance : undefined,
     // Calendar invites ride along as a proper text/calendar MIME part.
@@ -75,7 +84,11 @@ export async function sendMail(db: DB, payload: ComposePayload): Promise<SendRes
     secure: acc.outgoing_security === 'ssl',
     requireTLS: acc.outgoing_security === 'starttls',
     auth: { user: acc.username, pass: password },
-    connectionTimeout: 20000
+    connectionTimeout: 20000,
+    // Inactivity timeout (reset by transfer activity), so a genuinely stalled
+    // upload of a big attachment fails and frees the Outbox queue rather than
+    // hanging forever. Generous enough for large files on a slow connection.
+    socketTimeout: 10 * 60 * 1000
   })
 
   try {

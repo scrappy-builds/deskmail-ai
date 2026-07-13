@@ -66,7 +66,7 @@ test('multiple windows coexist and close independently', async () => {
     await winA.getByRole('button', { name: 'Close', exact: true }).last().click()
     await expect.poll(() => app.windows().length).toBe(2)
     await expect(winB.getByTestId('message-window')).toHaveAttribute('data-message-id', '4')
-    await expect(main.getByRole('button', { name: 'View settings' })).toBeVisible()
+    await expect(main.getByRole('button', { name: 'Compose' })).toBeVisible() // main window still alive
   } finally {
     await app.close()
     safeRm(userData)

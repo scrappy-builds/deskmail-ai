@@ -69,6 +69,12 @@ export function runMigrations(db: Database): void {
 export function openDatabase(file: string): Database {
   const db = new Database(file)
   db.exec('PRAGMA foreign_keys = ON')
+  // The running app AND the Claude MCP server open this same file. WAL is usually
+  // declined by the WASM VFS, so writes serialise on a rollback journal — without
+  // a busy timeout a concurrent writer fails immediately with SQLITE_BUSY, which
+  // is exactly what made Claude's moves/rule changes intermittently "not work".
+  // Wait for the lock instead of erroring out.
+  db.exec('PRAGMA busy_timeout = 5000')
   tryEnableWal(db)
   runMigrations(db)
   return db

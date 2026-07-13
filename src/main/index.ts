@@ -31,7 +31,7 @@ import { exportForNotebookLM } from '../mcp/export'
 import { deleteDraft, getDraft, listDrafts, saveDraft } from '../db/drafts'
 import { createSignature, deleteSignature, ensureDefaultSignature, getSignatureData, listSignatures, setDefaultSignature, setSignatureAppend, updateSignature, updateSignatureById } from '../db/signatures'
 import { createEvent, deleteEvent, ensureEventUid, getEvent, listEvents, listReminderCandidates, setReminderFired, snoozeReminder, updateEvent } from '../db/events'
-import { localStamp, parseLocalStamp, reminderDueAt } from '@shared/reminders'
+import { localStamp, nextReminderDue } from '@shared/reminders'
 import { buildInviteIcs, type PartStat } from './mail/ics'
 import { cancelScheduled, dueScheduled, listScheduled, markError, markSent, recordSendFailure, retryScheduled, scheduleSend } from '../db/scheduledSends'
 import { computeSnoozeTime, snoozeMessage, unsnooze } from '../db/snoozes'
@@ -56,6 +56,14 @@ import { validateImportedTheme, type CustomTheme } from '@shared/theme'
 import type { AppSettings } from '@shared/types'
 import type { AccountInput, ComposeAttachment, ComposePayload, ConnectionConfig, ContactInput, EventInput, MailOp, RuleInput, SmartViewInput, SnoozeOption } from '@shared/db'
 
+
+// Safety net: a stray async error (typically a dropped IMAP/SMTP socket) must not
+// take the whole app down with Electron's "A JavaScript error occurred" dialog.
+// Sockets are handled at source (every ImapFlow gets an 'error' listener); this
+// just guarantees a late straggler is logged, not fatal. Kept local — logs only,
+// never phones home.
+process.on('uncaughtException', (err) => console.error('Uncaught exception (kept alive):', err))
+process.on('unhandledRejection', (reason) => console.error('Unhandled rejection (kept alive):', reason))
 
 // Current UI zoom factor (text-size accessibility). Applied to every window on
 // load and updated live from the renderer's Text-size control.
@@ -94,7 +102,22 @@ async function initDatabase(): Promise<void> {
 // Background sender: send any scheduled messages whose time has come. Covers both
 // "Send later" and undo-send (which schedules a few seconds out). Poll every 5s.
 function startScheduledSender(): void {
+  // Serialise ticks: a big attachment can take far longer than the 5s interval
+  // to upload, and while its row is still 'scheduled' the next tick would pick it
+  // up again and start a *second* concurrent SMTP upload of the same message —
+  // they compete, none finishes, and it looks stuck in the Outbox. One tick at a
+  // time, rows sent sequentially, fixes that.
+  let sending = false
   const tick = async (): Promise<void> => {
+    if (sending) return
+    sending = true
+    try {
+      await runDueSends()
+    } finally {
+      sending = false
+    }
+  }
+  const runDueSends = async (): Promise<void> => {
     const due = dueScheduled(db, new Date().toISOString())
     for (const s of due) {
       if (s.draftId == null) {
@@ -292,31 +315,6 @@ function handleProtocolArgs(argv: string[]): boolean {
   if (proto) return handleProtocolUrl(proto)
   const mailto = argv.find((a) => a.toLowerCase().startsWith('mailto:'))
   return mailto ? handleMailto(mailto) : false
-}
-
-// Fire a one-off reminder for any event starting within ~10 minutes. Keyed per
-// occurrence so it only notifies once. Respects the same Focus/DND suppression.
-const remindedEvents = new Set<string>()
-function checkEventReminders(): void {
-  if (notificationsSuppressed(db)) return
-  const now = new Date()
-  const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  for (const e of listEvents(db, iso, iso)) {
-    if (!e.start) continue
-    const [h, m] = e.start.split(':').map(Number)
-    const at = new Date(now)
-    at.setHours(h, m, 0, 0)
-    const mins = (at.getTime() - now.getTime()) / 60000
-    const key = `${e.id}-${e.date}-${e.start}`
-    if (mins >= 0 && mins <= 10 && !remindedEvents.has(key)) {
-      remindedEvents.add(key)
-      if (Notification.isSupported()) {
-        const n = new Notification({ title: `Soon: ${e.title}`, body: `Starts at ${e.start}` })
-        n.on('click', showMainWindow)
-        n.show()
-      }
-    }
-  }
 }
 
 // Sync, then notify about mail that arrived in the inbox during this pass.
@@ -547,24 +545,21 @@ function closeReminderWindow(eventId: number): void {
 }
 
 // Event reminders that FIRE (the event carries a reminderMinutes offset). Each
-// tick computes every un-fired candidate's due time and alerts those that have
-// arrived: a front-and-centre reminder window plus a plain tray toast, then marks
-// it fired so it never repeats. A reminder due more than 12h ago (the app was
-// shut) is retired silently, so launching doesn't spray stale alerts.
-// ponytail: a recurring event fires once, off its base date — per-occurrence
-// reminders aren't tracked yet.
+// tick asks nextReminderDue for each candidate's next un-fired occurrence and
+// alerts those that have arrived: a front-and-centre reminder window plus a plain
+// tray toast, then records the occurrence as fired so it can't repeat. Recurring
+// events keep arming their next occurrence; one-offs drop out. Occurrences due
+// more than 12h ago (the app was shut) are skipped by `notBefore`, so launching
+// doesn't spray stale alerts.
 const REMINDER_STALE_MS = 12 * 60 * 60 * 1000
 function checkReminders(): void {
   const now = new Date()
   const nowStamp = localStamp(now)
+  const notBefore = localStamp(new Date(now.getTime() - REMINDER_STALE_MS))
   for (const e of listReminderCandidates(db)) {
-    const due = reminderDueAt(e.date, e.start, e.reminderMinutes, e.snoozeUntil)
-    if (!due || due > nowStamp) continue // not due yet (fixed-width stamps compare lexically)
-    if (now.getTime() - parseLocalStamp(due).getTime() > REMINDER_STALE_MS) {
-      setReminderFired(db, e.id, nowStamp) // too old to bother the user — retire it quietly
-      continue
-    }
-    setReminderFired(db, e.id, nowStamp) // mark before alerting so it can't double-fire
+    const due = nextReminderDue(e.date, e.start, e.reminderMinutes, e.recurFreq, e.recurUntil, e.snoozeUntil, e.firedAt, notBefore)
+    if (!due || due > nowStamp) continue // nothing due yet (fixed-width stamps compare lexically)
+    setReminderFired(db, e.id, due) // record this occurrence (arms the next, for recurring) before alerting
     openReminderWindow(e.id)
     if (Notification.isSupported()) {
       const at = e.start ? ` at ${e.start}` : ''
@@ -1540,11 +1535,9 @@ app.whenReady().then(async () => {
   startScheduledSender()
   // Periodic sync that surfaces new inbox mail as desktop notifications.
   setInterval(() => void syncAndNotify(), 2 * 60 * 1000)
-  // Event reminders: check once a minute for anything starting soon.
-  checkEventReminders()
-  setInterval(checkEventReminders, 60 * 1000)
-  // Firing reminders (events with a reminderMinutes offset): a run shortly after
-  // launch (so the window is settled), then every 30s.
+  // Event reminders (events with a reminderMinutes offset): a run shortly after
+  // launch (so the window is settled), then every 30s. (The old generic
+  // "starts within 10 min" toast was retired — explicit reminders replace it.)
   setTimeout(checkReminders, 5000)
   setInterval(checkReminders, 30 * 1000)
   // Drain queued mail actions to IMAP periodically (offline changes reconcile,

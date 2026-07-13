@@ -5,7 +5,8 @@ import { Icon } from '../Icon'
 import { downscaleImage, InlineImage } from '../editor/InlineImage'
 import type { AccountSummary, ComposeAttachment, ComposePayload, Contact, DraftSummary, SignatureItem, Template } from '@shared/db'
 import { mentionsAttachment } from './attachmentReminder'
-import { RecipientInput } from './RecipientInput'
+import { RecipientInput, addRecipients } from './RecipientInput'
+import { ContactPicker } from './ContactPicker'
 import { unusualRecipients } from './unusualRecipients'
 import { useToast } from '../store/toastStore'
 
@@ -45,6 +46,14 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
   const [busy, setBusy] = useState(false)
   const [attachReminder, setAttachReminder] = useState(false)
   const [knownDomains, setKnownDomains] = useState<string[] | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  // Add contacts picked from the address book into the chosen field (deduped).
+  const addFromContacts = (field: 'to' | 'cc' | 'bcc', emails: string[]): void => {
+    if (field === 'to') setTo((v) => addRecipients(v, emails))
+    else if (field === 'cc') { setShowCc(true); setCc((v) => addRecipients(v, emails)) }
+    else { setShowCc(true); setBcc((v) => addRecipients(v, emails)) }
+  }
 
   // Paste/drop images inline (downscaled to a sane width); drop other files to
   // attach them.
@@ -234,6 +243,9 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
           <div className={field}>
             <span className="w-[52px] text-[12.5px] text-text-3">To</span>
             <RecipientInput value={to} onChange={setTo} contacts={contacts} ariaLabel="To" placeholder="Recipients" />
+            <button onClick={() => setPickerOpen(true)} title="Add from contacts" aria-label="Add from contacts" className="flex items-center text-text-3 hover:text-accent">
+              <Icon name="contacts" size={16} />
+            </button>
             <button onClick={() => setShowCc((v) => !v)} className="text-[12px] font-semibold text-text-3 hover:text-accent">
               Cc Bcc
             </button>
@@ -285,8 +297,30 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
             </select>
           </div>
 
-          <EditorContent editor={editor} className="min-h-[130px] flex-1 px-4 py-3 text-[14px] leading-[1.6]" />
+          {/* No flex-1 here: the editor grows with its content and the parent
+              scrolls, instead of being height-capped (which made long bodies
+              overflow their box and paint over the signature below). */}
+          <EditorContent editor={editor} className="min-h-[130px] px-4 py-3 text-[14px] leading-[1.6]" />
 
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 border-t border-border px-4 py-2.5">
+              {attachments.map((a, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-md border border-border bg-bg px-2.5 py-1.5">
+                  <Icon name="clip" size={14} className="text-text-3" />
+                  <div className="min-w-0">
+                    <div className="max-w-[150px] truncate text-[12px] font-semibold">{a.name}</div>
+                    <div className="text-[10px] text-text-3">{fmtSize(a.size)}</div>
+                  </div>
+                  <button onClick={() => setAttachments((p) => p.filter((_, j) => j !== i))} className="text-text-3 hover:text-danger" title="Remove">
+                    <Icon name="close" size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Signature is the last body block so it always sits below the message
+              text and any attachment chips — never overlapped by them. */}
           {signatures.length > 0 && (
             <div className="mx-4 mb-3 border-t border-dashed border-border pt-3">
               <div className="mb-1.5 flex items-center gap-2">
@@ -308,23 +342,6 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
                   dangerouslySetInnerHTML={{ __html: signatures.find((s) => s.id === signatureId)?.body ?? '' }}
                 />
               )}
-            </div>
-          )}
-
-          {attachments.length > 0 && (
-            <div className="flex flex-wrap gap-2 border-t border-border px-4 py-2.5">
-              {attachments.map((a, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-md border border-border bg-bg px-2.5 py-1.5">
-                  <Icon name="clip" size={14} className="text-text-3" />
-                  <div className="min-w-0">
-                    <div className="max-w-[150px] truncate text-[12px] font-semibold">{a.name}</div>
-                    <div className="text-[10px] text-text-3">{fmtSize(a.size)}</div>
-                  </div>
-                  <button onClick={() => setAttachments((p) => p.filter((_, j) => j !== i))} className="text-text-3 hover:text-danger" title="Remove">
-                    <Icon name="close" size={13} />
-                  </button>
-                </div>
-              ))}
             </div>
           )}
 
@@ -376,6 +393,7 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
           </button>
           <div className="flex-1" />
         </div>
+        {pickerOpen && <ContactPicker contacts={contacts} onAdd={addFromContacts} onClose={() => setPickerOpen(false)} />}
     </div>
   )
 }

@@ -77,10 +77,9 @@ test('layout preset selection persists across relaunch', async () => {
     // Default preset is Classic.
     await expect.poll(() => win.evaluate(() => window.deskmail.getSettings().then((s) => s.selectedLayoutPreset))).toBe('classic')
 
-    // Switch to Focus Mode via View Settings.
-    await win.getByRole('button', { name: 'View settings' }).click()
-    await win.getByRole('button', { name: /Focus Mode/ }).click()
-    await win.getByRole('button', { name: 'Done' }).click()
+    // Switch to Focus Mode via the View menu's Layout presets.
+    await win.getByText('View', { exact: true }).click()
+    await win.getByRole('button', { name: 'Focus Mode', exact: true }).click()
     await expect.poll(() => win.evaluate(() => window.deskmail.getSettings().then((s) => s.selectedLayoutPreset))).toBe('focus')
 
     await app.close()

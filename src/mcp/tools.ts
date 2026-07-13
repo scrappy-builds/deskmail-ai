@@ -7,11 +7,13 @@ import { saveDraft } from '../db/drafts'
 import { applyAction } from '../db/mailActions'
 import { listLabels, setMessageLabel } from '../db/labels'
 import { createEvent } from '../db/events'
-import { suggestRules } from '../db/rules'
+import { suggestRules, createRule, listRules, deleteRule, applyRuleToFolder } from '../db/rules'
 import { computeSnoozeTime, snoozeMessage } from '../db/snoozes'
 import { getDigestData } from '../db/today'
+import { createTask } from '../db/tasks'
+import { listContactsDetail } from '../db/contacts'
 import { getAppSetting, setAppSetting } from '../db/settings'
-import type { AccountInput, MailOp, SnoozeOption } from '@shared/db'
+import type { AccountInput, MailOp, RuleAction, RuleField, RuleOp, SnoozeOption } from '@shared/db'
 import { suggestSettings } from '@shared/providerPresets'
 import { exportForNotebookLM } from './export'
 
@@ -334,9 +336,17 @@ export function buildTools(db: DB, opts?: { exportDir?: string }): ToolDef[] {
     },
     {
       name: 'move_email',
-      description: 'Move an email to another folder (by folder id). Applied locally and pushed to the server.',
+      description: 'Move an email to another folder (by folder id from list_folders). Applied locally and pushed to the server. The target folder must belong to the same account as the message.',
       inputSchema: { message_id: z.number(), target_folder_id: z.number() },
-      handler: (a) => ({ ok: applyAction(db, a.message_id as number, 'move', a.target_folder_id as number), op: 'move' })
+      handler: (a) => {
+        const id = a.message_id as number
+        const target = a.target_folder_id as number
+        const m = getMessage(db, id)
+        if (!m) return { ok: false, op: 'move', error: 'No such message.' }
+        const folder = listFolders(db, m.accountId).find((f) => f.id === target)
+        if (!folder) return { ok: false, op: 'move', error: `Folder ${target} is not a folder of this message's account (${m.accountId}). Call list_folders with that account_id to get valid folder ids.` }
+        return { ok: applyAction(db, id, 'move', target), op: 'move', moved_to: folder.name }
+      }
     },
     {
       name: 'archive_email',
@@ -501,6 +511,81 @@ export function buildTools(db: DB, opts?: { exportDir?: string }): ToolDef[] {
       }
     },
     {
+      name: 'list_rules',
+      description: 'List the filter rules currently set up (sender/subject → move/junk/archive/star/read/label). Read-only.',
+      inputSchema: {},
+      handler: () =>
+        listRules(db).map((r) => ({
+          id: r.id,
+          name: r.name,
+          enabled: r.enabled,
+          field: r.field,
+          op: r.op,
+          value: r.value,
+          action: r.action,
+          target_folder_id: r.targetFolderId,
+          target_label_id: r.targetLabelId
+        }))
+    },
+    {
+      name: 'create_rule',
+      description:
+        'Create a filter rule that acts on matching mail (e.g. from a sender → move to a folder). field: from|subject|to|body. op: contains|equals|startswith. action: move|junk|archive|star|read|label (move needs target_folder_id; label needs label_id — get ids from list_folders / list_labels). Set apply_now:true to also action existing matching mail in the inbox(es) now. Reversible: rules can be deleted and every action it takes (move/junk/archive) is itself reversible. Never sends or permanently deletes.',
+      inputSchema: {
+        name: z.string().optional(),
+        field: z.enum(['from', 'subject', 'to', 'body']),
+        op: z.enum(['contains', 'equals', 'startswith']).optional(),
+        value: z.string(),
+        action: z.enum(['move', 'junk', 'archive', 'star', 'read', 'label']),
+        target_folder_id: z.number().optional(),
+        label_id: z.number().optional(),
+        enabled: z.boolean().optional(),
+        apply_now: z.boolean().optional()
+      },
+      handler: (a) => {
+        const action = a.action as RuleAction
+        const value = String(a.value ?? '').trim()
+        if (!value) return { ok: false, error: 'value (the text to match) is required.' }
+        const targetFolderId = a.target_folder_id != null ? (a.target_folder_id as number) : null
+        const targetLabelId = a.label_id != null ? (a.label_id as number) : null
+        if (action === 'move') {
+          if (targetFolderId == null) return { ok: false, error: 'action "move" needs target_folder_id (from list_folders).' }
+          if (!listFolders(db).some((f) => f.id === targetFolderId)) return { ok: false, error: `No folder with id ${targetFolderId}. Call list_folders.` }
+        }
+        if (action === 'label') {
+          if (targetLabelId == null) return { ok: false, error: 'action "label" needs label_id (from list_labels).' }
+          if (!listLabels(db).some((l) => l.id === targetLabelId)) return { ok: false, error: `No label with id ${targetLabelId}. Call list_labels.` }
+        }
+        const ruleId = createRule(db, {
+          name: String(a.name ?? `${a.field} ${a.op ?? 'contains'} "${value}" → ${action}`),
+          enabled: a.enabled !== false,
+          field: a.field as RuleField,
+          op: (a.op as RuleOp) ?? 'contains',
+          value,
+          action,
+          targetFolderId,
+          targetLabelId
+        })
+        // Optionally sweep mail already sitting in the inbox(es).
+        let applied = 0
+        if (a.apply_now) {
+          for (const f of listFolders(db).filter((f) => f.role === 'inbox')) applied += applyRuleToFolder(db, ruleId, f.id)
+        }
+        return { ok: true, rule_id: ruleId, applied_to_existing: applied }
+      }
+    },
+    {
+      name: 'delete_rule',
+      description: 'Delete a filter rule by id (does not undo actions the rule already took). Reversible in the sense that the rule can simply be recreated.',
+      inputSchema: { rule_id: z.number() },
+      handler: (a) => {
+        const id = a.rule_id as number
+        if (!listRules(db).some((r) => r.id === id)) return { ok: false, error: `No rule with id ${id}.` }
+        deleteRule(db, id)
+        return { ok: true }
+      }
+    },
+    {
       name: 'get_unsubscribe_info',
       description: "Return a message's unsubscribe options from its List-Unsubscribe header (http link and/or mailto). Does NOT unsubscribe — surfaces the choice so the user can confirm.",
       inputSchema: { message_id: z.number() },
@@ -605,6 +690,32 @@ export function buildTools(db: DB, opts?: { exportDir?: string }): ToolDef[] {
           evidence_count: s.count,
           last_at: s.lastAt
         }))
+    },
+    {
+      name: 'list_contacts',
+      description: 'List the user\'s saved contacts (name + email + org) so you can address a draft by name without asking for the address. Read-only.',
+      inputSchema: { query: z.string().optional() },
+      handler: (a) => {
+        const q = String(a.query ?? '').trim().toLowerCase()
+        return listContactsDetail(db)
+          .filter((c) => !q || (c.name ?? '').toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q) || (c.org ?? '').toLowerCase().includes(q))
+          .map((c) => ({ id: c.id, name: c.name, email: c.email, org: c.org }))
+      }
+    },
+    {
+      name: 'create_task',
+      description: 'Add a to-do in DeskMail (e.g. turned from an email action point). Shows in the Today view. Optional due date (ISO) and the message it came from. Reversible — the user can tick it off or delete it. Never sends anything.',
+      inputSchema: { title: z.string(), due: z.string().nullable().optional(), from_message_id: z.number().optional() },
+      handler: (a) => {
+        const title = String(a.title ?? '').trim()
+        if (!title) return { ok: false, error: 'A task needs a title.' }
+        const due = (a.due as string | null | undefined) ?? null
+        if (due != null && Number.isNaN(Date.parse(due))) return { ok: false, error: 'due must be an ISO date or null.' }
+        const messageId = (a.from_message_id as number | undefined) ?? null
+        if (messageId != null && !getMessage(db, messageId)) return { ok: false, error: 'No such message for from_message_id.' }
+        const taskId = createTask(db, title, due, messageId)
+        return { ok: true, task_id: taskId }
+      }
     },
     {
       name: 'create_calendar_event',

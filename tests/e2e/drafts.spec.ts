@@ -35,15 +35,15 @@ test('a Claude-created draft is visible in the Drafts view and opens in Compose'
       })
     )
 
-    // Open the Drafts view from the sidebar.
+    // Open the Drafts view from the sidebar (inline, not a pop-up).
     await win.getByRole('button', { name: 'Drafts' }).click()
-    const modal = win.getByTestId('drafts-modal')
-    await expect(modal.getByText('Re: Radiator clip — commercial licence')).toBeVisible()
+    const view = win.getByTestId('drafts-view')
+    await expect(view.getByText('Re: Radiator clip — commercial licence')).toBeVisible()
 
     // Edit it → Compose opens prefilled in its own window.
     const [cmp] = await Promise.all([
       app.waitForEvent('window'),
-      modal.getByRole('button', { name: 'Edit' }).first().click()
+      view.getByRole('button', { name: 'Edit' }).first().click()
     ])
     await cmp.waitForLoadState()
     await expect(cmp.getByRole('textbox', { name: 'Subject', exact: true })).toHaveValue('Re: Radiator clip — commercial licence')

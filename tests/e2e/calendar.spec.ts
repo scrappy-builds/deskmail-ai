@@ -24,12 +24,11 @@ test('creating an event shows it in the month grid', async () => {
     await win.waitForTimeout(600)
 
     await win.getByRole('button', { name: 'Calendar' }).click()
-    await win.getByRole('button', { name: 'New event' }).first().click()
+    await win.getByRole('button', { name: 'New entry' }).first().click()
 
     await win.getByLabel('Title').fill('Filament reorder')
-    // Pick a provider that needs no link.
-    await win.getByRole('button', { name: 'In person' }).click()
-    await win.getByRole('button', { name: 'Save event' }).click()
+    // A plain (non-meeting) entry defaults to the "In person" provider — no link needed.
+    await win.getByRole('button', { name: 'Save entry' }).click()
 
     // It appears somewhere in the month grid.
     await expect(win.getByText('Filament reorder').first()).toBeVisible()

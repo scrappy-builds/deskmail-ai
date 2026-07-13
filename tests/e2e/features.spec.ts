@@ -28,9 +28,9 @@ test('templates: insert a canned reply into compose', async () => {
     ])
     await cmp.waitForLoadState()
     await cmp.getByRole('button', { name: 'Templates' }).click()
-    await cmp.getByRole('button', { name: 'Dispatch note' }).click()
-    await expect(cmp.getByRole('textbox', { name: 'Subject', exact: true })).toHaveValue('Your order is on its way')
-    await expect(cmp.locator('.ProseMirror')).toContainText('Royal Mail')
+    await cmp.getByRole('button', { name: 'Acknowledge receipt' }).click()
+    await expect(cmp.getByRole('textbox', { name: 'Subject', exact: true })).toHaveValue('Re: your email')
+    await expect(cmp.locator('.ProseMirror')).toContainText('received it')
   } finally {
     await app.close()
     safeRm(userData)
@@ -58,22 +58,7 @@ test('snooze: hides a message from the inbox list', async () => {
   }
 })
 
-test('today: agenda lists unread mail needing attention', async () => {
-  const userData = mkdtempSync(join(tmpdir(), 'deskmail-f8-'))
-  const app = await launch(userData)
-  try {
-    const win = await app.firstWindow()
-    await win.waitForTimeout(600)
-    await win.getByRole('button', { name: 'Today' }).click()
-    await expect(win.getByText('Needs your attention')).toBeVisible()
-    await expect(win.getByText('Q3 launch timeline — need your sign-off')).toBeVisible()
-  } finally {
-    await app.close()
-    safeRm(userData)
-  }
-})
-
-test('signatures: edit and save a per-account signature', async () => {
+test('signatures: add and save a per-account signature', async () => {
   const userData = mkdtempSync(join(tmpdir(), 'deskmail-f8-'))
   const app = await launch(userData)
   try {
@@ -82,13 +67,15 @@ test('signatures: edit and save a per-account signature', async () => {
     await win.getByText('File', { exact: true }).click()
     await win.getByText('Settings…').click()
     await win.getByRole('button', { name: 'Signatures' }).click()
-    await win.getByLabel('Signature body').fill('Cheers,\nAlex — Example Co')
-    await win.getByRole('button', { name: 'Save signature' }).click()
+    await win.getByRole('button', { name: 'Add signature' }).click()
+    await win.getByPlaceholder('Signature name (e.g. Work, Personal)').fill('Work')
+    await win.getByPlaceholder('Type your signature…').fill('Cheers,\nAlex — Example Co')
+    await win.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(win.getByText('Signature saved')).toBeVisible()
 
     // It's persisted for compose.
-    const sig = await win.evaluate(() => window.deskmail.compose.getSignature(1))
-    expect(sig?.body).toContain('Example Co')
+    const sigs = await win.evaluate(() => window.deskmail.compose.listSignatures(1))
+    expect(sigs.some((s) => s.body.includes('Example Co'))).toBe(true)
   } finally {
     await app.close()
     safeRm(userData)

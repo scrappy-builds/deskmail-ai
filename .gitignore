@@ -9,6 +9,13 @@ Thumbs.db
 playwright-report/
 test-results/
 coverage/
+.playwright-mcp/
+# generated PDF guides (regenerated from scripts/build-guides.mjs)
+guides/
 
 # build caches
 *.tsbuildinfo
+
+# local planning notes (not for the public repo)
+NEXT_SESSION_PROMPT.md
+OPEN_SOURCE_RELEASE_PLAN.md

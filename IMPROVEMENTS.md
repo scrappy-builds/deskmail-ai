@@ -29,16 +29,16 @@ what's below is the whole outstanding backlog.**
 
 What stands between DeskMail and being the only mail client I need open.
 
-- [ ] **Full mail sync — all folders, deeper history, incremental** — [big] → plan 1. Today sync
+- [x] **Full mail sync — all folders, deeper history, incremental** — [big] → plan 1. Today sync
   pulls **only INBOX, only the most recent 50 messages**, and re-fetches that same window every 2
   minutes. Sent, Archive and server-side folders appear in the sidebar but never fill; anything
   older than the last 50 is invisible; search, threading and the unified inbox can only see that
   slice. Sync every folder, track UIDs so each cycle fetches only what's new, configurable depth
   with "load older" back-fill. The single biggest gap in the app.
-- [ ] **Keyboard shortcuts** — [med] → plan 3. `j`/`k` navigate, `Enter` open, `e` archive,
+- [x] **Keyboard shortcuts** — [med] → plan 3. `j`/`k` navigate, `Enter` open, `e` archive,
   `#` delete, `r` reply, `c` compose, `/` focus search, `u` mark unread, `?` cheat-sheet. No global
   shortcuts exist today at all.
-- [ ] **Default mail app (mailto: handler)** — [easy] → plan 4. Clicking an email link anywhere in
+- [x] **Default mail app (mailto: handler)** — [easy] → plan 4. Clicking an email link anywhere in
   Windows opens DeskMail's Compose pre-filled. The difference between *a* mail app and *my* mail app.
 
 ---

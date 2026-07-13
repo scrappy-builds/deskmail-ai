@@ -340,16 +340,12 @@ function FolderTree({ folders, activeFolderId, showLabels, collapsed, onToggleCo
 
 export function Sidebar({
   showLabels,
-  onOpenDrafts,
-  onOpenOutbox,
   onOpenSmartBuilder
 }: {
   showLabels: boolean
-  onOpenDrafts?: () => void
-  onOpenOutbox?: () => void
   onOpenSmartBuilder?: () => void
 }): JSX.Element {
-  const { accounts, folders, labels, smartViews, activeFolderId, activeLabelId, activeSmartViewId, activeUnified, setFolder, setLabel, setSmartView, setUnified } = useMail()
+  const { accounts, folders, labels, smartViews, activeFolderId, activeLabelId, activeSmartViewId, activeUnified, special, setFolder, setLabel, setSmartView, setUnified, setSpecial } = useMail()
   const showToast = useToast((s) => s.show)
   const [draftCount, setDraftCount] = useState(0)
   const [outboxCount, setOutboxCount] = useState(0)
@@ -712,9 +708,9 @@ export function Sidebar({
       {showLabels && <div className="h-3" />}
       {/* Local drafts (incl. any Claude wrote via the connector) */}
       <button
-        onClick={onOpenDrafts}
+        onClick={() => setSpecial('drafts')}
         title="Drafts"
-        className="mb-px flex w-full items-center gap-3 rounded-md px-[9px] py-2 text-text-2 hover:bg-hover"
+        className={`mb-px flex w-full items-center gap-3 rounded-md px-[9px] py-2 hover:bg-hover ${special === 'drafts' ? 'bg-hover font-semibold text-text' : 'text-text-2'}`}
         style={{ justifyContent: showLabels ? 'flex-start' : 'center' }}
       >
         <Icon name="draft" size={18} className="flex-none" />
@@ -728,9 +724,9 @@ export function Sidebar({
 
       {/* Outbox: mail queued to send (undo-send window + scheduled sends) */}
       <button
-        onClick={onOpenOutbox}
+        onClick={() => setSpecial('outbox')}
         title="Outbox"
-        className="mb-px flex w-full items-center gap-3 rounded-md px-[9px] py-2 text-text-2 hover:bg-hover"
+        className={`mb-px flex w-full items-center gap-3 rounded-md px-[9px] py-2 hover:bg-hover ${special === 'outbox' ? 'bg-hover font-semibold text-text' : 'text-text-2'}`}
         style={{ justifyContent: showLabels ? 'flex-start' : 'center' }}
       >
         <Icon name="send" size={18} className="flex-none" />

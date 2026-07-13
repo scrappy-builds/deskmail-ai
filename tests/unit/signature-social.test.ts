@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildSocialRow, splitSocial, parseSocialRow } from '../../src/renderer/settings/socialIcons'
+import { buildSocialRow, splitSocial, parseSocialRow, upgradeLegacySocial } from '../../src/shared/socialIcons'
+import { inlineDataImages } from '../../src/shared/outboundImages'
 import { isExternalUrl, externalHref } from '../../src/renderer/mail/linkHandling'
 
 describe('signature social block', () => {
@@ -12,7 +13,7 @@ describe('signature social block', () => {
 
     const { main, social } = splitSocial(body)
     expect(main).toBe('<p>Thanks,<br>Alex</p>')
-    expect(social).toContain('data:image/svg+xml;base64,')
+    expect(social).toContain('data:image/png;base64,') // PNG, not SVG (delivers everywhere)
 
     const parsed = parseSocialRow(social)
     expect(parsed).toEqual(links)
@@ -22,6 +23,44 @@ describe('signature social block', () => {
     expect(buildSocialRow([{ id: 'tiktok', url: '  ' }])).toBe('')
     const { social } = splitSocial('<p>hi</p>')
     expect(social).toBe('')
+  })
+
+  it('upgrades a legacy SVG social block to the PNG block, preserving the links', () => {
+    const legacy =
+      '<p>Bye</p><!--deskmail-social-start--><div style="margin-top:10px">' +
+      '<a data-platform="twitter" href="https://x.com/example" target="_blank" style="x"><img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" width="20"></a>' +
+      '</div><!--deskmail-social-end-->'
+    const upgraded = upgradeLegacySocial(legacy)
+    expect(upgraded).not.toContain('image/svg')
+    expect(upgraded).toContain('data:image/png;base64,')
+    expect(parseSocialRow(upgraded)).toEqual([{ id: 'twitter', url: 'https://x.com/example' }])
+  })
+})
+
+describe('inlineDataImages', () => {
+  it('replaces a data-URI image with a cid ref and returns the attachment', () => {
+    const { html, attachments } = inlineDataImages('<img src="data:image/png;base64,QUJD" width="20">')
+    expect(attachments).toHaveLength(1)
+    expect(attachments[0].content).toBe('QUJD')
+    expect(attachments[0].contentType).toBe('image/png')
+    expect(html).toContain(`src="cid:${attachments[0].cid}"`)
+    expect(html).not.toContain('data:image')
+  })
+
+  it('leaves ordinary hosted images and text untouched', () => {
+    const src = '<p>hi</p><img src="https://example.com/a.png">'
+    const { html, attachments } = inlineDataImages(src)
+    expect(html).toBe(src)
+    expect(attachments).toHaveLength(0)
+  })
+
+  it('gives each embedded image its own cid', () => {
+    const { attachments } = inlineDataImages(
+      '<img src="data:image/png;base64,AA"><img src="data:image/jpeg;base64,BB">'
+    )
+    expect(attachments).toHaveLength(2)
+    expect(new Set(attachments.map((a) => a.cid)).size).toBe(2)
+    expect(attachments[1].contentType).toBe('image/jpeg')
   })
 })
 
