@@ -23,11 +23,13 @@ choose — your own Claude.
 - **Reading & organising**: folders, labels, pin/mute, snooze, follow-ups, rules,
   a learning junk filter, smart views, and an optional focused inbox.
 - **Composing**: rich text, attachments, multiple signatures, templates, drafts,
-  scheduled send, and undo-send.
+  scheduled send, undo-send, and an address book to pick recipients from your contacts.
 - **Calendar & contacts**, search, an attachments browser, backup/restore.
 - A **local Claude (MCP) connector** that can read, search, draft, and organise your
-  mail — but **can never send, permanently delete, or read your password**. It can
-  even **set up a mail account for you** (see below).
+  mail — move, label, archive, snooze and flag messages, set up filter rules, add
+  tasks and calendar events, and look up your contacts — but **can never send,
+  permanently delete, or read your password**. It can even **set up a mail account
+  for you** (see below).
 
 A full list is in **[FEATURES.md](FEATURES.md)**. What's been tested and the known
 limitations are in **[TESTING_AND_LIMITATIONS.md](TESTING_AND_LIMITATIONS.md)**.
@@ -75,6 +77,16 @@ and even set up accounts. It runs through a **local server on your PC** and is
 deliberately **read-and-draft only**: it can **never send mail, permanently delete
 anything, read your password, change settings, or touch files outside DeskMail**. Any
 draft it writes waits in your Drafts for you to review and send.
+
+**Through the connector, Claude can:**
+
+- Read, search and summarise your mail, and draft replies (drafts only — you send them).
+- Organise: move, label, archive, flag, snooze, set follow-ups, and delete to Bin (all reversible).
+- Set up **filter rules** (e.g. "always move newsletters to this folder") and apply them to mail you already have.
+- Turn emails into **tasks** or **calendar events**, and look up your **contacts**.
+- Set up a new mail account for you — it fills in the form; you type the password.
+
+It can **never** send mail, permanently delete anything, read your password, or change your account settings.
 
 > **New to this?** DeskMail has a built-in, plain-English walkthrough — open
 > **Settings → Claude connector** and click **"✨ New to Claude? Show me the simple,
