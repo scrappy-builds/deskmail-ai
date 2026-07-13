@@ -40,13 +40,15 @@ connection to your own mail server and (optionally) your own Claude.
 - **Focused inbox** — learns to split important mail from the rest (off until trained).
 - **Rules** — auto-move, label, or junk incoming mail by sender/subject/etc.
 - **Junk filter** — a local Bayesian spam filter that learns from what you mark.
-- **Reading pane** with safe HTML rendering, remote-image blocking, and sender
-  signal banners (first contact / look-alike / reply-to mismatch).
+- **Reading pane** with safe HTML rendering and sender signal banners (first
+  contact / look-alike / reply-to mismatch). Remote images load automatically in
+  your mail and are blocked only in Junk, with a one-click "load images".
 - **Print a message to PDF**, save as `.eml`/`.html`, open the raw source.
 
 ## Composing & sending
 
-- **Rich text composer** with attachments.
+- **Rich text composer** with attachments, and an **address book** to add
+  recipients straight from your contacts (To / Cc / Bcc).
 - **Multiple signatures** per account (rich HTML), auto-appended if you choose.
 - **Templates** for canned replies.
 - **Drafts** saved locally.
@@ -55,9 +57,10 @@ connection to your own mail server and (optionally) your own Claude.
 
 ## Calendar & meetings
 
-- **Local calendar** with events.
+- **Local calendar** with events, recurring events, and per-event reminders.
 - **Meeting invites** — accept/decline `.ics` invitations from mail; send invites.
-- **"Today" agenda** — today's events plus mail that needs attention.
+- **Daily digest via Claude** — ask the connector for today's events, unread
+  highlights, tasks and follow-ups due (see the connector section).
 
 ## Contacts
 
@@ -92,14 +95,19 @@ connection to your own mail server and (optionally) your own Claude.
 
 DeskMail ships a **local MCP server** that Claude Desktop (or Claude Code) can
 connect to. It is deliberately **read-and-draft only** — it can read, search,
-draft, organise, and set up accounts, but it **cannot send mail, permanently
-delete, or read your password**. Tools include:
+draft, organise, manage filter rules, add tasks and events, and set up accounts,
+but it **cannot send mail, permanently delete, or read your password**. Tools include:
 
 - Read & search mail, list accounts/folders, inbox overview, triage priority.
 - Draft replies (never sends — you review and send yourself).
-- Organise: move/archive/flag/mark-read/label/snooze/follow-up (all reversible).
-- Suggest rules, extract dates & deadlines, summarise threads, daily digest.
-- Export a message for NotebookLM.
+- Organise: move/archive/flag/mark-read/label/snooze/follow-up (all reversible);
+  a move to a wrong folder returns a clear error instead of failing silently.
+- **Filter rules**: create, list and delete rules, and apply a new rule to the
+  mail you already have.
+- **Tasks & contacts**: turn an email into a task, and look up your saved contacts.
+- Suggest rules, extract dates & deadlines, summarise threads, daily digest,
+  sent-mail context, unsubscribe info.
+- Export a message for NotebookLM; create a calendar event.
 - **Account setup**: suggest mail settings, stage an account for you to finish,
   and confirm it connected — without ever handling your password.
 
