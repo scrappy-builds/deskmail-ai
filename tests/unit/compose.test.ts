@@ -6,7 +6,7 @@ import { openDatabase, type DB } from '../../src/db/database'
 import { getDraft, listDrafts, saveDraft } from '../../src/db/drafts'
 import { ensureDefaultSignature, getDefaultSignature } from '../../src/db/signatures'
 import { buildMail } from '../../src/main/mail/send'
-import { QUOTE_MARKER, type ComposePayload } from '../../src/shared/db'
+import type { ComposePayload } from '../../src/shared/db'
 
 const PAYLOAD: ComposePayload = {
   accountId: 1,
@@ -42,20 +42,32 @@ describe('buildMail', () => {
     expect(plain.html).toContain('a &lt; b')
   })
 
-  it('on a reply, puts the signature under the new text and above the quote', () => {
-    const reply: ComposePayload = { ...PAYLOAD, bodyHtml: `<p>My reply</p>${QUOTE_MARKER}<blockquote>the original</blockquote>` }
+  // These use realistic *post-editor* HTML: TipTap drops any HTML comment but keeps
+  // the <hr> separator and <blockquote>, so the signature is placed just above that
+  // boundary — not via a marker (which wouldn't survive the editor).
+  it('on a reply, puts the signature under the new text and above the separator/quote', () => {
+    const reply: ComposePayload = { ...PAYLOAD, bodyHtml: '<p>My reply</p><hr><p>On … wrote:</p><blockquote><p>the original</p></blockquote>' }
     const mail = buildMail({ payload: reply, fromName: 'Alex', fromEmail: 'j@x', signature: 'Thanks,\nAlex' })
     const html = mail.html as string
-    expect(html).not.toContain(QUOTE_MARKER) // marker consumed
-    // order: reply text → signature → quoted original
+    // order: reply text → signature → <hr> → quoted original
     expect(html.indexOf('My reply')).toBeLessThan(html.indexOf('Thanks,<br>Alex'))
+    expect(html.indexOf('Thanks,<br>Alex')).toBeLessThan(html.indexOf('<hr'))
     expect(html.indexOf('Thanks,<br>Alex')).toBeLessThan(html.indexOf('the original'))
   })
 
-  it('drops a leftover marker even with no signature', () => {
-    const reply: ComposePayload = { ...PAYLOAD, bodyHtml: `<p>Hi</p>${QUOTE_MARKER}<blockquote>orig</blockquote>` }
-    const mail = buildMail({ payload: reply, fromName: 'Alex', fromEmail: 'j@x', signature: null })
-    expect(mail.html).not.toContain(QUOTE_MARKER)
+  it('on a forward, the signature sits above the separator and forwarded header', () => {
+    const fwd: ComposePayload = { ...PAYLOAD, bodyHtml: '<p>FYI</p><hr><p>Forwarded message</p><blockquote><p>orig</p></blockquote>' }
+    const mail = buildMail({ payload: fwd, fromName: 'Alex', fromEmail: 'j@x', signature: 'Thanks,\nAlex' })
+    const html = mail.html as string
+    expect(html.indexOf('FYI')).toBeLessThan(html.indexOf('Thanks,<br>Alex'))
+    expect(html.indexOf('Thanks,<br>Alex')).toBeLessThan(html.indexOf('<hr'))
+    expect(html.indexOf('Thanks,<br>Alex')).toBeLessThan(html.indexOf('Forwarded message'))
+  })
+
+  it('new mail (no quote) appends the signature at the end', () => {
+    const mail = buildMail({ payload: PAYLOAD, fromName: 'Alex', fromEmail: 'j@x', signature: 'Thanks,\nAlex' })
+    const html = mail.html as string
+    expect(html.indexOf('parts are ready')).toBeLessThan(html.indexOf('Thanks,<br>Alex'))
   })
 })
 

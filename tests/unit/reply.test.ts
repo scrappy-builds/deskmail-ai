@@ -21,17 +21,31 @@ describe('reply/forward draft builder', () => {
     expect(d.inReplyToMessageId).toBe(7)
   })
 
+  it('reply → solid <hr> separator + "wrote:" attribution above the quote', () => {
+    const d = buildReplyDraft(msg, 'reply', 'alex@example.com').bodyHtml!
+    expect(d).toContain('<hr>')
+    expect(d).toContain('Maya wrote:')
+    // order: empty text paragraph → <hr> → attribution → <blockquote>
+    expect(d.indexOf('<hr>')).toBeLessThan(d.indexOf('Maya wrote:'))
+    expect(d.indexOf('Maya wrote:')).toBeLessThan(d.indexOf('<blockquote'))
+  })
+
   it('reply-all → everyone except me and the sender, deduped', () => {
     const d = buildReplyDraft(msg, 'replyAll', 'alex@example.com')
     expect(d.to).toEqual(['maya@x.com'])
     expect(d.cc).toEqual(['alex@x.com', 'sam@x.com']) // alex (self) + maya (already to) excluded
   })
 
-  it('forward → no recipients, Fwd: prefix, forwarded header', () => {
-    const d = buildReplyDraft(msg, 'forward')
-    expect(d.to).toEqual([])
-    expect(d.subject).toBe('Fwd: Launch plan')
-    expect(d.bodyHtml).toContain('Forwarded message')
+  it('forward → no recipients, Fwd: prefix, solid line then forwarded header above the quote', () => {
+    const draft = buildReplyDraft(msg, 'forward')
+    expect(draft.to).toEqual([])
+    expect(draft.subject).toBe('Fwd: Launch plan')
+    const d = draft.bodyHtml!
+    expect(d).toContain('Forwarded message')
+    expect(d).not.toContain('----------') // no more dashes; the <hr> is the divider
+    // order: <hr> → forwarded header → <blockquote> quoted original
+    expect(d.indexOf('<hr>')).toBeLessThan(d.indexOf('Forwarded message'))
+    expect(d.indexOf('Forwarded message')).toBeLessThan(d.indexOf('<blockquote'))
   })
 
   it('mentionsAttachment flags forgotten attachments', () => {

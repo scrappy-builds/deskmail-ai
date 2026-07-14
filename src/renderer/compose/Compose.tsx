@@ -132,6 +132,11 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
     [draft, accountId, to, cc, bcc, subject, editor, attachments, signatureId, importance]
   )
 
+  // The memo above captures bodyHtml once (its `editor` dep is a stable reference,
+  // so typing never recomputes it) — sending `payload` as-is would drop everything
+  // the user typed. Always read the editor fresh at save/send time.
+  const currentPayload = (): ComposePayload => ({ ...payload, bodyHtml: editor?.getHTML() ?? '' })
+
   const canSend = accountId != null && payload.to.length > 0 && !busy
 
   const attach = async (): Promise<void> => {
@@ -149,7 +154,7 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
     if (accountId == null) return
     setBusy(true)
     try {
-      await window.deskmail.compose.saveDraft(payload)
+      await window.deskmail.compose.saveDraft(currentPayload())
       showToast({ text: 'Draft saved' })
       // Keep the window open after saving — the draft is in Drafts and the user
       // may want to carry on editing (matches a normal mail client).
@@ -170,13 +175,14 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
     }
     setAttachReminder(false)
     setBusy(true)
+    const outgoing = currentPayload()
     if (laterAt) {
-      await window.deskmail.compose.scheduleSend(payload, new Date(laterAt).toISOString())
+      await window.deskmail.compose.scheduleSend(outgoing, new Date(laterAt).toISOString())
       showToast({ text: `Scheduled for ${new Date(laterAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}` })
       setTimeout(() => w.close(), 1200)
       return
     }
-    const res = await window.deskmail.compose.sendWithUndo(payload)
+    const res = await window.deskmail.compose.sendWithUndo(outgoing)
     if (res.id == null) {
       // Undo window set to 0 — the message went straight out.
       showToast({ text: res.ok ? 'Message sent' : `Couldn't send: ${res.error ?? 'unknown error'}` })

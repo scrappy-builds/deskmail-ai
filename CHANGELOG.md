@@ -2,6 +2,13 @@
 
 A short record of what's changed in each released version of DeskMail AI, newest first.
 
+## 0.2.2 — 2026-07-14
+
+- Fixed a serious bug where the message you typed could be dropped when sending or saving. Replies were hit hardest — they could send with your text missing entirely. Your message now always sends exactly what's in the editor.
+- Replies now show an "On <date>, <name> wrote:" line above the quoted message, so it's clear who and what you're replying to.
+- Clear solid line between your message and the quoted thread, on both replies and forwards (replacing the old row of dashes on forwards).
+- Your signature now sits directly under your message and above the quoted thread on replies and forwards, rather than at the very bottom of the whole chain.
+
 ## 0.2.1 — 2026-07-14
 
 - When you reply or forward, your signature now sits directly under your message instead of below the whole quoted conversation.

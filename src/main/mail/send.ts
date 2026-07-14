@@ -1,6 +1,6 @@
 import nodemailer, { type SendMailOptions } from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer'
-import { QUOTE_MARKER, type AccountRow, type ComposePayload, type SendResult } from '@shared/db'
+import type { AccountRow, ComposePayload, SendResult } from '@shared/db'
 import type { DB } from '../../db/database'
 import { getCredential } from '../credentials'
 import { getDefaultSignature, getSignatureBody } from '../../db/signatures'
@@ -15,6 +15,16 @@ function escapeHtml(s: string): string {
 // newlines — render either faithfully.
 function signatureToHtml(body: string): string {
   return /<[a-z][\s\S]*>/i.test(body) ? body : escapeHtml(body).replace(/\n/g, '<br>')
+}
+
+// Earliest position of any of the given substrings in s, or -1 if none present.
+function firstIndex(s: string, needles: string[]): number {
+  let best = -1
+  for (const n of needles) {
+    const i = s.indexOf(n)
+    if (i >= 0 && (best < 0 || i < best)) best = i
+  }
+  return best
 }
 
 export interface BuildMailOpts {
@@ -32,12 +42,16 @@ export function buildMail(o: BuildMailOpts): SendMailOptions {
   // most clients); upgrade to the PNG block before sending so old signatures work.
   const sig = o.signature ? upgradeLegacySocial(o.signature) : null
   const sigHtml = sig ? `<br><br>--<br>${signatureToHtml(sig)}` : ''
-  // On a reply/forward the draft carries QUOTE_MARKER between the new text and the
-  // quoted chain — drop the signature there so it sits under the reply, not the
-  // whole quote. New mail has no marker, so it lands at the end of the body.
-  const body = o.payload.bodyHtml.includes(QUOTE_MARKER)
-    ? o.payload.bodyHtml.replace(QUOTE_MARKER, sigHtml)
-    : `${o.payload.bodyHtml}${sigHtml}`
+  // On a reply/forward the quoted thread is preceded by an <hr> separator (and is a
+  // <blockquote>), so drop the signature just above that boundary — it sits under
+  // the new message, not the whole quote. New mail has neither, so the signature
+  // lands at the end. Both <hr> and <blockquote> survive the TipTap compose editor
+  // (HTML comments don't, which is why a marker can't be used).
+  // ponytail: anchors on the first <hr>/<blockquote>; if the user's own new text
+  // contains one before the quote, the signature lands above that. Rare; live with it.
+  const q = sigHtml ? firstIndex(o.payload.bodyHtml, ['<hr', '<blockquote']) : -1
+  const body =
+    q >= 0 ? o.payload.bodyHtml.slice(0, q) + sigHtml + o.payload.bodyHtml.slice(q) : `${o.payload.bodyHtml}${sigHtml}`
   // Convert every embedded data-URI image (signature icons + inline pastes) into a
   // cid: inline attachment so it renders in the recipient's client.
   const { html, attachments: inlineImgs } = inlineDataImages(body)

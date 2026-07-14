@@ -356,11 +356,6 @@ export interface ComposeAttachment {
 }
 
 // Compose payload used for saving a draft and for sending.
-// Marker a reply/forward draft drops between the user's new text and the quoted
-// original, so buildMail can slot the signature above the quote rather than below
-// the whole chain. Stripped at send time; harmless if it survives into an editor.
-export const QUOTE_MARKER = '<!--deskmail-quote-->'
-
 export interface ComposePayload {
   draftId?: number | null
   accountId: number
