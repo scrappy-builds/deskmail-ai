@@ -36,6 +36,24 @@ export function upsertFolder(
       return byRole.id
     }
   }
+  // Same idea for a custom (roleless) folder created or moved locally: it stores a
+  // bare remote_path (its leaf name, e.g. 'True Zero'), which won't match the
+  // prefixed path a Dovecot/cPanel server reports for a subfolder ('INBOX.True
+  // Zero'). Without this, sync would insert a second, top-level row — the nested
+  // folder appears to "escape" the Inbox as a duplicate. Adopt the local folder by
+  // leaf name and point it at the real server path instead. Guarded to bare-path
+  // rows (remote_path = name) so two genuinely distinct server folders that share a
+  // leaf name aren't collapsed into one.
+  if (!role) {
+    const byName = db.get(
+      'SELECT id FROM folders WHERE account_id = ? AND role IS NULL AND remote_path = name AND LOWER(name) = LOWER(?)',
+      [accountId, name]
+    ) as { id: number } | undefined
+    if (byName) {
+      db.run('UPDATE folders SET remote_path = ? WHERE id = ?', [remotePath, byName.id])
+      return byName.id
+    }
+  }
   db.run(
     'INSERT INTO folders (account_id, name, role, remote_path) VALUES (?, ?, ?, ?)',
     [accountId, name, role, remotePath]

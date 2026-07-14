@@ -135,6 +135,47 @@ test('address book: pick a contact straight into the To field', async () => {
   }
 })
 
+// Regression: a long quoted reply/forward must not overlap the signature block.
+// The editor lives in a flex-col scroll container; without shrink-0 it collapses
+// below its content height and the quote paints over the signature (and anything
+// else below it). Assert the signature label sits fully below the editor's box.
+test('reply: a long quote does not overlap the signature block', async () => {
+  const userData = mkdtempSync(join(tmpdir(), 'deskmail-cmp-'))
+  const app = await launch(userData)
+  try {
+    const win = await app.firstWindow()
+    await win.waitForTimeout(700)
+
+    // Save a draft with a long quoted body (the reply/forward shape) and open it.
+    const draftId = await win.evaluate(async () => {
+      const accountId = (await window.deskmail.listAccounts())[0].id
+      let quote = ''
+      for (let i = 0; i < 60; i++) quote += `<p>Quoted line ${i + 1}: lorem ipsum dolor sit amet.</p>`
+      const bodyHtml = `<p></p><hr><p>On 7 July 2026, Alex wrote:</p><blockquote>${quote}</blockquote>`
+      const { id } = await window.deskmail.compose.saveDraft({
+        draftId: null, accountId, to: ['x@example.com'], cc: [], bcc: [],
+        subject: 'Re: long', bodyHtml, attachments: [], signatureId: null, importance: 'normal'
+      })
+      return id
+    })
+    const [cmp] = await Promise.all([app.waitForEvent('window'), win.evaluate((id) => window.deskmail.openCompose(id), draftId)])
+    await cmp.waitForLoadState()
+    await cmp.waitForTimeout(400)
+
+    const geom = await cmp.evaluate(() => {
+      const editor = document.querySelector('.ProseMirror')
+      const sig = [...document.querySelectorAll('span')].find((e) => e.textContent?.trim() === 'Signature')
+      return { editorBottom: editor?.getBoundingClientRect().bottom ?? 0, sigTop: sig?.getBoundingClientRect().top ?? 0, hasSig: !!sig }
+    })
+    expect(geom.hasSig).toBe(true)
+    // Signature starts at or below the editor's bottom — no overlap.
+    expect(geom.sigTop).toBeGreaterThanOrEqual(geom.editorBottom - 1)
+  } finally {
+    await app.close()
+    safeRm(userData)
+  }
+})
+
 // Regression for the reply that "vanished as ···": the typed reply must land ABOVE
 // the separator/quote, not inside the <blockquote> (which the Sent view collapses).
 // Driven through the real app + real TipTap editor — the layer unit tests can't see.

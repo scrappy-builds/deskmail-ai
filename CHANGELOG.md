@@ -2,6 +2,11 @@
 
 A short record of what's changed in each released version of DeskMail AI, newest first.
 
+## 0.2.3 — 2026-07-14
+
+- Fixed a bug where a folder kept inside your Inbox could show up a second time as a stray copy outside the Inbox after reinstalling or updating. New syncs no longer create the duplicate, and any copy that already escaped is tidied back into the original folder automatically.
+- Fixed the compose window so a long quoted email — when you reply to or forward a lengthy message — no longer overlaps or hides the signature area. The message area now takes its full height and the window scrolls, keeping everything in its own space.
+
 ## 0.2.2 — 2026-07-14
 
 - Fixed a serious bug where the message you typed could be dropped when sending or saving. Replies were hit hardest — they could send with your text missing entirely. Your message now always sends exactly what's in the editor.

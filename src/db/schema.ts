@@ -386,5 +386,35 @@ export const MIGRATIONS: string[] = [
   // reminder_snooze_until (when set) overrides the offset and re-arms the reminder.
   // Both are local wall-clock 'YYYY-MM-DDTHH:MM' stamps, matching date/start.
   `ALTER TABLE events ADD COLUMN reminder_fired_at TEXT;
-   ALTER TABLE events ADD COLUMN reminder_snooze_until TEXT;`
+   ALTER TABLE events ADD COLUMN reminder_snooze_until TEXT;`,
+
+  // --- v32: repair custom subfolders that "escaped" the Inbox ---------------------
+  // On a prefixed-namespace server (Dovecot/cPanel), a custom folder kept nested
+  // under the Inbox stores a bare remote_path ('True Zero') that never matched the
+  // server's prefixed path ('INBOX.True Zero'), so sync inserted a duplicate
+  // top-level row. upsertFolder now adopts the nested row instead; this cleans up
+  // the duplicates already created: move the escaped copy's messages back into the
+  // nested folder, adopt the real server path, then drop the duplicate. Pairs a
+  // nested folder (parent_id set) with a same-name top-level folder per account.
+  `UPDATE messages SET folder_id = (
+     SELECT n.id FROM folders n
+     WHERE n.role IS NULL AND n.parent_id IS NOT NULL
+       AND n.account_id = (SELECT account_id FROM folders WHERE id = messages.folder_id)
+       AND LOWER(n.name) = LOWER((SELECT name FROM folders WHERE id = messages.folder_id))
+     LIMIT 1)
+   WHERE folder_id IN (
+     SELECT e.id FROM folders e
+     WHERE e.role IS NULL AND e.parent_id IS NULL
+       AND EXISTS (SELECT 1 FROM folders n WHERE n.role IS NULL AND n.parent_id IS NOT NULL
+                   AND n.account_id = e.account_id AND LOWER(n.name) = LOWER(e.name)));
+   UPDATE folders SET remote_path = (
+     SELECT e.remote_path FROM folders e
+     WHERE e.role IS NULL AND e.parent_id IS NULL
+       AND e.account_id = folders.account_id AND LOWER(e.name) = LOWER(folders.name) LIMIT 1)
+   WHERE role IS NULL AND parent_id IS NOT NULL
+     AND EXISTS (SELECT 1 FROM folders e WHERE e.role IS NULL AND e.parent_id IS NULL
+                 AND e.account_id = folders.account_id AND LOWER(e.name) = LOWER(folders.name));
+   DELETE FROM folders WHERE role IS NULL AND parent_id IS NULL
+     AND EXISTS (SELECT 1 FROM folders n WHERE n.role IS NULL AND n.parent_id IS NOT NULL
+                 AND n.account_id = folders.account_id AND LOWER(n.name) = LOWER(folders.name));`
 ]

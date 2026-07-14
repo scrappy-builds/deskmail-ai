@@ -303,10 +303,13 @@ export function Compose({ draft }: { draft?: DraftSummary }): JSX.Element {
             </select>
           </div>
 
-          {/* No flex-1 here: the editor grows with its content and the parent
-              scrolls, instead of being height-capped (which made long bodies
-              overflow their box and paint over the signature below). */}
-          <EditorContent editor={editor} className="min-h-[130px] px-4 py-3 text-[14px] leading-[1.6]" />
+          {/* shrink-0 is essential: this lives in a flex-col scroll container, so
+              the editor's default flex-shrink:1 lets it collapse below its content
+              height once a long quote makes the column overflow — the quoted text
+              then spills out of its box and paints over the signature block below.
+              Pinning shrink to 0 makes it take its full content height and the
+              parent scrolls instead. (No flex-1 either — that would height-cap it.) */}
+          <EditorContent editor={editor} className="min-h-[130px] shrink-0 px-4 py-3 text-[14px] leading-[1.6]" />
 
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 border-t border-border px-4 py-2.5">

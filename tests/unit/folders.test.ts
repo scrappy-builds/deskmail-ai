@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { openDatabase, type DB } from '../../src/db/database'
-import { createFolder, ensureStandardFolders, findFolderByRole, listFolders, moveFolder, upsertFolder } from '../../src/db/folders'
+import { createFolder, ensureStandardFolders, findFolderByRole, getFolder, listFolders, moveFolder, upsertFolder } from '../../src/db/folders'
 
 // Insert the bare minimum account so folders (account_id NOT NULL) can be created.
 function seedAccount(db: DB): number {
@@ -61,5 +61,29 @@ describe('folders: subfolders inside the Inbox', () => {
     const sentRows = listFolders(db, accountId).filter((f) => f.role === 'sent')
     expect(sentRows).toHaveLength(1)
     expect(findFolderByRole(db, accountId, 'sent')!.remote_path).toBe('INBOX.Sent')
+  })
+
+  // A custom folder nested under the Inbox stores a bare remote_path ('Receipts').
+  // When a prefixed-namespace server later reports it as 'INBOX.Receipts', sync
+  // must adopt the nested row (keeping it under the Inbox), not spawn a duplicate
+  // top-level folder.
+  it('adopts a nested custom folder instead of duplicating it to top level', () => {
+    const nested = createFolder(db, accountId, 'Receipts', inboxId)
+    const synced = upsertFolder(db, accountId, 'Receipts', null, 'INBOX.Receipts')
+    expect(synced).toBe(nested) // same row, not a duplicate
+    const receipts = listFolders(db, accountId).filter((f) => f.name.toLowerCase() === 'receipts')
+    expect(receipts).toHaveLength(1)
+    expect(receipts[0].parentId).toBe(inboxId) // stayed nested under the Inbox
+    expect(getFolder(db, nested)!.remote_path).toBe('INBOX.Receipts') // adopted the server path
+  })
+
+  // Two genuinely distinct server folders that happen to share a leaf name (under
+  // different server paths) must stay separate — the bare-path guard prevents the
+  // adoption from collapsing them.
+  it('does not collapse two distinct server folders with the same leaf name', () => {
+    const a = upsertFolder(db, accountId, 'Notes', null, 'INBOX.Work.Notes')
+    const b = upsertFolder(db, accountId, 'Notes', null, 'INBOX.Home.Notes')
+    expect(b).not.toBe(a)
+    expect(listFolders(db, accountId).filter((f) => f.name === 'Notes')).toHaveLength(2)
   })
 })
