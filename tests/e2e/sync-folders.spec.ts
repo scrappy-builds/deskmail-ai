@@ -41,3 +41,24 @@ test('mail in non-INBOX folders appears when you open them', async () => {
     safeRm(userData)
   }
 })
+
+// Sent items must show who the mail went TO (the recipient), not the sender —
+// which in Sent is always the account owner. Regression for the list always
+// rendering the sender.
+test('Sent list shows the recipient, not the sender', async () => {
+  const userData = mkdtempSync(join(tmpdir(), 'deskmail-syncf-'))
+  const app = await launch(userData)
+  try {
+    const win = await app.firstWindow()
+    await win.waitForTimeout(700)
+
+    await win.getByTestId('folder-sent').click()
+    // The demo Sent message went to priya@makerspace.uk from alex@example.com.
+    const row = win.locator('[data-testid^="msg-row-"]').first()
+    await expect(row).toContainText('priya@makerspace.uk')
+    await expect(row).not.toContainText('alex@example.com')
+  } finally {
+    await app.close()
+    safeRm(userData)
+  }
+})

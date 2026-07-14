@@ -156,6 +156,7 @@ export interface MessageListItem {
   folderId: number | null
   fromName: string | null
   fromEmail: string | null
+  to: string[] // recipient addresses — shown instead of the sender in Sent/outgoing folders
   subject: string | null
   snippet: string | null
   receivedAt: string | null

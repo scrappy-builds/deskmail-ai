@@ -125,6 +125,7 @@ interface MessageRow {
   folder_id: number | null
   from_name: string | null
   from_email: string | null
+  to_json: string | null
   subject: string | null
   snippet: string | null
   received_at: string | null
@@ -145,6 +146,7 @@ function toListItem(r: MessageRow): MessageListItem {
     folderId: r.folder_id,
     fromName: r.from_name,
     fromEmail: r.from_email,
+    to: parseJsonArray(r.to_json),
     subject: r.subject,
     snippet: r.snippet,
     receivedAt: r.received_at,

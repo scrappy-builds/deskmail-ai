@@ -101,6 +101,7 @@ interface MsgRow {
   folder_id: number | null
   from_name: string | null
   from_email: string | null
+  to_json: string | null
   subject: string | null
   snippet: string | null
   received_at: string | null
@@ -140,6 +141,7 @@ export function getTodayAgenda(db: DB, todayIso: string, opts: TodayOpts = {}): 
     folderId: r.folder_id,
     fromName: r.from_name,
     fromEmail: r.from_email,
+    to: r.to_json ? (JSON.parse(r.to_json) as string[]) : [],
     subject: r.subject,
     snippet: r.snippet,
     receivedAt: r.received_at,

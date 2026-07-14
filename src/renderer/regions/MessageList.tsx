@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '../Icon'
 import type { MessageListItem } from '@shared/db'
 import { fmtTime, initials, messageDateGroup } from '../mail/format'
@@ -20,6 +20,19 @@ interface MessageListProps {
 
 const AVATAR = { bg: 'color-mix(in srgb, var(--accent) 18%, transparent)', fg: 'var(--accent)' }
 
+// In an outgoing folder (Sent) the useful name is who it went TO, not the sender
+// (always yourself). Show the recipient(s); "+N" when there are several. Falls back
+// to the sender everywhere else. Decided per message so it's also right in mixed
+// views (search, labels, unified) where Sent mail sits alongside received mail.
+function personDisplay(m: MessageListItem, outgoing: boolean): string {
+  if (outgoing) {
+    const to = m.to ?? []
+    if (to.length === 0) return '(no recipient)'
+    return to.length === 1 ? to[0] : `${to[0]} +${to.length - 1}`
+  }
+  return m.fromName || m.fromEmail || 'Unknown sender'
+}
+
 function Row({
   m,
   selected,
@@ -36,7 +49,8 @@ function Row({
   threadCount,
   threadExpanded,
   onToggleThread,
-  indent
+  indent,
+  outgoing
 }: {
   m: MessageListItem
   selected: boolean
@@ -54,9 +68,10 @@ function Row({
   threadExpanded?: boolean
   onToggleThread?: () => void
   indent?: boolean
+  outgoing?: boolean
 }): JSX.Element {
   const weight = m.isRead ? 500 : 700
-  const name = m.fromName || m.fromEmail || 'Unknown sender'
+  const name = personDisplay(m, !!outgoing)
   return (
     <div
       data-testid={`msg-row-${m.id}`}
@@ -91,7 +106,7 @@ function Row({
           className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-[13px] font-bold"
           style={{ background: AVATAR.bg, color: AVATAR.fg }}
         >
-          {initials(m.fromName || m.fromEmail)}
+          {initials(outgoing ? (m.to?.[0] ?? null) : m.fromName || m.fromEmail)}
         </div>
       )}
       <div className="min-w-0 flex-1">
@@ -155,6 +170,11 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
   useEffect(() => {
     void window.deskmail.mail.focusedEnabled().then(setFocusedEnabled)
   }, [])
+  // Which folder each message lives in is a role, so a message in Sent shows its
+  // recipient rather than the (always-you) sender — decided per message so mixed
+  // views stay correct too.
+  const roleByFolder = useMemo(() => new Map(folders.map((f) => [f.id, f.role])), [folders])
+  const isOutgoing = (m: MessageListItem): boolean => m.folderId != null && roleByFolder.get(m.folderId) === 'sent'
   const inInbox = activeUnified || folders.find((f) => f.id === activeFolderId)?.role === 'inbox'
   const focusTabsOn = focusedEnabled && inInbox && !searching
   const threading = useMail((s) => s.threading)
@@ -384,7 +404,7 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
                   <td className="pl-3 pr-1">
                     <input type="checkbox" checked={selectedIds.has(m.id)} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelected(m.id)} className="h-3.5 w-3.5 accent-[var(--accent)]" />
                   </td>
-                  <td className="max-w-0 truncate px-2 py-1.5" style={{ fontWeight: m.isRead ? 400 : 700 }}>{m.fromName || m.fromEmail || 'Unknown sender'}</td>
+                  <td className="max-w-0 truncate px-2 py-1.5" style={{ fontWeight: m.isRead ? 400 : 700 }}>{personDisplay(m, isOutgoing(m))}</td>
                   <td className="max-w-0 truncate px-2 py-1.5" style={{ fontWeight: m.isRead ? 400 : 700 }}>
                     {m.importance === 'high' && <span className="mr-1 font-extrabold text-danger">!</span>}
                     {m.isStarred && <Icon name="star" size={12} className="mr-1 inline text-star" fill />}
@@ -447,6 +467,7 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
                       clamp={Math.max(1, previewLineCount)}
                       showSnippet={showSnippet}
                       showAvatars={showAvatars}
+                      outgoing={isOutgoing(e.m)}
                       {...e.extra}
                     />
                   )

@@ -2,6 +2,10 @@
 
 A short record of what's changed in each released version of DeskMail AI, newest first.
 
+## 0.2.4 — 2026-07-14
+
+- Sent items now show who you sent the message to, instead of always showing your own address. The recipient is shown in every view — including search and labels — so a sent message always reads the right way round.
+
 ## 0.2.3 — 2026-07-14
 
 - Fixed a bug where a folder kept inside your Inbox could show up a second time as a stray copy outside the Inbox after reinstalling or updating. New syncs no longer create the duplicate, and any copy that already escaped is tidied back into the original folder automatically.
