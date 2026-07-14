@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "prepackage": "node scripts/clean-release.mjs",
     "package": "electron-vite build && electron-builder --publish never",
     "guides": "electron-vite build && node scripts/build-guides.mjs"
   },
