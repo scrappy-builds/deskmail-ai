@@ -13,7 +13,8 @@ describe('signature social block', () => {
 
     const { main, social } = splitSocial(body)
     expect(main).toBe('<p>Thanks,<br>Alex</p>')
-    expect(social).toContain('data:image/png;base64,') // PNG, not SVG (delivers everywhere)
+    expect(social).toContain('src="https://functional3duk.co.uk/email/icons/twitter.png"') // hosted, not embedded
+    expect(social).not.toContain('data:image') // never a data-URI or cid attachment
 
     const parsed = parseSocialRow(social)
     expect(parsed).toEqual(links)
@@ -25,14 +26,14 @@ describe('signature social block', () => {
     expect(social).toBe('')
   })
 
-  it('upgrades a legacy SVG social block to the PNG block, preserving the links', () => {
+  it('upgrades a legacy data-URI social block to the hosted block, preserving the links', () => {
     const legacy =
       '<p>Bye</p><!--deskmail-social-start--><div style="margin-top:10px">' +
       '<a data-platform="twitter" href="https://x.com/example" target="_blank" style="x"><img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" width="20"></a>' +
       '</div><!--deskmail-social-end-->'
     const upgraded = upgradeLegacySocial(legacy)
-    expect(upgraded).not.toContain('image/svg')
-    expect(upgraded).toContain('data:image/png;base64,')
+    expect(upgraded).not.toContain('data:image') // neither the old SVG nor PNG data-URI survives
+    expect(upgraded).toContain('src="https://functional3duk.co.uk/email/icons/twitter.png"')
     expect(parseSocialRow(upgraded)).toEqual([{ id: 'twitter', url: 'https://x.com/example' }])
   })
 })

@@ -1,6 +1,6 @@
 import nodemailer, { type SendMailOptions } from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer'
-import type { AccountRow, ComposePayload, SendResult } from '@shared/db'
+import { QUOTE_MARKER, type AccountRow, type ComposePayload, type SendResult } from '@shared/db'
 import type { DB } from '../../db/database'
 import { getCredential } from '../credentials'
 import { getDefaultSignature, getSignatureBody } from '../../db/signatures'
@@ -32,9 +32,15 @@ export function buildMail(o: BuildMailOpts): SendMailOptions {
   // most clients); upgrade to the PNG block before sending so old signatures work.
   const sig = o.signature ? upgradeLegacySocial(o.signature) : null
   const sigHtml = sig ? `<br><br>--<br>${signatureToHtml(sig)}` : ''
+  // On a reply/forward the draft carries QUOTE_MARKER between the new text and the
+  // quoted chain — drop the signature there so it sits under the reply, not the
+  // whole quote. New mail has no marker, so it lands at the end of the body.
+  const body = o.payload.bodyHtml.includes(QUOTE_MARKER)
+    ? o.payload.bodyHtml.replace(QUOTE_MARKER, sigHtml)
+    : `${o.payload.bodyHtml}${sigHtml}`
   // Convert every embedded data-URI image (signature icons + inline pastes) into a
   // cid: inline attachment so it renders in the recipient's client.
-  const { html, attachments: inlineImgs } = inlineDataImages(`${o.payload.bodyHtml}${sigHtml}`)
+  const { html, attachments: inlineImgs } = inlineDataImages(body)
   const fileAttachments = o.payload.attachments?.map((a) => ({ filename: a.name, path: a.path })) ?? []
   return {
     from: `"${o.fromName}" <${o.fromEmail}>`,

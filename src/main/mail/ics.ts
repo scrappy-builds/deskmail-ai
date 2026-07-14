@@ -1,5 +1,5 @@
 import type { InviteData } from '@shared/db'
-import { providerFromText } from '@shared/meetings'
+import { meetingJoinLink, providerFromText } from '@shared/meetings'
 import { resolveTzid, utcToLocalParts, zonedToUtc } from '@shared/tz'
 
 interface Prop {
@@ -119,6 +119,37 @@ export function parseIcs(ics: string): InviteData | null {
     tzUnknown: start.tzUnknown || undefined,
     uid,
     organiserEmail
+  }
+}
+
+// Fallback when no parseable .ics is present but the body carries a real
+// Teams/Meet/Zoom join link (common with Exchange invites that ship the calendar
+// as TNEF/winmail.dat, which we don't decode). Builds a bare invite so the user
+// still gets an "Add to calendar" card. The time is guessed from when the email
+// arrived — flagged so the card tells the user to check it.
+export function fallbackInviteFromBody(
+  body: string,
+  subject: string | null,
+  receivedAt: Date | null,
+  organiser: { name: string | null; email: string | null }
+): InviteData | null {
+  const join = meetingJoinLink(body)
+  if (!join) return null
+  const when = receivedAt ? utcToLocalParts(receivedAt) : null
+  return {
+    title: subject?.trim() || '(untitled meeting)',
+    date: when?.date ?? '',
+    start: when?.time ?? null,
+    end: null,
+    location: null,
+    organiser: organiser.name,
+    guests: [],
+    provider: join.provider,
+    joinUrl: join.url,
+    originalTime: null,
+    uid: null,
+    organiserEmail: organiser.email,
+    fallback: true
   }
 }
 

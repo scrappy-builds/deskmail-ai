@@ -29,11 +29,13 @@ export function InviteCard({ messageId, invite }: { messageId: number; invite: I
 
   // Cross-timezone invites show the sender's original time (or an honest note
   // when the invite's timezone couldn't be resolved).
-  const tzNote = invite.tzUnknown
-    ? "Shown as written — I couldn't work out the invite's timezone."
-    : invite.originalTime
-      ? `${invite.originalTime} where it was sent — shown in your time.`
-      : null
+  const tzNote = invite.fallback
+    ? 'Built from the meeting link in this email — check the date and time after adding.'
+    : invite.tzUnknown
+      ? "Shown as written — I couldn't work out the invite's timezone."
+      : invite.originalTime
+        ? `${invite.originalTime} where it was sent — shown in your time.`
+        : null
 
   const decide = async (status: 'accepted' | 'tentative' | 'declined'): Promise<void> => {
     setDecision(status)

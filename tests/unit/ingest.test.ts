@@ -90,6 +90,35 @@ describe('parse-and-ingest', () => {
     db2.close()
   })
 
+  it('builds a fallback invite from a Teams link when no .ics is attached', async () => {
+    const db = openDatabase(file); seedAccountAndFolder(db)
+    const teamsRaw = [
+      'From: Boss <boss@example.com>',
+      'To: me@example.com',
+      'Subject: Project sync',
+      'Date: Mon, 13 Jul 2026 10:00:00 +0000',
+      'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      '<p>Click here to join the meeting: <a href="https://teams.microsoft.com/l/meetup-join/19:abc/0">Join</a></p>',
+      ''
+    ].join('\r\n')
+    const id = await ingestRaw(db, { accountId: 1, folderId: 1, remoteUid: 7, isRead: false, isStarred: false }, teamsRaw)
+    const msg = getMessage(db, id)
+    expect(msg!.invite).not.toBeNull()
+    expect(msg!.invite!.provider).toBe('teams')
+    expect(msg!.invite!.fallback).toBe(true)
+    expect(msg!.invite!.joinUrl).toBe('https://teams.microsoft.com/l/meetup-join/19:abc/0')
+    db.close()
+  })
+
+  it('does not invent an invite for an ordinary email', async () => {
+    const db = openDatabase(file); seedAccountAndFolder(db)
+    const id = await ingestRaw(db, { accountId: 1, folderId: 1, remoteUid: 8, isRead: false, isStarred: false }, RAW)
+    expect(getMessage(db, id)!.invite).toBeNull()
+    db.close()
+  })
+
   it('re-ingesting the same uid does not duplicate', async () => {
     const db = openDatabase(file); seedAccountAndFolder(db)
     const meta = { accountId: 1, folderId: 1, remoteUid: 42, isRead: false, isStarred: false }

@@ -1,4 +1,4 @@
-import type { ComposePayload, MessageDetail } from '@shared/db'
+import { QUOTE_MARKER, type ComposePayload, type MessageDetail } from '@shared/db'
 
 export type ReplyKind = 'reply' | 'replyAll' | 'forward'
 
@@ -50,7 +50,7 @@ export function buildReplyDraft(m: MessageDetail, kind: ReplyKind, selfEmail?: s
       cc: [],
       bcc: [],
       subject: `Fwd: ${bare}`,
-      bodyHtml: `<p></p>${header}${quotedOriginal(m)}`,
+      bodyHtml: `<p></p>${QUOTE_MARKER}${header}${quotedOriginal(m)}`,
       inReplyToMessageId: m.id
     }
   }
@@ -63,7 +63,7 @@ export function buildReplyDraft(m: MessageDetail, kind: ReplyKind, selfEmail?: s
     cc,
     bcc: [],
     subject: `Re: ${bare}`,
-    bodyHtml: `<p></p>${quotedOriginal(m)}`,
+    bodyHtml: `<p></p>${QUOTE_MARKER}${quotedOriginal(m)}`,
     inReplyToMessageId: m.id
   }
 }

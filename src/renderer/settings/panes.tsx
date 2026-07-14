@@ -420,7 +420,7 @@ function RichSignatureEditor({ initial, onSave, onCancel }: { initial: { name: s
           )}
 
           <div className="rounded-md border border-border bg-bg p-3">
-            <div className="mb-1 text-[12px] font-semibold text-text-2">Social icons (sent as attached images, so they display in the recipient's mail)</div>
+            <div className="mb-1 text-[12px] font-semibold text-text-2">Social icons (hosted images, so they display inline without showing as attachments)</div>
             <div className="mb-2 text-[11.5px] text-text-3">Tick the platforms you want and paste each link. Use the arrows to set the order they appear in — they sit in a horizontal row at the foot of the signature.</div>
             <div className="flex flex-col gap-1.5">
               {order.map((id, i) => {

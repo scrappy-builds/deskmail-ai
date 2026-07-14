@@ -2,7 +2,7 @@ import { simpleParser, type AddressObject } from 'mailparser'
 import type { MessageInsert } from '@shared/db'
 import { addAttachment, upsertMessage } from '../../db/messages'
 import { upsertContact } from '../../db/contacts'
-import { parseIcs } from './ics'
+import { fallbackInviteFromBody, parseIcs } from './ics'
 import type { DB } from '../../db/database'
 
 export interface IngestMeta {
@@ -66,6 +66,18 @@ export async function ingestRaw(db: DB, meta: IngestMeta, raw: Buffer | string):
   )
   if (cal?.content) {
     const invite = parseIcs(cal.content.toString('utf-8'))
+    if (invite) inviteJson = JSON.stringify(invite)
+  }
+  // No parseable .ics, but the body may still carry a real Teams/Meet/Zoom join
+  // link (Exchange often ships the calendar as TNEF we don't decode) — offer an
+  // "Add to calendar" card built from the link + subject + arrival time.
+  if (!inviteJson) {
+    const invite = fallbackInviteFromBody(
+      `${parsed.text ?? ''}\n${insert.bodyHtml ?? ''}`,
+      insert.subject,
+      parsed.date ?? null,
+      { name: from?.name || null, email: from?.address || null }
+    )
     if (invite) inviteJson = JSON.stringify(invite)
   }
 

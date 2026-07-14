@@ -34,3 +34,27 @@ export function providerFromText(text: string): MeetingProvider {
   if (t.startsWith('http')) return 'custom'
   return 'inperson'
 }
+
+// Strong, specific join-link patterns for the three video providers. Deliberately
+// stricter than providerFromText's domain check: these match an *actual* meeting
+// join URL, not a mention of the product — so scanning an email body for one
+// won't fire on newsletters that merely say "we use Teams".
+// URL body char class: stop at whitespace and the HTML/quote delimiters that
+// wrap a link in an email body, so we don't swallow `">join</a>` etc.
+const U = `[^\\s"'<>]`
+const JOIN_LINK = [
+  { provider: 'teams' as const, re: new RegExp(`https://teams\\.(?:microsoft|live)\\.com/l/meetup-join/${U}+|https://teams\\.live\\.com/meet/${U}+`, 'i') },
+  { provider: 'meet' as const, re: new RegExp(`https://meet\\.google\\.com/[a-z-]{3,}${U}*`, 'i') },
+  { provider: 'zoom' as const, re: new RegExp(`https://[\\w.-]*zoom\\.us/(?:j|my|w|wc)/${U}+`, 'i') }
+]
+
+// Find the first real video-meeting join link in a blob of text (e.g. an email
+// body), returning the link and its provider. Trailing HTML/quote punctuation is
+// trimmed off the match. Null when there's no genuine join link.
+export function meetingJoinLink(text: string): { url: string; provider: MeetingProvider } | null {
+  for (const { provider, re } of JOIN_LINK) {
+    const m = re.exec(text)
+    if (m) return { url: m[0].replace(/["'<>)\]}]+$/, ''), provider }
+  }
+  return null
+}

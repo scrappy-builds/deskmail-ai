@@ -40,7 +40,12 @@ win:
 nsis:
   oneClick: false
   perMachine: false
-  allowToChangeInstallationDirectory: true
+  # Deliberately NOT allowToChangeInstallationDirectory: with it on, electron-builder
+  # forces isTryToKeepShortcuts=false on any manual (non --updated) reinstall, so the
+  # installer both recreates the Start/desktop shortcut and lets the old uninstaller
+  # delete it — and Windows drops the *pin* whenever the shortcut file is removed.
+  # A fixed install path keeps the existing shortcut (and its pin) in place across
+  # reinstalls. Single-user personal app: nobody needs a custom install dir.
   artifactName: ${productName}-${version}-setup.${ext}
   # Adds the ticked-by-default "Set DeskMail as my default email app" checkbox
   # to the installer's finish page (see build/installer.nsh).

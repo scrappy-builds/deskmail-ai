@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildInviteIcs, escapeIcsText, parseIcs } from '../../src/main/mail/ics'
+import { buildInviteIcs, escapeIcsText, fallbackInviteFromBody, parseIcs } from '../../src/main/mail/ics'
+import { meetingJoinLink } from '../../src/shared/meetings'
 import { utcToLocalParts, zonedToUtc } from '../../src/shared/tz'
 
 const BASE = {
@@ -55,6 +56,41 @@ describe('building outgoing invites', () => {
     const ics = buildInviteIcs({ ...BASE, start: null, end: null, method: 'REQUEST' })
     expect(ics).toContain('DTSTART;VALUE=DATE:20260720')
     expect(ics).not.toContain('DTEND')
+  })
+
+  it('detects only real Teams/Meet/Zoom join links, not mere mentions', () => {
+    expect(meetingJoinLink('Join https://teams.microsoft.com/l/meetup-join/19%3aabc/0?context=x here')).toEqual({
+      provider: 'teams',
+      url: 'https://teams.microsoft.com/l/meetup-join/19%3aabc/0?context=x'
+    })
+    expect(meetingJoinLink('link: https://meet.google.com/abc-defg-hij')?.provider).toBe('meet')
+    expect(meetingJoinLink('https://us02web.zoom.us/j/8412345678?pwd=xyz')?.provider).toBe('zoom')
+    // A newsletter that merely name-drops Teams (no join URL) must not match.
+    expect(meetingJoinLink('We now use Microsoft Teams for standups.')).toBeNull()
+    expect(meetingJoinLink('Read more at https://teams.microsoft.com/downloads')).toBeNull()
+  })
+
+  it('trims trailing HTML punctuation off a matched join link', () => {
+    const m = meetingJoinLink('<a href="https://teams.microsoft.com/l/meetup-join/19:abc">join</a>')
+    expect(m?.url).toBe('https://teams.microsoft.com/l/meetup-join/19:abc')
+  })
+
+  it('builds a fallback invite from a body link when there is no .ics', () => {
+    const when = new Date('2026-07-13T10:00:00Z')
+    const inv = fallbackInviteFromBody(
+      '<p>Join the meeting https://teams.microsoft.com/l/meetup-join/19:abc/0</p>',
+      'Project sync',
+      when,
+      { name: 'Boss', email: 'boss@example.com' }
+    )!
+    expect(inv.title).toBe('Project sync')
+    expect(inv.provider).toBe('teams')
+    expect(inv.joinUrl).toBe('https://teams.microsoft.com/l/meetup-join/19:abc/0')
+    expect(inv.organiserEmail).toBe('boss@example.com')
+    expect(inv.fallback).toBe(true)
+    // Date/time seeded from arrival (local), so the card can flag it as a guess.
+    expect(inv.date).toBe(utcToLocalParts(when).date)
+    expect(fallbackInviteFromBody('no links here', 'x', when, { name: null, email: null })).toBeNull()
   })
 
   it('sanity: local→UTC→local round-trip used by the builder is stable', () => {

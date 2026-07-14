@@ -254,6 +254,10 @@ export interface InviteData {
   // Accept/Decline REPLY can reference the right event and reach the sender.
   uid?: string | null
   organiserEmail?: string | null
+  // Built from a join link in the body because no (parseable) .ics was found —
+  // e.g. Teams/Exchange invites that arrive as TNEF. The date/time is guessed
+  // from when the email arrived, so the card tells the user to check it.
+  fallback?: boolean
 }
 
 // --- Stage 8 added features ----------------------------------------------------
@@ -352,6 +356,11 @@ export interface ComposeAttachment {
 }
 
 // Compose payload used for saving a draft and for sending.
+// Marker a reply/forward draft drops between the user's new text and the quoted
+// original, so buildMail can slot the signature above the quote rather than below
+// the whole chain. Stripped at send time; harmless if it survives into an editor.
+export const QUOTE_MARKER = '<!--deskmail-quote-->'
+
 export interface ComposePayload {
   draftId?: number | null
   accountId: number
