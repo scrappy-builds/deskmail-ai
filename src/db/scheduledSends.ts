@@ -38,7 +38,9 @@ function toScheduled(db: DB, r: Row): ScheduledSend {
     nextAttemptAt: r.next_attempt_at ?? null,
     lastError: r.last_error ?? null,
     subject: draft?.subject ?? null,
-    to: draft?.to ?? []
+    to: draft?.to ?? [],
+    cc: draft?.cc ?? [],
+    bodyHtml: draft?.bodyHtml ?? null
   }
 }
 

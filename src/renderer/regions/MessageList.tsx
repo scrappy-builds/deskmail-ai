@@ -175,6 +175,9 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
   // views stay correct too.
   const roleByFolder = useMemo(() => new Map(folders.map((f) => [f.id, f.role])), [folders])
   const isOutgoing = (m: MessageListItem): boolean => m.folderId != null && roleByFolder.get(m.folderId) === 'sent'
+  // Viewing the Sent folder itself → the sender column heads "To" (it's the useful
+  // field there). Mixed views (search/labels/unified) keep "From".
+  const activeIsSent = activeFolderId != null && roleByFolder.get(activeFolderId) === 'sent'
   const inInbox = activeUnified || folders.find((f) => f.id === activeFolderId)?.role === 'inbox'
   const focusTabsOn = focusedEnabled && inInbox && !searching
   const threading = useMail((s) => s.threading)
@@ -378,7 +381,7 @@ export function MessageList({ rowPaddingY, previewLineCount, showSnippet, showAv
             <thead className="sticky top-0 z-[1] bg-panel">
               <tr className="border-b border-border text-left text-[11px] uppercase tracking-[.4px] text-text-3">
                 <th className="w-7" />
-                {([['From', 'sender'], ['Subject', 'subject'], ['Date', 'date']] as [string, SortField][]).map(([label, field]) => (
+                {([[activeIsSent ? 'To' : 'From', 'sender'], ['Subject', 'subject'], ['Date', 'date']] as [string, SortField][]).map(([label, field]) => (
                   <th
                     key={field}
                     onClick={() => setSortAndSave({ field, dir: sort.field === field && sort.dir === 'desc' ? 'asc' : 'desc' })}

@@ -71,8 +71,17 @@ function toSummary(r: DraftRow): DraftSummary {
   }
 }
 
+// Drafts for the Drafts view — excluding any that are currently queued to send
+// (they show in the Outbox instead, not both). A queued draft's row is deleted
+// once it sends or is cancelled, so only genuinely-still-drafts remain here.
 export function listDrafts(db: DB): DraftSummary[] {
-  const rows = db.all('SELECT * FROM drafts ORDER BY updated_at DESC, id DESC') as unknown as DraftRow[]
+  const rows = db.all(
+    `SELECT * FROM drafts
+       WHERE id NOT IN (
+         SELECT draft_id FROM scheduled_sends WHERE draft_id IS NOT NULL AND status IN ('scheduled','error')
+       )
+     ORDER BY updated_at DESC, id DESC`
+  ) as unknown as DraftRow[]
   return rows.map(toSummary)
 }
 

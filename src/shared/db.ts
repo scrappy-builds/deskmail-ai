@@ -288,6 +288,8 @@ export interface ScheduledSend {
   lastError: string | null
   subject: string | null
   to: string[]
+  cc: string[]
+  bodyHtml: string | null // the backing draft's body, for the Outbox preview
 }
 
 export type SnoozeOption = 'later' | 'tomorrow' | 'weekend' | 'nextweek'

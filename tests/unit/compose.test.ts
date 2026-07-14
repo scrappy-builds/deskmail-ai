@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { openDatabase, type DB } from '../../src/db/database'
 import { getDraft, listDrafts, saveDraft } from '../../src/db/drafts'
+import { cancelScheduled, listScheduled, scheduleSend } from '../../src/db/scheduledSends'
 import { ensureDefaultSignature, getDefaultSignature } from '../../src/db/signatures'
 import { buildMail } from '../../src/main/mail/send'
 import type { ComposePayload } from '../../src/shared/db'
@@ -102,6 +103,26 @@ describe('drafts + signatures', () => {
     saveDraft(db, { ...PAYLOAD, draftId: id, subject: 'Hello (edited)' })
     expect(listDrafts(db)).toHaveLength(1)
     expect(getDraft(db, id)!.subject).toBe('Hello (edited)')
+  })
+
+  // A "Send later" message lives as a draft + a scheduled_sends row. It belongs in
+  // the Outbox, not both places — so it must drop out of the Drafts list while
+  // queued, and come back if the send is cancelled.
+  it('hides a queued draft from the Drafts list, but keeps it in the Outbox', () => {
+    saveDraft(db, { ...PAYLOAD, subject: 'A real draft' })
+    const { id } = scheduleSend(db, { ...PAYLOAD, subject: 'Queued to send' }, new Date(Date.now() + 3600_000).toISOString())
+
+    // Drafts shows only the genuine draft; the Outbox carries the queued one with body.
+    expect(listDrafts(db).map((d) => d.subject)).toEqual(['A real draft'])
+    const outbox = listScheduled(db)
+    expect(outbox).toHaveLength(1)
+    expect(outbox[0].subject).toBe('Queued to send')
+    expect(outbox[0].bodyHtml).toContain('parts are ready')
+
+    // Cancelling deletes the backing draft, so neither view keeps it.
+    cancelScheduled(db, id)
+    expect(listDrafts(db).map((d) => d.subject)).toEqual(['A real draft'])
+    expect(listScheduled(db)).toHaveLength(0)
   })
 
   it('creates a default signature once per account', () => {

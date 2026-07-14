@@ -2,6 +2,12 @@
 
 A short record of what's changed in each released version of DeskMail AI, newest first.
 
+## 0.2.5 — 2026-07-14
+
+- Drafts and the Outbox now open like any other folder — a list of messages on the left and a preview on the right — instead of a single centred column of cards. Pick a draft to preview it and Edit or Delete it (double-click to open it for editing); the Outbox shows each queued message with its recipients, body and where it is in the send queue.
+- A message you've scheduled with "Send later" now shows only in the Outbox, not in both Drafts and the Outbox.
+- In the compact table view, the sender column now reads "To" when you're looking at the Sent folder.
+
 ## 0.2.4 — 2026-07-14
 
 - Sent items now show who you sent the message to, instead of always showing your own address. The recipient is shown in every view — including search and labels — so a sent message always reads the right way round.

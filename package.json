@@ -1,6 +1,6 @@
 {
   "name": "deskmail-ai",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Local single-user desktop email client with a safe Claude MCP connector.",
   "author": "DeskMail AI",
   "license": "Apache-2.0",
