@@ -2,6 +2,13 @@
 
 A short record of what's changed in each released version of DeskMail AI, newest first.
 
+## 0.2.1 — 2026-07-14
+
+- When you reply or forward, your signature now sits directly under your message instead of below the whole quoted conversation.
+- Reinstalling or updating no longer removes your pinned Start-menu or taskbar shortcut.
+- Signature social icons now load from hosted images, so they display inline without showing up as attachments in the recipient's mail.
+- Accepting a meeting invite that arrives without a standard calendar file (some Microsoft Teams invites) now works: DeskMail spots the join link in the email and offers to add it to your calendar.
+
 ## 0.2.0 — 2026-07-13
 
 - Your signature is no longer typed over by a long message — it stays at the bottom and the compose window scrolls, and attachments can't overlap it.
