@@ -15,6 +15,9 @@ files:
   - out/**/*
   - node_modules/**/*
   - package.json
+  # Tray/window icon is loaded at runtime from build/icon.png — without this the
+  # packaged app finds nothing and the tray icon renders blank.
+  - build/icon.png
   - '!**/*.{map,md,ts}'
   - '!**/{test,tests,__tests__,example,examples,.github}/**'
 
