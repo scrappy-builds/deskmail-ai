@@ -199,16 +199,26 @@ function fmtSize(bytes: number | null): string {
 
 // One attachment: Open (default app), Save (native dialog), and — for images —
 // an on-demand inline Preview that only fetches the data URL when asked.
+// A single click deliberately does nothing: the first open has to download the
+// message from IMAP, and stray clicks used to queue another download each time.
+// Open is double-click, the Open button, or the right-click menu.
 function AttachmentCard({ messageId, att }: { messageId: number; att: AttachmentInfo }): JSX.Element {
   const showToast = useToast((s) => s.show)
   const isImage = !!att.mimeType?.startsWith('image/')
   const [preview, setPreview] = useState<string | null>(null)
   const [showing, setShowing] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
 
   const open = (): void => {
-    void window.deskmail.attachments.open(messageId, att.id).then((r) => {
-      if (!r.ok) showToast({ text: r.error ?? "Couldn't open the attachment" })
-    })
+    if (busy) return
+    setBusy(true)
+    void window.deskmail.attachments
+      .open(messageId, att.id)
+      .then((r) => {
+        if (!r.ok) showToast({ text: r.error ?? "Couldn't open the attachment" })
+      })
+      .finally(() => setBusy(false))
   }
   const save = (): void => {
     void window.deskmail.attachments.save(messageId, att.id).then((r) => {
@@ -229,29 +239,74 @@ function AttachmentCard({ messageId, att }: { messageId: number; att: Attachment
     })
   }
 
+  // Close the right-click menu on outside click or Escape.
+  useEffect(() => {
+    if (!menu) return
+    const off = (): void => setMenu(null)
+    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setMenu(null) }
+    document.addEventListener('mousedown', off)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', off)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
+
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2.5 rounded-md border border-border bg-bg px-3 py-2">
-        <button onClick={open} title="Open attachment" className="flex min-w-0 items-center gap-2.5 text-left hover:opacity-80">
+      <div
+        onDoubleClick={open}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setMenu({ x: Math.min(e.clientX, window.innerWidth - 170), y: Math.min(e.clientY, window.innerHeight - 110) })
+        }}
+        title="Double-click to open · right-click for options"
+        className="flex items-center gap-2.5 rounded-md border border-border bg-bg px-3 py-2 select-none"
+      >
+        <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-8 w-8 flex-none items-center justify-center rounded-sm bg-accent text-[8px] font-extrabold uppercase text-white">
             {(att.filename?.split('.').pop() ?? 'file').slice(0, 4)}
           </div>
           <div className="min-w-0">
             <div className="max-w-[180px] truncate text-[12.5px] font-semibold">{att.filename ?? 'attachment'}</div>
-            <div className="text-[10.5px] text-text-3">{fmtSize(att.size)}</div>
+            <div className="text-[10.5px] text-text-3">{busy ? 'Opening…' : fmtSize(att.size)}</div>
           </div>
-        </button>
+        </div>
         <div className="flex flex-none items-center gap-0.5 border-l border-border pl-1.5 text-[11.5px] font-semibold">
           {isImage && (
             <button onClick={togglePreview} title="Preview" className="rounded-sm px-1.5 py-1 text-text-3 hover:text-accent">
               {showing ? 'Hide' : 'Preview'}
             </button>
           )}
+          <button onClick={open} disabled={busy} title="Open in the default app" className="rounded-sm px-1.5 py-1 text-text-3 hover:text-accent disabled:opacity-40">
+            {busy ? 'Opening…' : 'Open'}
+          </button>
           <button onClick={save} title="Save" className="rounded-sm px-1.5 py-1 text-text-3 hover:text-accent">
             Save
           </button>
         </div>
       </div>
+
+      {menu && (
+        <div
+          className="fixed z-50 w-[160px] rounded-lg border border-border-2 bg-panel p-1.5 shadow-raised"
+          style={{ left: menu.x, top: menu.y }}
+          onMouseDown={(e) => e.stopPropagation()} // don't let the outside-click handler close us first
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button onClick={() => { setMenu(null); open() }} disabled={busy} className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 enabled:hover:bg-[var(--accent-soft)] enabled:hover:text-accent disabled:opacity-35">
+            Open
+          </button>
+          {isImage && (
+            <button onClick={() => { setMenu(null); togglePreview() }} className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+              {showing ? 'Hide preview' : 'Preview'}
+            </button>
+          )}
+          <button onClick={() => { setMenu(null); save() }} className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-[12.5px] font-semibold text-text-2 hover:bg-[var(--accent-soft)] hover:text-accent">
+            Save as…
+          </button>
+        </div>
+      )}
       {isImage && showing && preview && (
         <img src={preview} alt={att.filename ?? 'attachment'} className="rounded-md border border-border" style={{ maxWidth: '100%' }} />
       )}

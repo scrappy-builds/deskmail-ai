@@ -114,9 +114,14 @@ export const useMail = create<MailState>((set, get) => ({
     const smartViews = await window.deskmail.smartViews.list()
     const labelId = get().activeLabelId
     const smartId = get().activeSmartViewId
+    const query = get().searchQuery.trim()
     let active = get().activeFolderId
     let messages: MessageListItem[]
-    if (get().activeUnified) {
+    if (query) {
+      // Search results are the current view — a background sync must not swap
+      // them out for the folder listing under the user.
+      messages = await window.deskmail.mail.search(query)
+    } else if (get().activeUnified) {
       messages = await window.deskmail.mail.listUnified()
     } else if (smartId != null) {
       messages = await window.deskmail.smartViews.run(smartId)
@@ -128,9 +133,14 @@ export const useMail = create<MailState>((set, get) => ({
     }
     set({ accounts, folders, labels, smartViews, messages, activeFolderId: active })
 
-    // Refresh the open message if it's still around.
+    // Refresh the open message if it's still around. A message that has left the
+    // current view (deleted, moved, archived, snoozed) must not linger in the
+    // reading pane — the pane and the list always agree.
     const sel = get().selectedId
-    if (sel != null) set({ selected: await window.deskmail.mail.getMessage(sel) })
+    if (sel != null) {
+      const detail = messages.some((m) => m.id === sel) ? await window.deskmail.mail.getMessage(sel) : null
+      set(detail ? { selected: detail } : { selectedId: null, selected: null })
+    }
   },
 
   setFolder: async (id) => {

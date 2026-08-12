@@ -32,6 +32,8 @@ test('archiving a message removes it from the inbox and stars persist', async ()
     await win.getByRole('button', { name: 'Archive' }).first().click()
     await expect(rows).toHaveCount(6)
     await expect(win.getByTestId('msg-row-4')).toHaveCount(0)
+    // The message left the view, so the reading pane must let go of it too.
+    await expect(win.getByText('Nothing selected')).toBeVisible()
 
     // Flag another one; it moves to the DB and reflects in the store (isStarred).
     await win.getByTestId('msg-row-5').click()

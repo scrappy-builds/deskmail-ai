@@ -1044,30 +1044,37 @@ function registerIpc(): void {
 
   // --- Attachments + NotebookLM export ----------------------------------------
   const attachDir = (messageId: number) => join(app.getPath('userData'), 'attachments', String(messageId))
-  ipcMain.handle('attachments:open', async (_e, messageId: number, attachmentId: number) => {
-    // Use the already-downloaded copy, or fetch from IMAP first.
+  // A download pulls the whole message from IMAP and re-parses it — slow, and one
+  // message's attachments all arrive together. Share the in-flight fetch so repeat
+  // clicks (or a second window) join it instead of queueing another round-trip.
+  const downloading = new Map<number, Promise<void>>()
+  const downloadOnce = (messageId: number): Promise<void> => {
+    let p = downloading.get(messageId)
+    if (!p) {
+      p = fetchAndSaveAttachments(db, messageId, attachDir(messageId))
+        .then(() => { sweepAttachments() }) // keep the cache under its cap after each download
+        .finally(() => downloading.delete(messageId))
+      downloading.set(messageId, p)
+    }
+    return p
+  }
+  // Download (if needed) and return the fresh row with an on-disk copy, or null.
+  const ensureAttachment = async (messageId: number, attachmentId: number) => {
     let row = listAttachmentRows(db, messageId).find((r) => r.id === attachmentId)
     if (!row?.local_path || !existsSync(row.local_path)) {
-      await fetchAndSaveAttachments(db, messageId, attachDir(messageId))
+      await downloadOnce(messageId)
       row = listAttachmentRows(db, messageId).find((r) => r.id === attachmentId)
-      sweepAttachments() // keep the cache under its cap after each download
     }
-    if (!row?.local_path || !existsSync(row.local_path)) {
+    return row?.local_path && existsSync(row.local_path) ? row : null
+  }
+  ipcMain.handle('attachments:open', async (_e, messageId: number, attachmentId: number) => {
+    const row = await ensureAttachment(messageId, attachmentId)
+    if (!row?.local_path) {
       return { ok: false, error: "I couldn't download that attachment — the account may be offline." }
     }
     const err = await shell.openPath(row.local_path) // opens with the OS default app (explicit user action)
     return err ? { ok: false, error: err } : { ok: true }
   })
-  // Download (if needed) and return the fresh row with an on-disk copy, or null.
-  const ensureAttachment = async (messageId: number, attachmentId: number) => {
-    let row = listAttachmentRows(db, messageId).find((r) => r.id === attachmentId)
-    if (!row?.local_path || !existsSync(row.local_path)) {
-      await fetchAndSaveAttachments(db, messageId, attachDir(messageId))
-      row = listAttachmentRows(db, messageId).find((r) => r.id === attachmentId)
-      sweepAttachments() // keep the cache under its cap after each download
-    }
-    return row?.local_path && existsSync(row.local_path) ? row : null
-  }
   ipcMain.handle('attachments:save', async (e, messageId: number, attachmentId: number) => {
     const row = await ensureAttachment(messageId, attachmentId)
     if (!row?.local_path) return { ok: false, error: "I couldn't download that attachment — the account may be offline." }
@@ -1082,8 +1089,7 @@ function registerIpc(): void {
     }
   })
   ipcMain.handle('attachments:save-all', async (e, messageId: number) => {
-    await fetchAndSaveAttachments(db, messageId, attachDir(messageId))
-    sweepAttachments()
+    await downloadOnce(messageId)
     const rows = listAttachmentRows(db, messageId).filter((r) => r.local_path && existsSync(r.local_path))
     if (rows.length === 0) return { ok: false, count: 0, error: "I couldn't download those attachments — the account may be offline." }
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
@@ -1125,7 +1131,7 @@ function registerIpc(): void {
   ipcMain.handle('attachments:browse', (_e, query?: string, offset?: number) => listAllAttachments(db, { query, offset }))
 
   ipcMain.handle('notebooklm:export', async (_e, messageId: number, includeAttachments: boolean) => {
-    if (includeAttachments) await fetchAndSaveAttachments(db, messageId, attachDir(messageId))
+    if (includeAttachments) await downloadOnce(messageId)
     return exportForNotebookLM(db, messageId, app.getPath('userData'), includeAttachments)
   })
 

@@ -29,9 +29,18 @@ export function AttachmentsBrowser({ onClose }: { onClose: () => void }): JSX.El
     return () => clearTimeout(t)
   }, [query, offset])
 
+  // The first open downloads the message from IMAP, which is slow — ignore repeat
+  // clicks while one is in flight so it can't open the file several times over.
+  const [opening, setOpening] = useState<number | null>(null)
   const open = async (it: AttachmentBrowserItem): Promise<void> => {
-    const r = await window.deskmail.attachments.open(it.messageId, it.attachmentId)
-    if (!r.ok) showToast({ text: r.error ?? "Couldn't open the attachment" })
+    if (opening != null) return
+    setOpening(it.attachmentId)
+    try {
+      const r = await window.deskmail.attachments.open(it.messageId, it.attachmentId)
+      if (!r.ok) showToast({ text: r.error ?? "Couldn't open the attachment" })
+    } finally {
+      setOpening(null)
+    }
   }
 
   return (
@@ -74,7 +83,9 @@ export function AttachmentsBrowser({ onClose }: { onClose: () => void }): JSX.El
                       {it.size ? ` · ${fmtSize(it.size)}` : ''}
                     </div>
                   </div>
-                  <button onClick={() => void open(it)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-accent hover:underline">Open</button>
+                  <button onClick={() => void open(it)} disabled={opening != null} className="rounded-md px-2 py-1 text-[12px] font-semibold text-accent hover:underline disabled:opacity-40">
+                    {opening === it.attachmentId ? 'Opening…' : 'Open'}
+                  </button>
                   <button onClick={() => window.deskmail.openMessage(it.messageId)} className="rounded-md px-2 py-1 text-[12px] font-semibold text-text-2 hover:underline">
                     Show message
                   </button>
