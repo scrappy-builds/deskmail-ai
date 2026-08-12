@@ -2,6 +2,14 @@
 
 A short record of what's changed in each released version of DeskMail AI, newest first.
 
+## 0.2.6 — 2026-08-12
+
+- Fixed the preview pane holding on to a message after you deleted or moved it. Deleting or moving the open message now empties the preview straight away, instead of leaving it on screen until you clicked another message. (Because closing the window can hide DeskMail to the tray rather than quit it, the stale preview could still be there the next time you opened the app — that's gone too.)
+- Search results now stay put while you're reading them. A background check for new mail no longer swaps them back to the folder you were in.
+- Attachments no longer open on a single click. Double-click one to open it, or right-click for Open, Preview and "Save as…" — there's also an Open button on the card. The first open has to download the message from your mail server, so the card now says "Opening…" and ignores further clicks until it's done.
+- Attachments open faster when you click more than once. Every extra click used to start another full download of the message and queue up behind the last one; repeat clicks now wait on the one download already running. Once an attachment is downloaded, opening it is instant.
+- The system tray icon now appears (it was missing from the installed app).
+
 ## 0.2.5 — 2026-07-14
 
 - Drafts and the Outbox now open like any other folder — a list of messages on the left and a preview on the right — instead of a single centred column of cards. Pick a draft to preview it and Edit or Delete it (double-click to open it for editing); the Outbox shows each queued message with its recipients, body and where it is in the send queue.
